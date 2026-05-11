@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}マニュアル一覧 – Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 fw-bold mb-0" style="color:var(--tk-primary-dark);">📖 マニュアル一覧</h1>
+    {% if user.is_staff or user.is_superuser %}
+        <a href="{% url 'manual_create' %}" class="btn btn-primary btn-sm">＋ マニュアル登録</a>
+    {% endif %}
+</div>
+
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+{% if manuals %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+        {% for manual in manuals %}
+        <div class="col">
+            <div class="card h-100 shadow-sm" style="border-radius:1rem; border-color:var(--tk-border);">
+                <!-- PDF サムネイル（canvas に描画） -->
+                <div class="manual-thumb-wrap" style="
+                    background: var(--tk-surface-warm);
+                    border-radius: 1rem 1rem 0 0;
+                    overflow: hidden;
+                    aspect-ratio: 16/9;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                " onclick="location.href='{% url 'manual_detail' manual.pk %}'">
+                    <canvas class="pdf-thumb"
+                            data-pdf-url="{{ manual.pdf_file.url }}"
+                            style="max-width:100%; max-height:100%;"></canvas>
+                    <div class="pdf-thumb-placeholder text-center text-muted"
+                         style="display:none; padding:1rem;">
+                        <div style="font-size:3rem;">📄</div>
+                        <div class="small">PDF</div>
+                    </div>
+                </div>
+
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title fw-bold" style="color:var(--tk-text);">
+                        <a href="{% url 'manual_detail' manual.pk %}"
+                           class="text-decoration-none stretched-link"
+                           style="color:inherit;">{{ manual.title }}</a>
+                    </h5>
+                    {% if manual.description %}
+                        <p class="card-text small text-muted flex-grow-1">{{ manual.description|truncatechars:80 }}</p>
+                    {% endif %}
+                    {% if not manual.is_published %}
+                        <span class="badge bg-secondary mt-auto align-self-start">非公開</span>
+                    {% endif %}
+                </div>
+
+                {% if user.is_staff or user.is_superuser %}
+                <div class="card-footer d-flex gap-2 justify-content-end"
+                     style="background:var(--tk-surface-warm); border-top-color:var(--tk-border); border-radius:0 0 1rem 1rem;">
+                    <a href="{% url 'manual_edit' manual.pk %}" class="btn btn-outline-primary btn-xs py-0 px-2" style="font-size:.8rem;">編集</a>
+                    <form method="post" action="{% url 'manual_delete' manual.pk %}"
+                          onsubmit="return confirm('「{{ manual.title }}」を削除しますか？');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-xs py-0 px-2" style="font-size:.8rem;">削除</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="home-panel p-5 text-center">
+        <div style="font-size:3.5rem;">📭</div>
+        <p class="mt-3 text-muted">マニュアルはまだ登録されていません。</p>
+    </div>
+{% endif %}
+
+<!-- PDF.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs" type="module"></script>
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+
+document.querySelectorAll('.pdf-thumb').forEach(async (canvas) => {
+    const url = canvas.dataset.pdfUrl;
+    const placeholder = canvas.nextElementSibling;
+    try {
+        const pdf = await pdfjsLib.getDocument(url).promise;
+        const page = await pdf.getPage(1);
+        const vp = page.getViewport({ scale: 1 });
+        const wrapW = canvas.closest('.manual-thumb-wrap').clientWidth || 400;
+        const scale = wrapW / vp.width;
+        const viewport = page.getViewport({ scale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    } catch (e) {
+        canvas.style.display = 'none';
+        placeholder.style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

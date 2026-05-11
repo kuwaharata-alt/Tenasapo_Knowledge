@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load article_extras %}
+
+{% block title %}FAQ | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="home-panel p-4 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1 fw-bold">FAQ</h1>
+        </div>
+        {% if user.is_staff or user.is_superuser %}
+            <a class="btn btn-primary" href="{% url 'article_create' %}">FAQ登録</a>
+        {% endif %}
+    </div>
+
+    <form class="row gy-2 gx-2 align-items-end" method="get">
+        {% if selected_parent_category %}
+            <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
+        {% endif %}
+        {% if selected_category %}
+            <input type="hidden" name="category" value="{{ selected_category }}">
+        {% endif %}
+        <div class="col-12 col-md-7">
+            <label class="form-label" for="q">検索</label>
+            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="質問で検索">
+        </div>
+        <div class="col-12 col-md-auto">
+            <button class="btn btn-primary" type="submit">絞り込み</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-4 align-items-start">
+    <aside class="col-12 col-lg-2">
+        <div class="category-sidebar">
+            <div class="category-sidebar-title">カテゴリ</div>
+            <div class="list-group list-group-flush">
+                <a
+                    class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
+                    href="?q={{ query|urlencode }}"
+                >
+                    すべて
+                </a>
+                {% for parent_category in parent_categories %}
+                    <a
+                        class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
+                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}"
+                        aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
+                        aria-controls="categoryChildren{{ forloop.counter }}"
+                    >
+                        {{ parent_category.name }}
+                    </a>
+                    <div
+                        class="collapse {% if selected_parent_category == parent_category.name %}show{% endif %}"
+                        id="categoryChildren{{ forloop.counter }}"
+                    >
+                        <div class="category-child-list">
+                            {% for child_category in parent_category.children %}
+                                <a
+                                    class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                    href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                >
+                                    {{ child_category.name }}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <section class="col-12 col-lg-10">
+        {% if grouped_articles %}
+            <div class="faq-group-list">
+                {% for group in grouped_articles %}
+                    <section class="faq-group">
+                        <h2 class="faq-group-title">{{ group.parent_name }}</h2>
+                        <div class="accordion shadow-sm" id="faqAccordion{{ forloop.counter }}">
+                            {% for article in group.articles %}
+                                <article class="accordion-item faq-item">
+                                    <h3 class="accordion-header" id="faqHeading{{ forloop.parentloop.counter }}{{ article.id }}">
+                                        <div class="faq-question d-flex align-items-center gap-3 p-3">
+                                            <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                                            <div class="flex-grow-1">
+                                                <div class="faq-question-title fw-semibold">{{ article.title|render_inline_images:article.question_images }}</div>
+                                                {% if article.category_chips %}
+                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                        {% for category in article.category_chips %}
+                                                            <span class="badge faq-category-chip">{{ category }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <button
+                                                class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
+                                                aria-label="回答を表示"
+                                            ></button>
+                                            {% if user.is_staff or user.is_superuser %}
+                                                <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'article_edit' article.id %}">編集</a>
+                                            {% endif %}
+                                        </div>
+                                    </h3>
+                                    <div
+                                        class="accordion-collapse collapse"
+                                        id="faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
+                                        aria-labelledby="faqHeading{{ forloop.parentloop.counter }}{{ article.id }}"
+                                        data-bs-parent="#faqAccordion{{ forloop.parentloop.counter }}"
+                                    >
+                                        <div class="accordion-body">
+                                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                                <span class="badge faq-meta-badge">
+                                                    登録日 {{ article.published_at|date:"Y/m/d H:i" }}
+                                                </span>
+                                                {% if article.file_attachments %}
+                                                    <span class="badge faq-meta-badge">
+                                                        添付 {{ article.file_attachments|length }} 件
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                            <div>
+                                                {{ article.body|render_inline_images:article.answer_images }}
+                                            </div>
+                                            {% if article.file_attachments %}
+                                                <div class="border-top pt-3 mt-3">
+                                                    <div class="fw-semibold small mb-2">添付ファイル</div>
+                                                    <div class="d-flex flex-wrap gap-2">
+                                                        {% for attachment in article.file_attachments %}
+                                                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.file.url }}">
+                                                                {{ attachment }}
+                                                            </a>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="status">
+                表示できるFAQがありません。
+            </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

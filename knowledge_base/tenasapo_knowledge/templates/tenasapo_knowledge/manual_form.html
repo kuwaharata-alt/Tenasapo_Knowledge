@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} – Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="home-panel p-4">
+            <h1 class="h4 fw-bold mb-4" style="color:var(--tk-primary-dark);">{{ form_title }}</h1>
+
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if form.errors %}
+                <div class="alert alert-danger">入力内容を確認してください。</div>
+            {% endif %}
+
+            <form method="post" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
+
+                {% for field in form %}
+                <div class="mb-3">
+                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                        {{ field.label }}
+                        {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                    </label>
+
+                    {% if field.name == 'is_published' %}
+                        <div class="form-check">
+                            {{ field }}
+                            <label class="form-check-label" for="{{ field.id_for_label }}">公開する</label>
+                        </div>
+                    {% elif field.name == 'pdf_file' %}
+                        <input type="file" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                               accept=".pdf" class="form-control {% if field.errors %}is-invalid{% endif %}">
+                        {% if manual and manual.pdf_file %}
+                            <div class="form-text">現在のファイル: <a href="{{ manual.pdf_file.url }}" target="_blank">{{ manual.pdf_file.name }}</a>（変更する場合のみ選択）</div>
+                        {% endif %}
+                    {% else %}
+                        <div class="{% if field.name == 'order' %}col-md-4{% endif %}">
+                            {{ field }}
+                        </div>
+                    {% endif %}
+
+                    {% if field.errors %}
+                        {% for error in field.errors %}
+                            <div class="invalid-feedback d-block">{{ error }}</div>
+                        {% endfor %}
+                    {% endif %}
+                    {% if field.help_text %}
+                        <div class="form-text">{{ field.help_text }}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
+                    <a href="{% url 'manual_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Bootstrap のクラスをフォームフィールドに適用
+document.querySelectorAll('input:not([type=checkbox]):not([type=file]), textarea, select').forEach(el => {
+    el.classList.add('form-control');
+});
+</script>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title }} | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">{{ form_title }}</h1>
+            </div>
+        </div>
+
+        <form class="card shadow-sm" method="post">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.parent_name.id_for_label }}">大カテゴリ</label>
+                        <select class="form-select{% if form.parent_name.errors %} is-invalid{% endif %}" name="{{ form.parent_name.html_name }}" id="{{ form.parent_name.id_for_label }}" required>
+                            <option value="">選択してください</option>
+                            {% for value, label in form.fields.parent_name.choices %}
+                                <option value="{{ value }}"{% if form.parent_name.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ</label>
+                        <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源" required>
+                        {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                {% if category %}
+                    <a class="btn btn-outline-secondary" href="{% url 'category_create' %}">キャンセル</a>
+                {% else %}
+                    <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
+                {% endif %}
+                <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+            </div>
+        </form>
+
+        <section class="mt-4">
+            <h2 class="h5 fw-bold mb-3">登録済みカテゴリ</h2>
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">大カテゴリ</th>
+                                <th scope="col">小カテゴリ</th>
+                                <th scope="col" class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in categories %}
+                                <tr{% if category and category.id == item.id %} class="table-warning"{% endif %}>
+                                    <td>{{ item.parent_name }}</td>
+                                    <td>{{ item.child_name }}</td>
+                                    <td class="text-end">
+                                        <a class="btn btn-outline-primary btn-sm" href="{% url 'category_edit' item.id %}">修正</a>
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">登録済みカテゴリはありません。</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

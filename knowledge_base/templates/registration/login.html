@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}ログイン | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-sm-8 col-md-5 col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
+                <h1 class="h4 mb-4">ログイン</h1>
+                {% if form.errors %}
+                    <div class="alert alert-danger" role="alert">
+                        アカウントまたはパスワードが正しくありません。
+                    </div>
+                {% endif %}
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.username.id_for_label }}">アカウント</label>
+                        <input
+                            class="form-control"
+                            type="text"
+                            name="{{ form.username.html_name }}"
+                            id="{{ form.username.id_for_label }}"
+                            autocomplete="username"
+                            autofocus
+                            required
+                        >
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード</label>
+                        <input
+                            class="form-control"
+                            type="password"
+                            name="{{ form.password.html_name }}"
+                            id="{{ form.password.id_for_label }}"
+                            autocomplete="current-password"
+                            required
+                        >
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">ログイン</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

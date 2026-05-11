@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}ユーザー作成 | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">ユーザー作成</h1>
+                <p class="text-secondary mb-0">管理者アカウントのみ利用できます。</p>
+            </div>
+        </div>
+
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+        {% endfor %}
+
+        <form class="card shadow-sm" method="post">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.username.id_for_label }}">ユーザー名</label>
+                        <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
+                        {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード</label>
+                        <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" required>
+                        {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名</label>
+                        <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
+                        {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.role.id_for_label }}">権限</label>
+                        <select class="form-select{% if form.role.errors %} is-invalid{% endif %}" name="{{ form.role.html_name }}" id="{{ form.role.id_for_label }}" required>
+                            {% for value, label in form.fields.role.choices %}
+                                <option value="{{ value }}"{% if form.role.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス（複数）</label>
+                        <textarea class="form-control{% if form.email_addresses.errors %} is-invalid{% endif %}" name="{{ form.email_addresses.html_name }}" id="{{ form.email_addresses.id_for_label }}" rows="4">{{ form.email_addresses.value|default_if_none:'' }}</textarea>
+                        <div class="form-text">{{ form.email_addresses.help_text }}</div>
+                        {% for error in form.email_addresses.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.note.id_for_label }}">備考</label>
+                        <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="4">{{ form.note.value|default_if_none:'' }}</textarea>
+                        {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">作成</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

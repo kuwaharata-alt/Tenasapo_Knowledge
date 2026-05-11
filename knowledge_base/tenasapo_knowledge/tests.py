@@ -1,0 +1,604 @@
+import tempfile
+
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
+from django.urls import reverse
+
+from .models import ArticleAttachment, Customer, FAQCategory, KnowledgeArticle, UserProfile
+
+
+class KnowledgeArticleListTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='member', password='password')
+        self.other_user = User.objects.create_user(username='other', password='password')
+
+        self.customer = Customer.objects.create(name='顧客A')
+        self.customer.users.add(self.user)
+        other_customer = Customer.objects.create(name='顧客B')
+        other_customer.users.add(self.other_user)
+
+        self.visible_article = KnowledgeArticle.objects.create(
+            title='閲覧できる記事',
+            customer=self.customer,
+            category='ネットワーク,AWS',
+            body='本文',
+        )
+        self.hidden_article = KnowledgeArticle.objects.create(
+            title='閲覧できない記事',
+            customer=other_customer,
+            category='サーバ',
+            body='本文',
+        )
+
+    def test_login_is_required(self):
+        response = self.client.get(reverse('article_list'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse('login'), response['Location'])
+
+    def test_user_can_see_faq_without_customer_filtering(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, self.visible_article.title)
+        self.assertContains(response, self.hidden_article.title)
+
+    def test_user_can_filter_faq_by_parent_category(self):
+        self.client.force_login(self.user)
+        parent_category = self.visible_article.category.split(',', 1)[0].split('/', 1)[0]
+
+        response = self.client.get(reverse('article_list'), {'parent_category': parent_category})
+
+        self.assertContains(response, self.visible_article.title)
+        self.assertNotContains(response, self.hidden_article.title)
+
+    def test_article_list_shows_parent_category_sidebar_and_group_titles(self):
+        self.client.force_login(self.user)
+        parent_category = self.visible_article.category.split(',', 1)[0].split('/', 1)[0]
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, 'category-sidebar')
+        self.assertContains(response, 'すべて')
+        self.assertContains(response, parent_category)
+        self.assertContains(response, 'faq-group-title')
+
+    def test_staff_can_see_all_articles(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, self.visible_article.title)
+        self.assertContains(response, self.hidden_article.title)
+        self.assertContains(response, 'FAQ登録')
+
+    def test_non_staff_cannot_view_article_create_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_create'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_create_article(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'category': 'ネットワーク/VPN',
+                'question': 'VPN に接続できない場合は？',
+                'answer': '認証情報と接続先を確認します。',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='VPN に接続できない場合は？')
+        self.assertEqual(article.category, 'ネットワーク/VPN')
+        self.assertEqual(article.body, '認証情報と接続先を確認します。')
+        self.assertIsNone(article.customer)
+        self.assertEqual(article.created_by, self.user)
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_staff_can_create_article_with_question_and_answer_images(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        question_image = SimpleUploadedFile(
+            'question.png',
+            b'question-image',
+            content_type='image/png',
+        )
+        answer_image = SimpleUploadedFile(
+            'answer.png',
+            b'answer-image',
+            content_type='image/png',
+        )
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'category': 'PC/画面',
+                'question': '画面が表示されない場合は？',
+                'answer': 'ケーブルを確認します。',
+                'question_images': question_image,
+                'answer_images': answer_image,
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='画面が表示されない場合は？')
+        self.assertTrue(
+            ArticleAttachment.objects.filter(
+                article=article,
+                placement=ArticleAttachment.PLACEMENT_QUESTION,
+                display_name='question.png',
+            ).exists()
+        )
+        self.assertTrue(
+            ArticleAttachment.objects.filter(
+                article=article,
+                placement=ArticleAttachment.PLACEMENT_ANSWER,
+                display_name='answer.png',
+            ).exists()
+        )
+
+    def test_staff_can_view_article_edit_page(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'FAQ編集')
+        self.assertContains(response, self.visible_article.title)
+        self.assertContains(response, self.visible_article.body)
+
+    def test_non_staff_cannot_view_article_edit_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_update_article(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_edit', args=[self.visible_article.id]),
+            {
+                'category': 'PC/電源',
+                'question': '電源が入らない場合は？',
+                'answer': 'ケーブルとランプを確認します。',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        self.visible_article.refresh_from_db()
+        self.assertEqual(self.visible_article.category, 'PC/電源')
+        self.assertEqual(self.visible_article.title, '電源が入らない場合は？')
+        self.assertEqual(self.visible_article.body, 'ケーブルとランプを確認します。')
+
+    def test_staff_can_delete_article_from_edit_page_with_confirmation_button(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        edit_response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
+        self.assertContains(edit_response, 'FAQ削除')
+        self.assertContains(edit_response, "confirm('このFAQを削除しますか？')")
+
+        response = self.client.post(reverse('article_delete', args=[self.visible_article.id]))
+
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertFalse(KnowledgeArticle.objects.filter(id=self.visible_article.id).exists())
+
+    def test_non_staff_cannot_delete_article(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('article_delete', args=[self.visible_article.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(KnowledgeArticle.objects.filter(id=self.visible_article.id).exists())
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_staff_can_add_answer_image_when_updating_article(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        answer_image = SimpleUploadedFile(
+            'updated-answer.png',
+            b'answer-image',
+            content_type='image/png',
+        )
+
+        response = self.client.post(
+            reverse('article_edit', args=[self.visible_article.id]),
+            {
+                'category': self.visible_article.category,
+                'question': self.visible_article.title,
+                'answer': self.visible_article.body,
+                'answer_images': answer_image,
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertTrue(
+            ArticleAttachment.objects.filter(
+                article=self.visible_article,
+                placement=ArticleAttachment.PLACEMENT_ANSWER,
+                display_name='updated-answer.png',
+            ).exists()
+        )
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_staff_can_delete_article_image_with_confirmation_button(self):
+        self.user.is_staff = True
+        self.user.save()
+        attachment = ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'delete-me.png',
+                b'answer-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='delete-me.png',
+        )
+        self.client.force_login(self.user)
+
+        edit_response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
+        self.assertContains(edit_response, '削除')
+        self.assertContains(edit_response, "confirm('この画像を削除しますか？')")
+
+        response = self.client.post(reverse('attachment_delete', args=[attachment.id]))
+
+        self.assertRedirects(response, reverse('article_edit', args=[self.visible_article.id]))
+        self.assertFalse(ArticleAttachment.objects.filter(id=attachment.id).exists())
+
+    def test_non_staff_cannot_delete_article_image(self):
+        attachment = ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'delete-me.png',
+                b'answer-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='delete-me.png',
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse('attachment_delete', args=[attachment.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertTrue(ArticleAttachment.objects.filter(id=attachment.id).exists())
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_article_list_renders_image_marker_inside_answer_text(self):
+        ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'inline-answer.png',
+                b'answer-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='inline-answer.png',
+        )
+        self.visible_article.body = 'ボタンをクリックします。\n画像\n確認します。'
+        self.visible_article.save(update_fields=['body'])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, 'ボタンをクリックします。')
+        self.assertContains(response, 'inline-faq-image')
+        self.assertContains(response, '確認します。')
+        self.assertNotContains(response, '<p>画像</p>', html=True)
+
+    def test_staff_can_view_category_create_page(self):
+        self.user.is_staff = True
+        self.user.save()
+        FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('category_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'カテゴリ登録')
+        self.assertContains(response, '大カテゴリ')
+        self.assertContains(response, '小カテゴリ')
+        self.assertContains(response, 'PC')
+        self.assertContains(response, 'サーバー')
+        self.assertContains(response, 'ネットワーク')
+        self.assertContains(response, 'アプリ')
+        self.assertContains(response, 'その他')
+        self.assertContains(response, '登録済みカテゴリ')
+        self.assertContains(response, '修正')
+        self.assertContains(response, '電源')
+
+    def test_non_staff_cannot_view_category_create_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('category_create'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_create_two_level_category(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('category_create'),
+            {
+                'parent_name': 'PC',
+                'child_name': '電源',
+            },
+        )
+
+        self.assertRedirects(response, reverse('category_create'))
+        self.assertTrue(
+            FAQCategory.objects.filter(parent_name='PC', child_name='電源').exists()
+        )
+
+    def test_staff_can_view_category_edit_page(self):
+        self.user.is_staff = True
+        self.user.save()
+        category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('category_edit', args=[category.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'カテゴリ修正')
+        self.assertContains(response, '電源')
+        self.assertContains(response, 'キャンセル')
+
+    def test_staff_can_update_category_and_article_category_names(self):
+        self.user.is_staff = True
+        self.user.save()
+        category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        article = KnowledgeArticle.objects.create(
+            title='電源FAQ',
+            category='PC/電源,ネットワーク/AWS',
+            body='本文',
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('category_edit', args=[category.id]),
+            {
+                'parent_name': 'PC',
+                'child_name': '電源トラブル',
+            },
+        )
+
+        self.assertRedirects(response, reverse('category_create'))
+        category.refresh_from_db()
+        article.refresh_from_db()
+        self.assertEqual(category.child_name, '電源トラブル')
+        self.assertEqual(article.category, 'PC/電源トラブル,ネットワーク/AWS')
+
+    def test_non_staff_cannot_view_category_edit_page(self):
+        category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('category_edit', args=[category.id]))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_article_create_can_use_registered_category(self):
+        self.user.is_staff = True
+        self.user.save()
+        category = FAQCategory.objects.create(parent_name='SV', child_name='ActiveDirectory')
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'registered_category': category.id,
+                'category': '',
+                'question': 'ADにログインできない場合は？',
+                'answer': 'アカウント状態を確認します。',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='ADにログインできない場合は？')
+        self.assertEqual(article.category, 'SV/ActiveDirectory')
+
+    def test_article_create_groups_registered_categories_by_parent(self):
+        self.user.is_staff = True
+        self.user.save()
+        FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        FAQCategory.objects.create(parent_name='サーバー', child_name='ActiveDirectory')
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'category-group-toggle')
+        self.assertContains(response, 'PC')
+        self.assertContains(response, '電源')
+        self.assertContains(response, 'サーバー')
+        self.assertContains(response, 'ActiveDirectory')
+        self.assertContains(response, 'type="checkbox"')
+
+    def test_article_create_can_use_multiple_registered_categories(self):
+        self.user.is_staff = True
+        self.user.save()
+        category1 = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        category2 = FAQCategory.objects.create(parent_name='サーバー', child_name='ActiveDirectory')
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'registered_category': [category1.id, category2.id],
+                'category': '',
+                'question': '複数カテゴリのFAQ',
+                'answer': '回答です。',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='複数カテゴリのFAQ')
+        self.assertEqual(article.category, 'PC/電源,サーバー/ActiveDirectory')
+
+
+class UserCreateViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(
+            username='staff',
+            password='password',
+            is_staff=True,
+        )
+        self.member = User.objects.create_user(username='member', password='password')
+
+    def test_staff_can_view_user_create_page(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse('user_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ユーザー作成')
+
+    def test_non_staff_cannot_view_user_create_page(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse('user_create'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_view_user_list_page(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get(reverse('user_list'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'ユーザー一覧')
+        self.assertContains(response, 'ユーザー作成')
+        self.assertContains(response, self.staff.username)
+
+    def test_non_staff_cannot_view_user_list_page(self):
+        self.client.force_login(self.member)
+
+        response = self.client.get(reverse('user_list'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_create_user_with_profile_and_customer_access(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_create'),
+            {
+                'username': 'newuser',
+                'password': 'secure-password',
+                'company_name': '株式会社サンプル',
+                'role': 'user',
+                'email_addresses': 'one@example.com\ntwo@example.com',
+                'note': '初回作成',
+            },
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        created_user = get_user_model().objects.get(username='newuser')
+        self.assertTrue(created_user.check_password('secure-password'))
+        self.assertFalse(created_user.is_staff)
+        self.assertEqual(created_user.email, 'one@example.com')
+        self.assertEqual(
+            created_user.knowledge_profile.email_addresses,
+            'one@example.com\ntwo@example.com',
+        )
+        self.assertEqual(created_user.knowledge_profile.note, '初回作成')
+        self.assertTrue(
+            Customer.objects.get(name='株式会社サンプル').users.filter(id=created_user.id).exists()
+        )
+
+    def test_admin_role_creates_staff_superuser(self):
+        self.client.force_login(self.staff)
+
+        self.client.post(
+            reverse('user_create'),
+            {
+                'username': 'newadmin',
+                'password': 'secure-password',
+                'company_name': '株式会社サンプル',
+                'role': 'admin',
+                'email_addresses': '',
+                'note': '',
+            },
+        )
+
+        created_user = get_user_model().objects.get(username='newadmin')
+        self.assertTrue(created_user.is_staff)
+        self.assertTrue(created_user.is_superuser)
+        self.assertTrue(UserProfile.objects.filter(user=created_user).exists())
+
+    def test_staff_can_reset_user_password(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_password_reset', args=[self.member.id]),
+            {'reset_mode': 'random'},
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        self.member.refresh_from_db()
+        self.assertFalse(self.member.check_password('password'))
+
+    def test_staff_can_manually_set_user_password(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_password_reset', args=[self.member.id]),
+            {'reset_mode': 'manual', 'new_password': 'manual-password-123'},
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password('manual-password-123'))
+
+    def test_manual_password_is_required_when_manual_reset_is_selected(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_password_reset', args=[self.member.id]),
+            {'reset_mode': 'manual', 'new_password': ''},
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password('password'))
+
+    def test_staff_stays_logged_in_after_resetting_own_password(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(reverse('user_password_reset', args=[self.staff.id]))
+        user_list_response = self.client.get(reverse('user_list'))
+
+        self.assertRedirects(response, reverse('user_list'))
+        self.assertEqual(user_list_response.status_code, 200)
+        self.assertContains(user_list_response, 'ユーザー一覧')
+
+    def test_non_staff_cannot_reset_user_password(self):
+        self.client.force_login(self.member)
+
+        response = self.client.post(reverse('user_password_reset', args=[self.staff.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.staff.refresh_from_db()
+        self.assertTrue(self.staff.check_password('password'))

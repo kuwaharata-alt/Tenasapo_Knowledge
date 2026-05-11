@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title|default:"FAQ登録" }} | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">{{ form_title|default:"FAQ登録" }}</h1>
+            </div>
+        </div>
+
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-section-label">カテゴリ</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>
+                        <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
+                        <div class="category-group-list{% if form.registered_category.errors %} is-invalid{% endif %}">
+                            {% for group in category_groups %}
+                                <div class="category-group">
+                                    <button
+                                        class="category-group-toggle"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#categoryGroup{{ forloop.counter }}"
+                                        aria-expanded="true"
+                                        aria-controls="categoryGroup{{ forloop.counter }}"
+                                    >
+                                        {{ group.parent_name }}
+                                    </button>
+                                    <div class="collapse show" id="categoryGroup{{ forloop.counter }}">
+                                        <div class="category-checkboxes">
+                                            {% for category in group.categories %}
+                                                <label class="category-checkbox">
+                                                    <input
+                                                        class="form-check-input"
+                                                        type="checkbox"
+                                                        name="{{ form.registered_category.html_name }}"
+                                                        value="{{ category.id }}"
+                                                        {% if category.id|stringformat:"s" in group.selected_values %}checked{% endif %}
+                                                    >
+                                                    <span>{{ category.child_name }}</span>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="text-secondary small">登録済みカテゴリがありません。</div>
+                            {% endfor %}
+                        </div>
+                        {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.category.id_for_label }}">未登録カテゴリ</label>
+                        <div class="form-text mb-2">{{ form.category.help_text }}</div>
+                        <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}">
+                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問</label>
+                        <textarea class="form-control{% if form.question.errors %} is-invalid{% endif %}" name="{{ form.question.html_name }}" id="{{ form.question.id_for_label }}" rows="8" required>{{ form.question.value|default_if_none:'' }}</textarea>
+                        {% for error in form.question.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.question_images.id_for_label }}">質問画像</label>
+                        <input class="form-control{% if form.question_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.question_images.html_name }}" id="{{ form.question_images.id_for_label }}" accept="image/*" multiple>
+                        {% for error in form.question_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        {% if question_images %}
+                            <div class="inline-image-preview-list mt-2">
+                                {% for image in question_images %}
+                                    <div class="inline-image-preview-item">
+                                        <a href="{{ image.file.url }}" target="_blank" rel="noopener">
+                                            <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
+                                        </a>
+                                        <form method="post" action="{% url 'attachment_delete' image.id %}" onsubmit="return confirm('この画像を削除しますか？');">
+                                            {% csrf_token %}
+                                            <button class="btn btn-outline-danger btn-sm w-100" type="submit">削除</button>
+                                        </form>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答</label>
+                        <textarea class="form-control{% if form.answer.errors %} is-invalid{% endif %}" name="{{ form.answer.html_name }}" id="{{ form.answer.id_for_label }}" rows="8" required>{{ form.answer.value|default_if_none:'' }}</textarea>
+                        {% for error in form.answer.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.answer_images.id_for_label }}">回答画像</label>
+                        <input class="form-control{% if form.answer_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.answer_images.html_name }}" id="{{ form.answer_images.id_for_label }}" accept="image/*" multiple>
+                        {% for error in form.answer_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        {% if answer_images %}
+                            <div class="inline-image-preview-list mt-2">
+                                {% for image in answer_images %}
+                                    <div class="inline-image-preview-item">
+                                        <a href="{{ image.file.url }}" target="_blank" rel="noopener">
+                                            <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
+                                        </a>
+                                        <form method="post" action="{% url 'attachment_delete' image.id %}" onsubmit="return confirm('この画像を削除しますか？');">
+                                            {% csrf_token %}
+                                            <button class="btn btn-outline-danger btn-sm w-100" type="submit">削除</button>
+                                        </form>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:"登録" }}</button>
+            </div>
+        </form>
+
+        {% if article %}
+            <section class="card border-danger shadow-sm mt-4">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="fw-bold text-danger">FAQ削除</div>
+                        <div class="text-muted small">このFAQと登録済み画像を削除します。</div>
+                    </div>
+                    <form method="post" action="{% url 'article_delete' article.id %}" onsubmit="return confirm('このFAQを削除しますか？');">
+                        {% csrf_token %}
+                        <button class="btn btn-outline-danger" type="submit">削除</button>
+                    </form>
+                </div>
+            </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
