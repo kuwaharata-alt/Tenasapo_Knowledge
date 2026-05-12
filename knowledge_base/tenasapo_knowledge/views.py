@@ -1,14 +1,120 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.db.models import Count, F
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
 from django.views import View
 from django.views.generic import FormView, ListView
+import json
 
-from .forms import FAQCategoryCreateForm, KnowledgeArticleCreateForm, ManualForm, UserCreateForm
-from .models import ArticleAttachment, Customer, FAQCategory, KnowledgeArticle, Manual, UserProfile
+from .forms import FAQCategoryCreateForm, KnowledgeArticleCreateForm, ManualForm, UserCreateForm, UserUpdateForm
+from .models import (
+    ArticleGood,
+    ArticleAttachment,
+    Customer,
+    FAQCategory,
+    KnowledgeArticle,
+    LoginHistory,
+    Manual,
+    UserProfile,
+    ViewHistory,
+)
+
+
+def client_ip_from_request(request):
+    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded_for:
+        return forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
+def current_login_history(request):
+    user = request.user
+    if not user.is_authenticated:
+        return None
+
+    history_id = request.session.get('login_history_id')
+    if history_id:
+        history = LoginHistory.objects.filter(id=history_id, user=user).first()
+        if history:
+            return history
+
+    history = LoginHistory.objects.filter(user=user, logged_out_at__isnull=True).first()
+    if history:
+        request.session['login_history_id'] = history.id
+    return history
+
+
+def record_view_history(
+    request,
+    page_name,
+    search_query='',
+    parent_category='',
+    category='',
+    path='',
+):
+    user = request.user
+    if not user.is_authenticated:
+        return
+
+    login_history = current_login_history(request)
+    resolved_path = path or request.path
+
+    last_history = (
+        ViewHistory.objects.filter(
+            user=user,
+            login_history=login_history,
+        )
+        .order_by('-viewed_at', '-id')
+        .first()
+    )
+    if (
+        last_history
+        and last_history.page_name == page_name
+        and last_history.path == resolved_path
+        and last_history.search_query == search_query
+        and last_history.parent_category == parent_category
+        and last_history.category == category
+    ):
+        return
+
+    ViewHistory.objects.create(
+        login_history=login_history,
+        user=user,
+        username=user.get_username(),
+        page_name=page_name,
+        path=resolved_path,
+        search_query=search_query,
+        parent_category=parent_category,
+        category=category,
+        ip_address=client_ip_from_request(request),
+        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
+    )
+
+
+def can_user_access_article(user, article):
+    is_staff_user = user.is_staff or user.is_superuser
+    is_systena_user = (
+        hasattr(user, 'knowledge_profile')
+        and user.knowledge_profile.user_type == UserProfile.USER_TYPE_SYSTENA
+    )
+    if is_staff_user:
+        return True
+    if is_systena_user:
+        return article.visible_to_systena
+    return article.visible_to_customer
+
+
+def is_customer_user(user):
+    return (
+        user.is_authenticated
+        and hasattr(user, 'knowledge_profile')
+        and user.knowledge_profile.user_type == UserProfile.USER_TYPE_CUSTOMER
+        and not (user.is_staff or user.is_superuser)
+    )
 
 
 class ArticleListView(ListView):
@@ -16,12 +122,32 @@ class ArticleListView(ListView):
     template_name = 'tenasapo_knowledge/article_list.html'
     context_object_name = 'articles'
 
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(
+            request,
+            'FAQ一覧',
+            search_query=request.GET.get('q', '')[:200],
+            parent_category=request.GET.get('parent_category', '')[:120],
+            category=request.GET.get('category', '')[:120],
+        )
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = (
             KnowledgeArticle.objects.select_related('customer', 'created_by')
             .prefetch_related('attachments')
             .filter(is_published=True)
+            .annotate(good_count=Count('goods'))
         )
+
+        user = self.request.user
+        is_systena_user = (
+            user.is_authenticated
+            and hasattr(user, 'knowledge_profile')
+            and user.knowledge_profile.user_type == UserProfile.USER_TYPE_SYSTENA
+        )
+        if not (user.is_authenticated and (user.is_staff or user.is_superuser)) and not is_systena_user:
+            queryset = queryset.filter(visible_to_customer=True)
 
         query = self.request.GET.get('q')
         if query:
@@ -48,21 +174,36 @@ class ArticleListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['can_use_good'] = is_customer_user(self.request.user)
+        liked_article_ids = set(
+            ArticleGood.objects.filter(
+                user=self.request.user,
+                article_id__in=[article.id for article in context['articles']],
+            ).values_list('article_id', flat=True)
+        )
         for article in context['articles']:
+            article.is_gooded = article.id in liked_article_ids
+            article.creator_display_name = article.created_by_name or (
+                article.created_by.get_username() if article.created_by else ''
+            )
             article.category_chips = self.split_categories(article.category)
+            ordered_attachments = sorted(
+                article.attachments.all(),
+                key=lambda attachment: (attachment.uploaded_at, attachment.id),
+            )
             article.question_images = [
                 attachment
-                for attachment in article.attachments.all()
+                for attachment in ordered_attachments
                 if attachment.placement == ArticleAttachment.PLACEMENT_QUESTION
             ]
             article.answer_images = [
                 attachment
-                for attachment in article.attachments.all()
+                for attachment in ordered_attachments
                 if attachment.placement == ArticleAttachment.PLACEMENT_ANSWER
             ]
             article.file_attachments = [
                 attachment
-                for attachment in article.attachments.all()
+                for attachment in ordered_attachments
                 if attachment.placement == ArticleAttachment.PLACEMENT_ATTACHMENT
             ]
         selected_parent = self.request.GET.get('parent_category', '')
@@ -169,6 +310,79 @@ class ArticleListView(ListView):
         return grouped_articles
 
 
+class FAQAnswerViewTrackView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        article_id = payload.get('article_id')
+        if not article_id:
+            return JsonResponse({'detail': 'article_id is required'}, status=400)
+
+        article = get_object_or_404(KnowledgeArticle, pk=article_id, is_published=True)
+        if not can_user_access_article(request.user, article):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        KnowledgeArticle.objects.filter(pk=article.pk).update(answer_view_count=F('answer_view_count') + 1)
+        article.refresh_from_db(fields=['answer_view_count'])
+
+        record_view_history(
+            request,
+            page_name=f'FAQ回答表示: {article.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'answer_view_count': article.answer_view_count})
+
+
+class FAQGoodToggleView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+        if not is_customer_user(request.user):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        article_id = payload.get('article_id')
+        if not article_id:
+            return JsonResponse({'detail': 'article_id is required'}, status=400)
+
+        article = get_object_or_404(KnowledgeArticle, pk=article_id, is_published=True)
+        if not can_user_access_article(request.user, article):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        reaction, created = ArticleGood.objects.get_or_create(article=article, user=request.user)
+        liked = True
+        if not created:
+            reaction.delete()
+            liked = False
+
+        good_count = ArticleGood.objects.filter(article=article).count()
+
+        record_view_history(
+            request,
+            page_name=f'FAQグッド: {article.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'liked': liked, 'good_count': good_count})
+
+
 class StaffRequiredMixin(UserPassesTestMixin):
     raise_exception = True
 
@@ -214,7 +428,10 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             category=form.cleaned_data['category'],
             title=form.cleaned_data['question'],
             body=form.cleaned_data['answer'],
+            visible_to_customer=form.cleaned_data['visible_to_customer'],
+            visible_to_systena=form.cleaned_data['visible_to_systena'],
             created_by=self.request.user,
+            created_by_name=self.request.user.get_username(),
         )
         self.save_inline_images(article, form)
         messages.success(self.request, f'FAQ「{article.title}」を登録しました。')
@@ -263,6 +480,8 @@ class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
             'category': self.article.category,
             'question': self.article.title,
             'answer': self.article.body,
+            'visible_to_customer': self.article.visible_to_customer,
+            'visible_to_systena': self.article.visible_to_systena,
         }
 
     def get_context_data(self, **kwargs):
@@ -272,10 +491,10 @@ class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
         context['article'] = self.article
         context['question_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_QUESTION
-        )
+        ).order_by('uploaded_at', 'id')
         context['answer_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_ANSWER
-        )
+        ).order_by('uploaded_at', 'id')
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         return context
 
@@ -283,7 +502,18 @@ class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
         self.article.category = form.cleaned_data['category']
         self.article.title = form.cleaned_data['question']
         self.article.body = form.cleaned_data['answer']
-        self.article.save(update_fields=['category', 'title', 'body', 'updated_at'])
+        self.article.visible_to_customer = form.cleaned_data['visible_to_customer']
+        self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
+        self.article.save(
+            update_fields=[
+                'category',
+                'title',
+                'body',
+                'visible_to_customer',
+                'visible_to_systena',
+                'updated_at',
+            ]
+        )
         KnowledgeArticleCreateView.save_inline_images(self.article, form)
         messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
         return super().form_valid(form)
@@ -394,6 +624,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
         UserProfile.objects.create(
             user=user,
             company_name=form.cleaned_data['company_name'],
+            user_type=form.cleaned_data['user_type'],
             email_addresses='\n'.join(emails),
             note=form.cleaned_data['note'],
         )
@@ -457,6 +688,134 @@ class UserPasswordResetView(StaffRequiredMixin, View):
         return redirect('user_list')
 
 
+class LoginHistoryListView(StaffRequiredMixin, ListView):
+    template_name = 'tenasapo_knowledge/login_history_list.html'
+    context_object_name = 'login_histories'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = LoginHistory.objects.select_related('user')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(username__icontains=query)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('q', '')
+        return context
+
+
+class ViewHistoryListView(StaffRequiredMixin, ListView):
+    template_name = 'tenasapo_knowledge/view_history_list.html'
+    context_object_name = 'view_histories'
+    paginate_by = 50
+
+    def get_queryset(self):
+        queryset = ViewHistory.objects.select_related('user', 'login_history')
+        query = self.request.GET.get('q', '').strip()
+        if query:
+            queryset = queryset.filter(username__icontains=query)
+        return queryset.order_by('-login_history__logged_in_at', 'viewed_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['query'] = self.request.GET.get('q', '')
+        grouped_histories = {}
+        for history in context['view_histories']:
+            login_history = history.login_history
+            if not login_history:
+                continue
+            session_key = f'session-{login_history.id}'
+            if session_key not in grouped_histories:
+                grouped_histories[session_key] = {
+                    'session': login_history,
+                    'items': [],
+                }
+            grouped_histories[session_key]['items'].append(history)
+        context['grouped_view_histories'] = list(grouped_histories.values())
+        return context
+
+
+class UserUpdateView(StaffRequiredMixin, FormView):
+    template_name = 'tenasapo_knowledge/user_form.html'
+    form_class = UserUpdateForm
+    success_url = reverse_lazy('user_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        User = get_user_model()
+        self.user_obj = get_object_or_404(User, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        profile = getattr(self.user_obj, 'knowledge_profile', None)
+        return {
+            'username': self.user_obj.username,
+            'company_name': profile.company_name if profile else '',
+            'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
+            'user_type': profile.user_type if profile else UserProfile.USER_TYPE_CUSTOMER,
+            'email_addresses': profile.email_addresses if profile else '',
+            'note': profile.note if profile else '',
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_edit'] = True
+        context['user_obj'] = self.user_obj
+        return context
+
+    def form_valid(self, form):
+        User = get_user_model()
+        emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
+        is_admin = form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
+
+        # ユーザー情報を更新
+        self.user_obj.is_staff = is_admin
+        self.user_obj.is_superuser = is_admin
+        self.user_obj.email = emails[0] if emails else ''
+        
+        # パスワードが設定されている場合のみ更新
+        password = form.cleaned_data.get('password', '').strip()
+        if password:
+            self.user_obj.set_password(password)
+            if self.user_obj == self.request.user:
+                update_session_auth_hash(self.request, self.user_obj)
+        
+        self.user_obj.save()
+
+        # プロフィールを更新
+        profile, _ = UserProfile.objects.get_or_create(user=self.user_obj)
+        profile.company_name = form.cleaned_data['company_name']
+        profile.user_type = form.cleaned_data['user_type']
+        profile.email_addresses = '\n'.join(emails)
+        profile.note = form.cleaned_data['note']
+        profile.save()
+
+        # 顧客を更新
+        customer, _ = Customer.objects.get_or_create(name=form.cleaned_data['company_name'])
+        if self.user_obj not in customer.users.all():
+            customer.users.add(self.user_obj)
+
+        messages.success(self.request, f'{self.user_obj.username} を更新しました。')
+        return super().form_valid(form)
+
+
+class UserDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        User = get_user_model()
+        user = get_object_or_404(User, pk=pk)
+        
+        # 削除対象がリクエスト者本人でないことを確認
+        if user == request.user:
+            messages.error(request, '自分自身を削除することはできません。')
+            return redirect('user_list')
+        
+        username = user.username
+        user.delete()
+        messages.success(request, f'{username} を削除しました。')
+        return redirect('user_list')
+
+
 # ──────────────────────────────────────────
 # Manual views
 # ──────────────────────────────────────────
@@ -466,6 +825,10 @@ class ManualListView(StaffRequiredMixin, ListView):
     template_name = 'tenasapo_knowledge/manual_list.html'
     context_object_name = 'manuals'
 
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(request, 'マニュアル一覧')
+        return super().dispatch(request, *args, **kwargs)
+
     def get_queryset(self):
         return Manual.objects.all()
 
@@ -474,6 +837,7 @@ class ManualDetailView(StaffRequiredMixin, View):
     def get(self, request, pk):
         from django.shortcuts import render
         manual = get_object_or_404(Manual, pk=pk)
+        record_view_history(request, f'マニュアル詳細: {manual.title}')
         return render(request, 'tenasapo_knowledge/manual_detail.html', {'manual': manual})
 
 class ManualCreateView(StaffRequiredMixin, FormView):

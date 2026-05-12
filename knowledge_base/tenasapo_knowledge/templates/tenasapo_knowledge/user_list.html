@@ -3,6 +3,7 @@
 {% block title %}ユーザー一覧 | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
+
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
     <div>
         <h1 class="h3 mb-1">ユーザー一覧</h1>
@@ -33,6 +34,7 @@
                     <th scope="col">ユーザー名</th>
                     <th scope="col">会社名</th>
                     <th scope="col">権限</th>
+                    <th scope="col">ユーザー区分</th>
                     <th scope="col">メールアドレス</th>
                     <th scope="col">備考</th>
                     <th scope="col">操作</th>
@@ -50,6 +52,13 @@
                                 <span class="badge text-bg-secondary">ユーザー</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if account.knowledge_profile.user_type == 'systena' %}
+                                <span class="badge text-bg-info">システナ</span>
+                            {% else %}
+                                <span class="badge text-bg-light">カスタマー</span>
+                            {% endif %}
+                        </td>
                         <td class="text-break">
                             {% if account.knowledge_profile.email_addresses %}
                                 {{ account.knowledge_profile.email_addresses|linebreaksbr }}
@@ -61,19 +70,16 @@
                         </td>
                         <td class="text-break">{{ account.knowledge_profile.note|default:"-"|linebreaksbr }}</td>
                         <td>
-                            <form class="d-flex flex-column gap-2" method="post" action="{% url 'user_password_reset' account.id %}">
-                                {% csrf_token %}
-                                <button class="btn btn-outline-danger btn-sm" type="submit" name="reset_mode" value="random">ランダム生成</button>
-                                <div class="input-group input-group-sm">
-                                    <input class="form-control" type="text" name="new_password" placeholder="手動パスワード">
-                                    <button class="btn btn-outline-secondary" type="submit" name="reset_mode" value="manual">設定</button>
-                                </div>
-                            </form>
+                            <div class="d-flex flex-wrap gap-2" role="group">
+                                <a class="btn btn-outline-primary btn-sm" href="{% url 'user_edit' account.id %}">編集</a>
+                                <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
+                                <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
+                            </div>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="6">ユーザーが見つかりません。</td>
+                        <td class="text-center text-secondary py-4" colspan="7">ユーザーが見つかりません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -100,4 +106,160 @@
         </ul>
     </nav>
 {% endif %}
+
+<!-- パスワード変更モーダル -->
+{% for account in users %}
+<div class="modal fade" id="passwordChangeModal{{ account.id }}" tabindex="-1" aria-labelledby="passwordChangeModalLabel{{ account.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="passwordChangeModalLabel{{ account.id }}">{{ account.username }} のパスワード変更</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-12">
+                        <button class="btn btn-outline-warning w-100 gen-btn" type="button" data-account-id="{{ account.id }}">パスワード自動生成</button>
+                    </div>
+                    <div class="col-12">
+                        <div class="gen-result alert alert-success d-none" role="alert" data-account-id="{{ account.id }}">
+                            <strong>生成されました：</strong>
+                            <code class="gen-password text-break"></code>
+                            <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" type="button">コピー</button>
+                        </div>
+                    </div>
+                </div>
+                <hr>
+                <form class="password-form" method="post" action="{% url 'user_password_reset' account.id %}" data-account-id="{{ account.id }}">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label">新しいパスワード</label>
+                        <input class="form-control manual-password-1" type="password" name="new_password" placeholder="パスワードを入力">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">新しいパスワード（確認）</label>
+                        <input class="form-control manual-password-2" type="password" placeholder="もう一度入力">
+                        <div class="password-match form-text d-none text-danger">パスワードが一致しません</div>
+                    </div>
+                    <input type="hidden" name="reset_mode" value="manual">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary submit-btn" data-account-id="{{ account.id }}">変更</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 削除確認モーダル -->
+<div class="modal fade" id="deleteModal{{ account.id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ account.id }}" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="deleteModalLabel{{ account.id }}">ユーザー削除確認</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>このユーザーを削除してもよろしいですか？</p>
+                <p class="text-danger"><strong>{{ account.username }}</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <form class="d-inline" method="post" action="{% url 'user_delete' account.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger">削除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // パスワード自動生成ボタン
+    document.querySelectorAll('.gen-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const accountId = this.dataset.accountId;
+            const chars = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+            let password = '';
+            for (let i = 0; i < 12; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            const genResult = document.querySelector(`.gen-result[data-account-id="${accountId}"]`);
+            const genPassword = genResult.querySelector('.gen-password');
+            genPassword.textContent = password;
+            genResult.classList.remove('d-none');
+            
+            const form = document.querySelector(`.password-form[data-account-id="${accountId}"]`);
+            form.querySelector('.manual-password-1').value = password;
+            form.querySelector('.manual-password-2').value = password;
+            checkPasswordMatch(accountId);
+        });
+    });
+
+    // パスワード入力フィールド
+    document.querySelectorAll('.manual-password-1, .manual-password-2').forEach(input => {
+        input.addEventListener('input', function() {
+            const form = this.closest('.password-form');
+            const accountId = form.dataset.accountId;
+            checkPasswordMatch(accountId);
+        });
+    });
+
+    function checkPasswordMatch(accountId) {
+        const form = document.querySelector(`.password-form[data-account-id="${accountId}"]`);
+        const pwd1 = form.querySelector('.manual-password-1');
+        const pwd2 = form.querySelector('.manual-password-2');
+        const matchMsg = form.querySelector('.password-match');
+        const submitBtn = document.querySelector(`.submit-btn[data-account-id="${accountId}"]`);
+        
+        if (pwd1.value && pwd2.value && pwd1.value !== pwd2.value) {
+            matchMsg.classList.remove('d-none');
+            submitBtn.disabled = true;
+        } else {
+            matchMsg.classList.add('d-none');
+            submitBtn.disabled = pwd1.value === '';
+        }
+    }
+
+    // コピーボタン
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const password = this.parentElement.querySelector('.gen-password').textContent;
+            navigator.clipboard.writeText(password).then(() => {
+                const originalText = this.textContent;
+                this.textContent = 'コピーしました';
+                setTimeout(() => {
+                    this.textContent = originalText;
+                }, 2000);
+            });
+        });
+    });
+
+    // 変更ボタン
+    document.querySelectorAll('.submit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const accountId = this.dataset.accountId;
+            const form = document.querySelector(`.password-form[data-account-id="${accountId}"]`);
+            const pwd1 = form.querySelector('.manual-password-1');
+            const pwd2 = form.querySelector('.manual-password-2');
+            
+            if (!pwd1.value) {
+                alert('パスワードを入力してください。');
+                return;
+            }
+            if (pwd1.value !== pwd2.value) {
+                alert('パスワードが一致しません。');
+                return;
+            }
+            if (confirm('パスワードを変更してもよろしいですか？')) {
+                form.submit();
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

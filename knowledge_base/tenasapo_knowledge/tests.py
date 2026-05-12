@@ -295,7 +295,7 @@ class KnowledgeArticleListTests(TestCase):
             placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='inline-answer.png',
         )
-        self.visible_article.body = 'ボタンをクリックします。\n画像\n確認します。'
+        self.visible_article.body = 'ボタンをクリックします。\n<image>\n確認します。'
         self.visible_article.save(update_fields=['body'])
         self.client.force_login(self.user)
 
@@ -304,7 +304,62 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, 'ボタンをクリックします。')
         self.assertContains(response, 'inline-faq-image')
         self.assertContains(response, '確認します。')
-        self.assertNotContains(response, '<p>画像</p>', html=True)
+        self.assertNotContains(response, '<p>&lt;image&gt;</p>', html=True)
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_article_list_renders_numbered_image_markers(self):
+        ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'first.png',
+                b'first-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='first.png',
+        )
+        ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'second.png',
+                b'second-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='second.png',
+        )
+        self.visible_article.body = '最初の画像 <image1> 次の画像 <image2>'
+        self.visible_article.save(update_fields=['body'])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, 'first.png')
+        self.assertContains(response, 'second.png')
+        self.assertContains(response, '最初の画像')
+        self.assertContains(response, '次の画像')
+
+    @override_settings(MEDIA_ROOT=tempfile.gettempdir())
+    def test_article_list_renders_same_number_marker_multiple_times(self):
+        ArticleAttachment.objects.create(
+            article=self.visible_article,
+            file=SimpleUploadedFile(
+                'repeat.png',
+                b'repeat-image',
+                content_type='image/png',
+            ),
+            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            display_name='repeat.png',
+        )
+        self.visible_article.body = '<image1>\n手順説明\n<image1>'
+        self.visible_article.category = 'ネットワーク'
+        self.visible_article.save(update_fields=['body', 'category'])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+        html = response.content.decode('utf-8')
+
+        self.assertEqual(html.count('<img class="inline-faq-image"'), 2)
 
     def test_staff_can_view_category_create_page(self):
         self.user.is_staff = True

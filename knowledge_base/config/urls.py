@@ -19,9 +19,16 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from tenasapo_knowledge import views as tk_views
 
 urlpatterns = [
     path('', include('tenasapo_knowledge.urls')),
+    path('manuals', tk_views.ManualListView.as_view(), name='manual_list_no_slash'),
+    path('manuals/', tk_views.ManualListView.as_view(), name='manual_list_root'),
+    path('manuals/create/', tk_views.ManualCreateView.as_view(), name='manual_create_root'),
+    path('manuals/<int:pk>/', tk_views.ManualDetailView.as_view(), name='manual_detail_root'),
+    path('manuals/<int:pk>/edit/', tk_views.ManualUpdateView.as_view(), name='manual_edit_root'),
+    path('manuals/<int:pk>/delete/', tk_views.ManualDeleteView.as_view(), name='manual_delete_root'),
     path(
         'accounts/login/',
         auth_views.LoginView.as_view(template_name='registration/login.html'),

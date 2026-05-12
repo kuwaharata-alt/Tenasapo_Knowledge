@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}ログイン履歴 | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">ログイン履歴</h1>
+        <p class="text-secondary mb-0">ユーザーのログイン記録を確認できます。</p>
+    </div>
+</div>
+
+<form class="row gy-2 gx-2 align-items-end mb-4" method="get">
+    <div class="col-12 col-md-5">
+        <label class="form-label" for="q">検索</label>
+        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ユーザー名で検索">
+    </div>
+    <div class="col-12 col-md-auto">
+        <button class="btn btn-outline-primary" type="submit">検索</button>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">ログイン日時</th>
+                    <th scope="col">ユーザー名</th>
+                    <th scope="col">IPアドレス</th>
+                    <th scope="col">User-Agent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for history in login_histories %}
+                    <tr>
+                        <td>{{ history.logged_in_at|date:"Y/m/d H:i:s" }}</td>
+                        <td class="fw-semibold">{{ history.username }}</td>
+                        <td>{{ history.ip_address|default:"-" }}</td>
+                        <td class="text-break">{{ history.user_agent|default:"-" }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td class="text-center text-secondary py-4" colspan="4">ログイン履歴がありません。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if is_paginated %}
+    <nav class="mt-4" aria-label="ページネーション">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}">前へ</a>
+                </li>
+            {% endif %}
+            <li class="page-item active" aria-current="page">
+                <span class="page-link">{{ page_obj.number }}</span>
+            </li>
+            {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}">次へ</a>
+                </li>
+            {% endif %}
+        </ul>
+    </nav>
+{% endif %}
+{% endblock %}

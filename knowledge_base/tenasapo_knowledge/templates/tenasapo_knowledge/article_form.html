@@ -68,12 +68,31 @@
                         {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
+                        <div class="form-section-label">表示対象</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_customer.html_name }}" id="id_visible_to_customer" {% if form.visible_to_customer.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_customer">カスタマーユーザーに表示する</label>
+                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input{% if form.visible_to_systena.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_systena.html_name }}" id="id_visible_to_systena" {% if form.visible_to_systena.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_systena">システナユーザーに表示する</label>
+                            {% for error in form.visible_to_systena.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問</label>
+                        {% if form.question.help_text %}<div class="form-text mb-2">{{ form.question.help_text }}</div>{% endif %}
                         <textarea class="form-control{% if form.question.errors %} is-invalid{% endif %}" name="{{ form.question.html_name }}" id="{{ form.question.id_for_label }}" rows="8" required>{{ form.question.value|default_if_none:'' }}</textarea>
                         {% for error in form.question.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.question_images.id_for_label }}">質問画像</label>
+                        {% if form.question_images.help_text %}<div class="form-text mb-2">{{ form.question_images.help_text }}</div>{% endif %}
                         <input class="form-control{% if form.question_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.question_images.html_name }}" id="{{ form.question_images.id_for_label }}" accept="image/*" multiple>
                         {% for error in form.question_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         {% if question_images %}
@@ -83,10 +102,13 @@
                                         <a href="{{ image.file.url }}" target="_blank" rel="noopener">
                                             <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
                                         </a>
-                                        <form method="post" action="{% url 'attachment_delete' image.id %}" onsubmit="return confirm('この画像を削除しますか？');">
-                                            {% csrf_token %}
-                                            <button class="btn btn-outline-danger btn-sm w-100" type="submit">削除</button>
-                                        </form>
+                                        <button
+                                            class="btn btn-outline-danger btn-sm w-100"
+                                            type="submit"
+                                            formaction="{% url 'attachment_delete' image.id %}"
+                                            formmethod="post"
+                                            onclick="return confirm('この画像を削除しますか？');"
+                                        >削除</button>
                                     </div>
                                 {% endfor %}
                             </div>
@@ -94,11 +116,13 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答</label>
+                        {% if form.answer.help_text %}<div class="form-text mb-2">{{ form.answer.help_text }}</div>{% endif %}
                         <textarea class="form-control{% if form.answer.errors %} is-invalid{% endif %}" name="{{ form.answer.html_name }}" id="{{ form.answer.id_for_label }}" rows="8" required>{{ form.answer.value|default_if_none:'' }}</textarea>
                         {% for error in form.answer.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.answer_images.id_for_label }}">回答画像</label>
+                        {% if form.answer_images.help_text %}<div class="form-text mb-2">{{ form.answer_images.help_text }}</div>{% endif %}
                         <input class="form-control{% if form.answer_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.answer_images.html_name }}" id="{{ form.answer_images.id_for_label }}" accept="image/*" multiple>
                         {% for error in form.answer_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         {% if answer_images %}
@@ -108,10 +132,13 @@
                                         <a href="{{ image.file.url }}" target="_blank" rel="noopener">
                                             <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
                                         </a>
-                                        <form method="post" action="{% url 'attachment_delete' image.id %}" onsubmit="return confirm('この画像を削除しますか？');">
-                                            {% csrf_token %}
-                                            <button class="btn btn-outline-danger btn-sm w-100" type="submit">削除</button>
-                                        </form>
+                                        <button
+                                            class="btn btn-outline-danger btn-sm w-100"
+                                            type="submit"
+                                            formaction="{% url 'attachment_delete' image.id %}"
+                                            formmethod="post"
+                                            onclick="return confirm('この画像を削除しますか？');"
+                                        >削除</button>
                                     </div>
                                 {% endfor %}
                             </div>

@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import FAQCategory, Manual, Manual
+from .models import FAQCategory, Manual, UserProfile
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -71,20 +71,34 @@ class KnowledgeArticleCreateForm(forms.Form):
         label='質問',
         max_length=200,
         widget=forms.Textarea(attrs={'rows': 8}),
+        help_text='本文内で <image1> のように書くと指定番号の画像を挿入できます（<image> は順番に挿入）。',
     )
     answer = forms.CharField(
         label='回答',
         widget=forms.Textarea(attrs={'rows': 8}),
+        help_text='本文内で <image1> のように書くと指定番号の画像を挿入できます（<image> は順番に挿入）。',
     )
     question_images = MultipleImageField(
         label='質問画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
+        help_text='アップロード順で1枚目が <image1>、2枚目が <image2> です。',
     )
     answer_images = MultipleImageField(
         label='回答画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
+        help_text='アップロード順で1枚目が <image1>、2枚目が <image2> です。',
+    )
+    visible_to_customer = forms.BooleanField(
+        label='カスタマーユーザーに表示する',
+        required=False,
+        initial=True,
+    )
+    visible_to_systena = forms.BooleanField(
+        label='システナユーザーに表示する',
+        required=False,
+        initial=True,
     )
 
     def __init__(self, *args, **kwargs):
@@ -129,6 +143,7 @@ class UserCreateForm(forms.Form):
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput)
     company_name = forms.CharField(label='会社名', max_length=120)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
+    user_type = forms.ChoiceField(label='ユーザー区分', choices=UserProfile.USER_TYPE_CHOICES)
     email_addresses = forms.CharField(
         label='メールアドレス（複数）',
         required=False,
@@ -170,6 +185,47 @@ class UserCreateForm(forms.Form):
         for separator in separators:
             normalized = normalized.replace(separator, '\n')
         return [email.strip() for email in normalized.splitlines() if email.strip()]
+
+
+class UserUpdateForm(forms.Form):
+    ROLE_ADMIN = 'admin'
+    ROLE_USER = 'user'
+    ROLE_CHOICES = (
+        (ROLE_USER, 'ユーザー'),
+        (ROLE_ADMIN, '管理者'),
+    )
+
+    username = forms.CharField(label='ユーザー名', max_length=150, disabled=True)
+    password = forms.CharField(label='パスワード', widget=forms.PasswordInput, required=False)
+    company_name = forms.CharField(label='会社名', max_length=120)
+    role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
+    user_type = forms.ChoiceField(label='ユーザー区分', choices=UserProfile.USER_TYPE_CHOICES)
+    email_addresses = forms.CharField(
+        label='メールアドレス（複数）',
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 4}),
+        help_text='改行、カンマ、セミコロンで複数入力できます。',
+    )
+    note = forms.CharField(
+        label='備考',
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 4}),
+    )
+
+    def clean_email_addresses(self):
+        value = self.cleaned_data.get('email_addresses', '')
+        emails = UserCreateForm.normalized_emails(value)
+        errors = []
+        for email in emails:
+            try:
+                validate_email(email)
+            except ValidationError:
+                errors.append(email)
+        if errors:
+            raise forms.ValidationError(
+                'メールアドレスの形式が正しくありません: ' + ', '.join(errors)
+            )
+        return '\n'.join(emails)
 
 
 class ManualForm(forms.ModelForm):

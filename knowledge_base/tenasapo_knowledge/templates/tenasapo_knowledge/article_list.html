@@ -102,6 +102,17 @@
                                                 aria-controls="faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
                                                 aria-label="回答を表示"
                                             ></button>
+                                            {% if can_use_good %}
+                                                <button
+                                                    class="btn btn-sm flex-shrink-0 faq-good-btn {% if article.is_gooded %}btn-success{% else %}btn-outline-success{% endif %}"
+                                                    type="button"
+                                                    data-article-id="{{ article.id }}"
+                                                    data-liked="{% if article.is_gooded %}1{% else %}0{% endif %}"
+                                                    aria-label="グッド"
+                                                >
+                                                    👍 <span class="faq-good-count">{{ article.good_count }}</span>
+                                                </button>
+                                            {% endif %}
                                             {% if user.is_staff or user.is_superuser %}
                                                 <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'article_edit' article.id %}">編集</a>
                                             {% endif %}
@@ -112,12 +123,18 @@
                                         id="faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
                                         aria-labelledby="faqHeading{{ forloop.parentloop.counter }}{{ article.id }}"
                                         data-bs-parent="#faqAccordion{{ forloop.parentloop.counter }}"
+                                        data-article-id="{{ article.id }}"
                                     >
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
                                                 <span class="badge faq-meta-badge">
                                                     登録日 {{ article.published_at|date:"Y/m/d H:i" }}
                                                 </span>
+                                                {% if user.is_staff or user.is_superuser %}
+                                                    <span class="badge faq-meta-badge">
+                                                        投稿者 {{ article.creator_display_name|default:"-" }}
+                                                    </span>
+                                                {% endif %}
                                                 {% if article.file_attachments %}
                                                     <span class="badge faq-meta-badge">
                                                         添付 {{ article.file_attachments|length }} 件
@@ -154,4 +171,87 @@
         {% endif %}
     </section>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trackUrl = "{% url 'faq_answer_track_view' %}";
+    const toggleGoodUrl = "{% url 'faq_toggle_good' %}";
+    const filterState = {
+        search_query: "{{ query|escapejs }}",
+        parent_category: "{{ selected_parent_category|escapejs }}",
+        category: "{{ selected_category|escapejs }}",
+    };
+
+    function getCookie(name) {
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith(name + '='));
+        return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+    }
+
+    document.querySelectorAll('.accordion-collapse[data-article-id]').forEach(panel => {
+        panel.addEventListener('shown.bs.collapse', function() {
+            const articleId = this.dataset.articleId;
+            if (!articleId) {
+                return;
+            }
+
+            fetch(trackUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    article_id: Number(articleId),
+                    source_path: window.location.pathname + window.location.search,
+                    search_query: filterState.search_query,
+                    parent_category: filterState.parent_category,
+                    category: filterState.category,
+                }),
+            }).catch(() => {});
+        });
+    });
+
+    document.querySelectorAll('.faq-good-btn[data-article-id]').forEach(button => {
+        button.addEventListener('click', function() {
+            const articleId = this.dataset.articleId;
+            if (!articleId) {
+                return;
+            }
+
+            fetch(toggleGoodUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    article_id: Number(articleId),
+                    source_path: window.location.pathname + window.location.search,
+                    search_query: filterState.search_query,
+                    parent_category: filterState.parent_category,
+                    category: filterState.category,
+                }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.ok) {
+                        return;
+                    }
+
+                    this.dataset.liked = data.liked ? '1' : '0';
+                    this.classList.toggle('btn-success', data.liked);
+                    this.classList.toggle('btn-outline-success', !data.liked);
+
+                    const countElm = this.querySelector('.faq-good-count');
+                    if (countElm) {
+                        countElm.textContent = data.good_count;
+                    }
+                })
+                .catch(() => {});
+        });
+    });
+});
+</script>
 {% endblock %}

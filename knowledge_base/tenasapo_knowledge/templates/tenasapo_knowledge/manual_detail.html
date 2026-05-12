@@ -19,60 +19,22 @@
     {% endif %}
 </div>
 
-<!-- PDF ビューワー -->
-<div id="pdf-viewer-wrap" style="
-    background: #2b2b2b;
-    border-radius: 1rem;
-    padding: 1.25rem;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.25);
-">
+<div id="pdf-viewer-wrap" class="p-3 p-lg-4" style="background:#2b2b2b; border-radius:1rem; box-shadow:0 18px 40px rgba(0,0,0,0.25);">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+        <h2 class="h6 text-white mb-0">全ページ表示（4:3）</h2>
+        <a href="{{ manual.pdf_file.url }}" download class="btn btn-sm btn-outline-warning">PDFダウンロード</a>
+    </div>
 
-    <!-- ツールバー -->
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
-            <button id="btn-prev" class="btn btn-sm btn-outline-light" disabled>&#8592; 前へ</button>
-            <span class="text-white fw-bold" style="white-space:nowrap;">
-                <span id="page-num">1</span> / <span id="page-count">--</span> ページ
-            </span>
-            <button id="btn-next" class="btn btn-sm btn-outline-light" disabled>次へ &#8594;</button>
+    <div class="row g-3">
+        <div class="col-lg-3">
+            <div class="p-2 rounded" style="background:#3c3c3c; max-height:78vh; overflow-y:auto;">
+                <div id="thumb-list" class="d-grid gap-2"></div>
+            </div>
         </div>
-        <div class="d-flex align-items-center gap-2">
-            <button id="btn-zoom-out" class="btn btn-sm btn-outline-light" title="縮小">－</button>
-            <span id="zoom-label" class="text-white small">100%</span>
-            <button id="btn-zoom-in" class="btn btn-sm btn-outline-light" title="拡大">＋</button>
-            <button id="btn-fit" class="btn btn-sm btn-outline-light" title="幅に合わせる">⛶</button>
-            <a href="{{ manual.pdf_file.url }}" download class="btn btn-sm btn-outline-warning" title="PDFをダウンロード">⬇ DL</a>
+        <div class="col-lg-9">
+            <div id="page-stack" class="p-2 rounded" style="background:#3c3c3c; max-height:78vh; overflow-y:auto;"></div>
         </div>
     </div>
-
-    <!-- キャンバス領域 -->
-    <div id="canvas-wrap" style="
-        overflow: auto;
-        display: flex;
-        justify-content: center;
-        max-height: 75vh;
-        background: #3c3c3c;
-        border-radius: 0.65rem;
-    ">
-        <canvas id="pdf-canvas" style="display:block; box-shadow: 0 4px 18px rgba(0,0,0,0.5);"></canvas>
-    </div>
-
-    <!-- ページスライダー -->
-    <div class="mt-3 px-1">
-        <input type="range" id="page-slider" class="form-range"
-               min="1" value="1" step="1"
-               style="accent-color: var(--tk-primary);">
-    </div>
-
-    <!-- サムネイル一覧 -->
-    <div id="thumb-strip" style="
-        display: flex;
-        gap: 0.5rem;
-        overflow-x: auto;
-        padding: 0.75rem 0.25rem 0.25rem;
-        scrollbar-width: thin;
-        scrollbar-color: #666 #333;
-    "></div>
 </div>
 
 <script type="module">
@@ -80,142 +42,80 @@ import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
 
 const PDF_URL = '{{ manual.pdf_file.url }}';
+const pageStack = document.getElementById('page-stack');
+const thumbList = document.getElementById('thumb-list');
 
-let pdfDoc = null;
-let currentPage = 1;
-let zoomScale = null; // null = fit-width
+function createPageCard(pageNo) {
+    const section = document.createElement('section');
+    section.id = `page-${pageNo}`;
+    section.className = 'mb-3';
 
-const canvas = document.getElementById('pdf-canvas');
-const ctx = canvas.getContext('2d');
-const canvasWrap = document.getElementById('canvas-wrap');
-const btnPrev = document.getElementById('btn-prev');
-const btnNext = document.getElementById('btn-next');
-const pageNum = document.getElementById('page-num');
-const pageCount = document.getElementById('page-count');
-const slider = document.getElementById('page-slider');
-const zoomLabel = document.getElementById('zoom-label');
-const thumbStrip = document.getElementById('thumb-strip');
+    const label = document.createElement('div');
+    label.className = 'small text-white-50 mb-1';
+    label.textContent = `${pageNo} ページ`;
 
-async function renderPage(num) {
-    const page = await pdfDoc.getPage(num);
-    const vp0 = page.getViewport({ scale: 1 });
+    const frame = document.createElement('div');
+    frame.style.cssText = 'aspect-ratio:4/3;background:#ffffff;border-radius:.5rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
 
-    let scale;
-    if (zoomScale === null) {
-        // 幅に合わせる
-        const availW = canvasWrap.clientWidth - 32;
-        scale = Math.max(0.5, availW / vp0.width);
-    } else {
-        scale = zoomScale;
-    }
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';
 
+    frame.appendChild(canvas);
+    section.appendChild(label);
+    section.appendChild(frame);
+    pageStack.appendChild(section);
+    return canvas;
+}
+
+function createThumb(pageNo) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-sm text-start p-1';
+    button.style.cssText = 'background:#2b2b2b;color:#fff;border:1px solid #555;';
+    button.onclick = () => {
+        const target = document.getElementById(`page-${pageNo}`);
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
+    const frame = document.createElement('div');
+    frame.style.cssText = 'aspect-ratio:4/3;background:#fff;border-radius:.35rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
+
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';
+
+    const label = document.createElement('div');
+    label.className = 'small mt-1';
+    label.textContent = `${pageNo} ページ`;
+
+    frame.appendChild(canvas);
+    button.appendChild(frame);
+    button.appendChild(label);
+    thumbList.appendChild(button);
+    return canvas;
+}
+
+async function renderIntoCanvas(page, canvas, targetWidth) {
+    const base = page.getViewport({ scale: 1 });
+    const scale = targetWidth / base.width;
     const viewport = page.getViewport({ scale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    pageNum.textContent = num;
-    slider.value = num;
-    btnPrev.disabled = num <= 1;
-    btnNext.disabled = num >= pdfDoc.numPages;
-    zoomLabel.textContent = zoomScale === null ? '幅合わせ' : Math.round(scale * 100) + '%';
-
-    // サムネイルのアクティブ状態
-    thumbStrip.querySelectorAll('.thumb-item').forEach((el, i) => {
-        el.style.outline = (i + 1 === num)
-            ? '3px solid var(--tk-primary)'
-            : '3px solid transparent';
-    });
-    const activeThumb = thumbStrip.querySelector(`.thumb-item[data-page="${num}"]`);
-    if (activeThumb) activeThumb.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
 }
 
-async function buildThumbs() {
-    for (let i = 1; i <= pdfDoc.numPages; i++) {
-        const page = await pdfDoc.getPage(i);
-        const vp = page.getViewport({ scale: 1 });
-        const thumbScale = 80 / vp.width;
-        const viewport = page.getViewport({ scale: thumbScale });
-
-        const tc = document.createElement('canvas');
-        tc.width = viewport.width;
-        tc.height = viewport.height;
-        await page.render({ canvasContext: tc.getContext('2d'), viewport }).promise;
-
-        const wrap = document.createElement('div');
-        wrap.className = 'thumb-item';
-        wrap.dataset.page = i;
-        wrap.style.cssText = `
-            flex-shrink: 0;
-            cursor: pointer;
-            border-radius: 4px;
-            overflow: hidden;
-            outline: 3px solid transparent;
-            transition: outline-color .15s;
-            position: relative;
-        `;
-        tc.style.display = 'block';
-
-        const label = document.createElement('div');
-        label.textContent = i;
-        label.style.cssText = `
-            text-align: center;
-            color: #ccc;
-            font-size: 0.65rem;
-            padding: 2px 0;
-            background: #2b2b2b;
-        `;
-
-        wrap.appendChild(tc);
-        wrap.appendChild(label);
-        wrap.addEventListener('click', () => gotoPage(i));
-        thumbStrip.appendChild(wrap);
-    }
-}
-
-function gotoPage(num) {
-    if (num < 1 || num > pdfDoc.numPages) return;
-    currentPage = num;
-    renderPage(currentPage);
-}
-
-// イベント
-btnPrev.addEventListener('click', () => gotoPage(currentPage - 1));
-btnNext.addEventListener('click', () => gotoPage(currentPage + 1));
-slider.addEventListener('input', () => gotoPage(parseInt(slider.value)));
-
-document.getElementById('btn-zoom-in').addEventListener('click', () => {
-    const page = pdfDoc?.getPage ? null : null; // placeholder
-    const cur = zoomScale ?? 1.0;
-    zoomScale = Math.min(cur + 0.25, 4.0);
-    renderPage(currentPage);
-});
-document.getElementById('btn-zoom-out').addEventListener('click', () => {
-    const cur = zoomScale ?? 1.0;
-    zoomScale = Math.max(cur - 0.25, 0.25);
-    renderPage(currentPage);
-});
-document.getElementById('btn-fit').addEventListener('click', () => {
-    zoomScale = null;
-    renderPage(currentPage);
-});
-
-// キーボード操作
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight' || e.key === 'PageDown') gotoPage(currentPage + 1);
-    if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   gotoPage(currentPage - 1);
-});
-
-// 初期化
 (async () => {
-    pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
-    pageCount.textContent = pdfDoc.numPages;
-    slider.max = pdfDoc.numPages;
-    btnPrev.disabled = false;
-    btnNext.disabled = false;
-    await renderPage(1);
-    buildThumbs(); // 非同期でサムネイル構築
+    const pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
+    for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
+        const page = await pdfDoc.getPage(pageNo);
+
+        const mainCanvas = createPageCard(pageNo);
+        await renderIntoCanvas(page, mainCanvas, 1024);
+
+        const thumbCanvas = createThumb(pageNo);
+        await renderIntoCanvas(page, thumbCanvas, 220);
+    }
 })();
 </script>
 {% endblock %}

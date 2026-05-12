@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}ユーザー作成 | Tenasapo Knowledge{% endblock %}
+{% block title %}{% if is_edit %}ユーザー編集{% else %}ユーザー作成{% endif %} | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-lg-8">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1 class="h3 mb-1">ユーザー作成</h1>
+                <h1 class="h3 mb-1">{% if is_edit %}ユーザー編集{% else %}ユーザー作成{% endif %}</h1>
                 <p class="text-secondary mb-0">管理者アカウントのみ利用できます。</p>
             </div>
         </div>
@@ -24,20 +24,23 @@
                 {% endif %}
 
                 <div class="row g-3">
+                    {% if is_edit %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">ユーザー名</label>
+                            <input class="form-control" type="text" value="{{ user_obj.username }}" readonly>
+                        </div>
+                    {% else %}
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" for="{{ form.username.id_for_label }}">ユーザー名</label>
+                            <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
+                            {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                    {% endif %}
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.username.id_for_label }}">ユーザー名</label>
-                        <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
-                        {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード</label>
-                        <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" required>
+                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード{% if not is_edit %}<span class="text-danger">*</span>{% else %}<span class="text-muted">(ユーザー一覧から変更)</span>{% endif %}</label>
+                        <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" {% if not is_edit %}required{% else %}disabled{% endif %}>
+                        {% if is_edit %}<div class="form-text text-muted">パスワードの変更はユーザー一覧から行ってください。</div>{% endif %}
                         {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名</label>
-                        <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
-                        {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label" for="{{ form.role.id_for_label }}">権限</label>
@@ -47,6 +50,21 @@
                             {% endfor %}
                         </select>
                         {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.user_type.id_for_label }}">ユーザー区分</label>
+                        <select class="form-select{% if form.user_type.errors %} is-invalid{% endif %}" name="{{ form.user_type.html_name }}" id="{{ form.user_type.id_for_label }}" required>
+                            {% for value, label in form.fields.user_type.choices %}
+                                <option value="{{ value }}"{% if form.user_type.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <input type="hidden" id="userTypeHidden" value="{{ form.user_type.value|default_if_none:'' }}">
+                        {% for error in form.user_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名</label>
+                        <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
+                        {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス（複数）</label>
@@ -63,9 +81,49 @@
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
                 <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">戻る</a>
-                <button class="btn btn-primary" type="submit">作成</button>
+                <button class="btn btn-primary" type="submit">{% if is_edit %}更新{% else %}作成{% endif %}</button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('{{ form.role.id_for_label }}');
+    const userTypeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
+    const userTypeHidden = document.getElementById('userTypeHidden');
+
+    if (!roleSelect || !userTypeSelect || !userTypeHidden) {
+        return;
+    }
+
+    const userTypeFieldName = '{{ form.user_type.html_name }}';
+
+    function syncUserTypeState() {
+        const isAdmin = roleSelect.value === 'admin';
+
+        if (isAdmin) {
+            userTypeSelect.value = 'systena';
+            userTypeSelect.disabled = true;
+            userTypeSelect.classList.add('bg-light');
+            userTypeHidden.name = userTypeFieldName;
+            userTypeHidden.value = 'systena';
+        } else {
+            userTypeSelect.disabled = false;
+            userTypeSelect.classList.remove('bg-light');
+            userTypeHidden.name = '';
+            userTypeHidden.value = userTypeSelect.value;
+        }
+    }
+
+    roleSelect.addEventListener('change', syncUserTypeState);
+    userTypeSelect.addEventListener('change', function() {
+        if (!userTypeSelect.disabled) {
+            userTypeHidden.value = userTypeSelect.value;
+        }
+    });
+
+    syncUserTypeState();
+});
+</script>
 {% endblock %}
