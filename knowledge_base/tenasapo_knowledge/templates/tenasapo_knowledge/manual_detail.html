@@ -9,10 +9,12 @@
     {% endif %}
 </div>
 
-<div class="home-panel p-4 mb-4">
-    <h1 class="h3 fw-bold mb-1" style="color:var(--tk-primary-dark);">{{ manual.title }}</h1>
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-file-earmark-text-fill"></i></span>{{ manual.title }}
+    </h1>
     {% if manual.description %}
-        <p class="text-muted mb-0">{{ manual.description }}</p>
+        <p class="page-title-sub">{{ manual.description }}</p>
     {% endif %}
     {% if not manual.is_published %}
         <span class="badge bg-secondary mt-2">非公開</span>

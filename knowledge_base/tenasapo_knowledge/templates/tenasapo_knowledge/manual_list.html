@@ -2,11 +2,15 @@
 {% block title %}マニュアル一覧 – Tenasapo Knowledge{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 fw-bold mb-0" style="color:var(--tk-primary-dark);">📖 マニュアル一覧</h1>
-    {% if user.is_staff or user.is_superuser %}
-        <a href="{% url 'manual_create' %}" class="btn btn-primary btn-sm">＋ マニュアル登録</a>
-    {% endif %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+        <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+            <span class="page-title-icon"><i class="bi bi-book-fill"></i></span>マニュアル一覧
+        </h1>
+        {% if user.is_staff or user.is_superuser %}
+            <a href="{% url 'manual_create' %}" class="btn btn-primary btn-sm">＋ マニュアル登録</a>
+        {% endif %}
+    </div>
 </div>
 
 {% if messages %}

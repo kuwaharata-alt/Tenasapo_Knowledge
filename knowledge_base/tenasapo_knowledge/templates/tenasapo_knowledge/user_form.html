@@ -5,11 +5,11 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-lg-8">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <div>
-                <h1 class="h3 mb-1">{% if is_edit %}ユーザー編集{% else %}ユーザー作成{% endif %}</h1>
-                <p class="text-secondary mb-0">管理者アカウントのみ利用できます。</p>
-            </div>
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-person-fill-gear"></i></span>{% if is_edit %}ユーザー編集{% else %}ユーザー作成{% endif %}
+            </h1>
+            <p class="page-title-sub">管理者アカウントのみ利用できます。</p>
         </div>
 
         {% for message in messages %}

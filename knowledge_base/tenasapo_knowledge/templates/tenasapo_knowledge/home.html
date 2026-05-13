@@ -3,9 +3,11 @@
 {% block title %}ホーム | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
-<div class="home-panel p-4 mb-4">
-    <h1 class="h3 mb-3">ホーム</h1>
-    <p class="text-muted mb-0">メニュー一覧</p>
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-house-fill"></i></span>ホーム
+    </h1>
+    <p class="page-title-sub">メニュー一覧</p>
 </div>
 
 {% if recent_faqs or recent_tips %}
