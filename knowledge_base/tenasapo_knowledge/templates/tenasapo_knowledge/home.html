@@ -8,6 +8,45 @@
     <p class="text-muted mb-0">メニュー一覧</p>
 </div>
 
+{% if recent_faqs or recent_tips %}
+<div class="row g-3 mb-4">
+    {% if recent_faqs %}
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-3 faq-group-title">📋 FAQ 最新更新</h2>
+                <ul class="list-group list-group-flush">
+                    {% for article in recent_faqs %}
+                    <li class="list-group-item px-0">
+                        <a href="{% url 'article_list' %}" class="text-decoration-none">{{ article.title }}</a>
+                        <div class="text-muted" style="font-size:0.78rem;">{{ article.updated_at|date:"Y/m/d H:i" }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    {% if recent_tips %}
+    <div class="col-12 col-md-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-3 faq-group-title">💡 Tips 最新更新</h2>
+                <ul class="list-group list-group-flush">
+                    {% for tip in recent_tips %}
+                    <li class="list-group-item px-0">
+                        <a href="{% url 'tip_list' %}" class="text-decoration-none">{{ tip.title }}</a>
+                        <div class="text-muted" style="font-size:0.78rem;">{{ tip.updated_at|date:"Y/m/d H:i" }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="row g-3">
     {% for group in menu_groups %}
         <div class="col-12 col-md-6 col-xl-4">

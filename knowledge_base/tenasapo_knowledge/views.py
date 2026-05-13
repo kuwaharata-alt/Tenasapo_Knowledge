@@ -201,6 +201,20 @@ class HomeView(TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         is_admin = user.is_staff or user.is_superuser
+
+        # 最新FAQ（権限に応じてフィルタ）
+        faq_qs = KnowledgeArticle.objects.filter(is_published=True)
+        tips_qs = TipsArticle.objects.filter(is_published=True)
+        is_systena = in_group(user, SYSTENA_GROUP_NAME)
+        is_reviewer = in_group(user, REVIEWER_GROUP_NAME)
+        if not is_admin and not is_systena and not is_reviewer:
+            faq_qs = faq_qs.filter(visible_to_customer=True)
+            tips_qs = tips_qs.filter(visible_to_customer=True)
+            if FAQ_APPROVAL_ENABLED:
+                faq_qs = faq_qs.filter(is_approved=True)
+                tips_qs = tips_qs.filter(is_approved=True)
+        context['recent_faqs'] = faq_qs.order_by('-updated_at')[:3]
+        context['recent_tips'] = tips_qs.order_by('-updated_at')[:3]
         menu_groups = [
             {
                 'name': 'Knowledge',
