@@ -128,7 +128,7 @@
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
                                                 <span class="badge faq-meta-badge">
-                                                    登録日 {{ article.published_at|date:"Y/m/d H:i" }}
+                                                    登録日 {{ article.published_at|date:"Y/m/d" }}
                                                 </span>
                                                 {% if article.source_published_at %}
                                                     <span class="badge faq-meta-badge">
@@ -138,6 +138,15 @@
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">
                                                         投稿者 {{ article.creator_display_name|default:"-" }}
+                                                    </span>
+                                                {% endif %}
+                                                {% if can_view_approval_meta %}
+                                                    <span class="badge text-bg-secondary">
+                                                        {% if article.is_approved %}
+                                                            承認者 {{ article.approver_display_name|default:"-" }}
+                                                        {% else %}
+                                                            未承認
+                                                        {% endif %}
                                                     </span>
                                                 {% endif %}
                                                 {% if article.file_attachments %}

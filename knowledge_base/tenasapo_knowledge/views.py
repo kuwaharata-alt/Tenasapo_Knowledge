@@ -132,11 +132,7 @@ def can_user_access_article(user, article):
 def can_approve_article(user):
     return (
         user.is_authenticated
-        and (
-            user.is_staff
-            or user.is_superuser
-            or in_group(user, REVIEWER_GROUP_NAME)
-        )
+        and in_group(user, REVIEWER_GROUP_NAME)
     )
 
 
@@ -176,7 +172,7 @@ class ArticleListView(ListView):
 
     def get_queryset(self):
         queryset = (
-            KnowledgeArticle.objects.select_related('customer', 'created_by')
+            KnowledgeArticle.objects.select_related('customer', 'created_by', 'approved_by')
             .prefetch_related('attachments')
             .filter(is_published=True)
             .annotate(good_count=Count('goods'))
@@ -219,8 +215,10 @@ class ArticleListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_edit_article'] = can_edit_article(self.request.user)
+        context['can_view_approval_meta'] = can_view_approval_meta
         liked_article_ids = set(
             ArticleGood.objects.filter(
                 user=self.request.user,
@@ -231,6 +229,9 @@ class ArticleListView(ListView):
             article.is_gooded = article.id in liked_article_ids
             article.creator_display_name = article.created_by_name or (
                 article.created_by.get_username() if article.created_by else ''
+            )
+            article.approver_display_name = article.approved_by_name or (
+                article.approved_by.get_username() if article.approved_by else ''
             )
             article.category_chips = self.split_categories(article.category)
             ordered_attachments = sorted(
@@ -552,6 +553,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
         context['article'] = self.article
+        context['article_approver_display_name'] = self.article.approved_by_name or (
+            self.article.approved_by.get_username() if self.article.approved_by else ''
+        )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_article'] = can_approve_article(self.request.user)
         context['question_images'] = self.article.attachments.filter(
@@ -598,7 +602,9 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
             return redirect('article_edit', pk=article.id)
 
         article.is_approved = True
-        article.save(update_fields=['is_approved', 'updated_at'])
+        article.approved_by = request.user
+        article.approved_by_name = request.user.get_username()
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect('article_edit', pk=article.id)
 

@@ -164,8 +164,13 @@
                         <div class="fw-bold">承認状態</div>
                         {% if article.is_approved %}
                             <div class="text-success small">承認済み</div>
+                            <div class="mt-2">
+                                <span class="badge faq-meta-badge">承認者 {{ article_approver_display_name|default:"-" }}</span>
+                            </div>
                         {% else %}
-                            <div class="text-muted small">未承認（カスタマーユーザーには表示されません）</div>
+                            <div class="mt-2">
+                                <span class="badge text-bg-secondary">未承認</span>
+                            </div>
                         {% endif %}
                     </div>
                     {% if can_approve_article and not article.is_approved %}

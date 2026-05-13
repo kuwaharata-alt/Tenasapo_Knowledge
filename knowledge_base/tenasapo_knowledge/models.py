@@ -112,6 +112,15 @@ class KnowledgeArticle(models.Model):
         verbose_name='作成者',
     )
     created_by_name = models.CharField('投稿者名', max_length=150, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_knowledge_articles',
+        verbose_name='承認者',
+    )
+    approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
