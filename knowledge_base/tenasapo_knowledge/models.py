@@ -97,6 +97,7 @@ class KnowledgeArticle(models.Model):
     summary = models.TextField('概要', blank=True)
     body = models.TextField('本文')
     is_published = models.BooleanField('公開', default=True)
+    is_approved = models.BooleanField('承認済み', default=True)
     visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
     answer_view_count = models.PositiveIntegerField('回答表示回数', default=0)

@@ -113,7 +113,7 @@
                                                     👍 <span class="faq-good-count">{{ article.good_count }}</span>
                                                 </button>
                                             {% endif %}
-                                            {% if user.is_staff or user.is_superuser %}
+                                            {% if can_edit_article %}
                                                 <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'article_edit' article.id %}">編集</a>
                                             {% endif %}
                                         </div>

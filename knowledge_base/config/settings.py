@@ -139,9 +139,14 @@ SESSION_SAVE_EVERY_REQUEST = True
 # Windowsのグループ相当（業務上のユーザー区分）
 USER_GROUPS = [
     '管理者',
+    'レビュアー',
     'システナ',
     'カスタマー',
 ]
+
+USER_GROUP_REVIEWER_NAME = 'レビュアー'
+
+FAQ_APPROVAL_ENABLED = True
 
 # グループごとの役割（権限）
 # 形式: "<app_label>.<codename>"
@@ -155,6 +160,10 @@ GROUP_ROLE_PERMISSIONS = {
         'tenasapo_knowledge.change_manual',
         'tenasapo_knowledge.delete_manual',
         'tenasapo_knowledge.view_manual',
+    ],
+    'レビュアー': [
+        'tenasapo_knowledge.view_knowledgearticle',
+        'tenasapo_knowledge.change_knowledgearticle',
     ],
     'システナ': [
         'tenasapo_knowledge.view_knowledgearticle',

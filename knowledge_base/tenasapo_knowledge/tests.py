@@ -1,6 +1,7 @@
 import tempfile
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -510,6 +511,47 @@ class KnowledgeArticleListTests(TestCase):
         self.assertRedirects(response, reverse('article_list'))
         article = KnowledgeArticle.objects.get(title='複数カテゴリのFAQ')
         self.assertEqual(article.category, 'PC/電源,サーバー/ActiveDirectory')
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_customer_cannot_see_unapproved_article_even_if_visible_to_customer(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        unapproved_article = KnowledgeArticle.objects.create(
+            title='未承認FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertNotContains(response, unapproved_article.title)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_approve_article_from_edit_page(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='reviewer', password='password')
+        reviewer.groups.add(reviewer_group)
+        article = KnowledgeArticle.objects.create(
+            title='承認待ちFAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        edit_response = self.client.get(reverse('article_edit', args=[article.id]))
+        self.assertEqual(edit_response.status_code, 200)
+        self.assertContains(edit_response, '承認')
+
+        approve_response = self.client.post(reverse('article_approve', args=[article.id]))
+
+        self.assertRedirects(approve_response, reverse('article_edit', args=[article.id]))
+        article.refresh_from_db()
+        self.assertTrue(article.is_approved)
 
 
 class UserCreateViewTests(TestCase):

@@ -33,6 +33,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
         'category',
         'customer',
         'is_published',
+        'is_approved',
         'visible_to_customer',
         'visible_to_systena',
         'answer_view_count',
@@ -41,6 +42,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
     )
     list_filter = (
         'is_published',
+        'is_approved',
         'visible_to_customer',
         'visible_to_systena',
         'category',

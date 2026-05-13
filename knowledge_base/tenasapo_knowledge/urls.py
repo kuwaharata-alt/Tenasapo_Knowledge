@@ -9,6 +9,7 @@ from .views import (
     FAQAnswerViewTrackView,
     KnowledgeArticleCreateView,
     KnowledgeArticleDeleteView,
+    KnowledgeArticleApproveView,
     KnowledgeArticleUpdateView,
     LoginHistoryListView,
     ManualCreateView,
@@ -30,6 +31,7 @@ urlpatterns = [
     path('knowledge/toggle-good/', FAQGoodToggleView.as_view(), name='faq_toggle_good'),
     path('knowledge/create/', KnowledgeArticleCreateView.as_view(), name='article_create'),
     path('knowledge/<int:pk>/edit/', KnowledgeArticleUpdateView.as_view(), name='article_edit'),
+    path('knowledge/<int:pk>/approve/', KnowledgeArticleApproveView.as_view(), name='article_approve'),
     path('knowledge/<int:pk>/delete/', KnowledgeArticleDeleteView.as_view(), name='article_delete'),
     path(
         'attachments/<int:pk>/delete/',

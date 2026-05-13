@@ -29,6 +29,8 @@ from .models import (
 ADMIN_GROUP_NAME = getattr(settings, 'USER_GROUP_ADMIN_NAME', '管理者')
 SYSTENA_GROUP_NAME = getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ')
 CUSTOMER_GROUP_NAME = getattr(settings, 'USER_GROUP_CUSTOMER_NAME', 'カスタマー')
+REVIEWER_GROUP_NAME = getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー')
+FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
 
 
 def in_group(user, group_name):
@@ -115,11 +117,38 @@ def record_view_history(
 def can_user_access_article(user, article):
     is_staff_user = user.is_staff or user.is_superuser
     is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
+    is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
     if is_staff_user:
+        return True
+    if is_reviewer_user:
         return True
     if is_systena_user:
         return article.visible_to_systena
+    if FAQ_APPROVAL_ENABLED and not article.is_approved:
+        return False
     return article.visible_to_customer
+
+
+def can_approve_article(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_staff
+            or user.is_superuser
+            or in_group(user, REVIEWER_GROUP_NAME)
+        )
+    )
+
+
+def can_edit_article(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_staff
+            or user.is_superuser
+            or in_group(user, REVIEWER_GROUP_NAME)
+        )
+    )
 
 
 def is_customer_user(user):
@@ -155,8 +184,15 @@ class ArticleListView(ListView):
 
         user = self.request.user
         is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-        if not (user.is_authenticated and (user.is_staff or user.is_superuser)) and not is_systena_user:
+        is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+        if (
+            not (user.is_authenticated and (user.is_staff or user.is_superuser))
+            and not is_systena_user
+            and not is_reviewer_user
+        ):
             queryset = queryset.filter(visible_to_customer=True)
+            if FAQ_APPROVAL_ENABLED:
+                queryset = queryset.filter(is_approved=True)
 
         query = self.request.GET.get('q')
         if query:
@@ -184,6 +220,7 @@ class ArticleListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['can_use_good'] = is_customer_user(self.request.user)
+        context['can_edit_article'] = can_edit_article(self.request.user)
         liked_article_ids = set(
             ArticleGood.objects.filter(
                 user=self.request.user,
@@ -400,6 +437,20 @@ class StaffRequiredMixin(UserPassesTestMixin):
         return user.is_authenticated and (user.is_staff or user.is_superuser)
 
 
+class ArticleEditorRequiredMixin(UserPassesTestMixin):
+    raise_exception = True
+
+    def test_func(self):
+        return can_edit_article(self.request.user)
+
+
+class ArticleApprovalRequiredMixin(UserPassesTestMixin):
+    raise_exception = True
+
+    def test_func(self):
+        return can_approve_article(self.request.user)
+
+
 class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
     template_name = 'tenasapo_knowledge/article_form.html'
     form_class = KnowledgeArticleCreateForm
@@ -437,6 +488,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             category=form.cleaned_data['category'],
             title=form.cleaned_data['question'],
             body=form.cleaned_data['answer'],
+            is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
             created_by=self.request.user,
@@ -462,7 +514,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
                 )
 
 
-class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
+class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
     template_name = 'tenasapo_knowledge/article_form.html'
     form_class = KnowledgeArticleCreateForm
     success_url = reverse_lazy('article_list')
@@ -498,6 +550,8 @@ class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
         context['article'] = self.article
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
+        context['can_approve_article'] = can_approve_article(self.request.user)
         context['question_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_QUESTION
         ).order_by('uploaded_at', 'id')
@@ -526,6 +580,23 @@ class KnowledgeArticleUpdateView(StaffRequiredMixin, FormView):
         KnowledgeArticleCreateView.save_inline_images(self.article, form)
         messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
         return super().form_valid(form)
+
+
+class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
+    def post(self, request, pk):
+        article = get_object_or_404(KnowledgeArticle, pk=pk)
+        if not FAQ_APPROVAL_ENABLED:
+            messages.info(request, '承認機能は無効です。')
+            return redirect('article_edit', pk=article.id)
+
+        if article.is_approved:
+            messages.info(request, f'FAQ「{article.title}」は既に承認済みです。')
+            return redirect('article_edit', pk=article.id)
+
+        article.is_approved = True
+        article.save(update_fields=['is_approved', 'updated_at'])
+        messages.success(request, f'FAQ「{article.title}」を承認しました。')
+        return redirect('article_edit', pk=article.id)
 
 
 class ArticleAttachmentDeleteView(StaffRequiredMixin, View):
