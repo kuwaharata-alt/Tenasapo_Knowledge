@@ -1,6 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.contrib.auth.models import Group
 from django.contrib.auth.mixins import UserPassesTestMixin
+from django.conf import settings
 from django.db.models import Count, F
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -22,6 +24,21 @@ from .models import (
     UserProfile,
     ViewHistory,
 )
+
+
+ADMIN_GROUP_NAME = getattr(settings, 'USER_GROUP_ADMIN_NAME', '管理者')
+SYSTENA_GROUP_NAME = getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ')
+CUSTOMER_GROUP_NAME = getattr(settings, 'USER_GROUP_CUSTOMER_NAME', 'カスタマー')
+
+
+def in_group(user, group_name):
+    return user.is_authenticated and user.groups.filter(name=group_name).exists()
+
+
+def profile_user_type_from_groups(group_names):
+    if SYSTENA_GROUP_NAME in group_names or ADMIN_GROUP_NAME in group_names:
+        return UserProfile.USER_TYPE_SYSTENA
+    return UserProfile.USER_TYPE_CUSTOMER
 
 
 def client_ip_from_request(request):
@@ -97,10 +114,7 @@ def record_view_history(
 
 def can_user_access_article(user, article):
     is_staff_user = user.is_staff or user.is_superuser
-    is_systena_user = (
-        hasattr(user, 'knowledge_profile')
-        and user.knowledge_profile.user_type == UserProfile.USER_TYPE_SYSTENA
-    )
+    is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
     if is_staff_user:
         return True
     if is_systena_user:
@@ -111,8 +125,7 @@ def can_user_access_article(user, article):
 def is_customer_user(user):
     return (
         user.is_authenticated
-        and hasattr(user, 'knowledge_profile')
-        and user.knowledge_profile.user_type == UserProfile.USER_TYPE_CUSTOMER
+        and in_group(user, CUSTOMER_GROUP_NAME)
         and not (user.is_staff or user.is_superuser)
     )
 
@@ -141,11 +154,7 @@ class ArticleListView(ListView):
         )
 
         user = self.request.user
-        is_systena_user = (
-            user.is_authenticated
-            and hasattr(user, 'knowledge_profile')
-            and user.knowledge_profile.user_type == UserProfile.USER_TYPE_SYSTENA
-        )
+        is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
         if not (user.is_authenticated and (user.is_staff or user.is_superuser)) and not is_systena_user:
             queryset = queryset.filter(visible_to_customer=True)
 
@@ -612,7 +621,11 @@ class UserCreateView(StaffRequiredMixin, FormView):
     def form_valid(self, form):
         User = get_user_model()
         emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
-        is_admin = form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
+        selected_group_names = list(form.cleaned_data['groups'])
+        is_admin = (
+            form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
+            or ADMIN_GROUP_NAME in selected_group_names
+        )
 
         user = User.objects.create_user(
             username=form.cleaned_data['username'],
@@ -621,10 +634,17 @@ class UserCreateView(StaffRequiredMixin, FormView):
             is_staff=is_admin,
             is_superuser=is_admin,
         )
+
+        group_objects = [
+            Group.objects.get_or_create(name=group_name)[0]
+            for group_name in selected_group_names
+        ]
+        user.groups.set(group_objects)
+
         UserProfile.objects.create(
             user=user,
             company_name=form.cleaned_data['company_name'],
-            user_type=form.cleaned_data['user_type'],
+            user_type=profile_user_type_from_groups(selected_group_names),
             email_addresses='\n'.join(emails),
             note=form.cleaned_data['note'],
         )
@@ -643,7 +663,7 @@ class UserListView(StaffRequiredMixin, ListView):
 
     def get_queryset(self):
         User = get_user_model()
-        queryset = User.objects.select_related('knowledge_profile').order_by('username')
+        queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by('username')
 
         query = self.request.GET.get('q')
         if query:
@@ -753,7 +773,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
             'username': self.user_obj.username,
             'company_name': profile.company_name if profile else '',
             'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
-            'user_type': profile.user_type if profile else UserProfile.USER_TYPE_CUSTOMER,
+            'groups': list(self.user_obj.groups.values_list('name', flat=True)),
             'email_addresses': profile.email_addresses if profile else '',
             'note': profile.note if profile else '',
         }
@@ -767,7 +787,11 @@ class UserUpdateView(StaffRequiredMixin, FormView):
     def form_valid(self, form):
         User = get_user_model()
         emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
-        is_admin = form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
+        selected_group_names = list(form.cleaned_data['groups'])
+        is_admin = (
+            form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
+            or ADMIN_GROUP_NAME in selected_group_names
+        )
 
         # ユーザー情報を更新
         self.user_obj.is_staff = is_admin
@@ -783,10 +807,16 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         
         self.user_obj.save()
 
+        group_objects = [
+            Group.objects.get_or_create(name=group_name)[0]
+            for group_name in selected_group_names
+        ]
+        self.user_obj.groups.set(group_objects)
+
         # プロフィールを更新
         profile, _ = UserProfile.objects.get_or_create(user=self.user_obj)
         profile.company_name = form.cleaned_data['company_name']
-        profile.user_type = form.cleaned_data['user_type']
+        profile.user_type = profile_user_type_from_groups(selected_group_names)
         profile.email_addresses = '\n'.join(emails)
         profile.note = form.cleaned_data['note']
         profile.save()

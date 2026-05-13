@@ -135,3 +135,34 @@ LOGOUT_REDIRECT_URL = 'login'
 
 SESSION_COOKIE_AGE = 60 * 30
 SESSION_SAVE_EVERY_REQUEST = True
+
+# Windowsのグループ相当（業務上のユーザー区分）
+USER_GROUPS = [
+    '管理者',
+    'システナ',
+    'カスタマー',
+]
+
+# グループごとの役割（権限）
+# 形式: "<app_label>.<codename>"
+GROUP_ROLE_PERMISSIONS = {
+    '管理者': [
+        'tenasapo_knowledge.add_knowledgearticle',
+        'tenasapo_knowledge.change_knowledgearticle',
+        'tenasapo_knowledge.delete_knowledgearticle',
+        'tenasapo_knowledge.view_knowledgearticle',
+        'tenasapo_knowledge.add_manual',
+        'tenasapo_knowledge.change_manual',
+        'tenasapo_knowledge.delete_manual',
+        'tenasapo_knowledge.view_manual',
+    ],
+    'システナ': [
+        'tenasapo_knowledge.view_knowledgearticle',
+        'tenasapo_knowledge.add_knowledgearticle',
+        'tenasapo_knowledge.change_knowledgearticle',
+        'tenasapo_knowledge.view_manual',
+    ],
+    'カスタマー': [
+        'tenasapo_knowledge.view_knowledgearticle',
+    ],
+}

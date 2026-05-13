@@ -52,14 +52,20 @@
                         {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.user_type.id_for_label }}">ユーザー区分</label>
-                        <select class="form-select{% if form.user_type.errors %} is-invalid{% endif %}" name="{{ form.user_type.html_name }}" id="{{ form.user_type.id_for_label }}" required>
-                            {% for value, label in form.fields.user_type.choices %}
-                                <option value="{{ value }}"{% if form.user_type.value == value %} selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <input type="hidden" id="userTypeHidden" value="{{ form.user_type.value|default_if_none:'' }}">
-                        {% for error in form.user_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <label class="form-label">所属グループ</label>
+                        <div class="border rounded p-3{% if form.groups.errors %} border-danger{% endif %}">
+                            {% if form.fields.groups.choices %}
+                                {% for value, label in form.fields.groups.choices %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="{{ form.groups.html_name }}" id="group_{{ forloop.counter }}" value="{{ value }}"{% if value in form.groups.value %} checked{% endif %}>
+                                        <label class="form-check-label" for="group_{{ forloop.counter }}">{{ label }}</label>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-secondary">設定済みグループがありません。</div>
+                            {% endif %}
+                        </div>
+                        {% for error in form.groups.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名</label>
@@ -86,44 +92,4 @@
         </form>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const roleSelect = document.getElementById('{{ form.role.id_for_label }}');
-    const userTypeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
-    const userTypeHidden = document.getElementById('userTypeHidden');
-
-    if (!roleSelect || !userTypeSelect || !userTypeHidden) {
-        return;
-    }
-
-    const userTypeFieldName = '{{ form.user_type.html_name }}';
-
-    function syncUserTypeState() {
-        const isAdmin = roleSelect.value === 'admin';
-
-        if (isAdmin) {
-            userTypeSelect.value = 'systena';
-            userTypeSelect.disabled = true;
-            userTypeSelect.classList.add('bg-light');
-            userTypeHidden.name = userTypeFieldName;
-            userTypeHidden.value = 'systena';
-        } else {
-            userTypeSelect.disabled = false;
-            userTypeSelect.classList.remove('bg-light');
-            userTypeHidden.name = '';
-            userTypeHidden.value = userTypeSelect.value;
-        }
-    }
-
-    roleSelect.addEventListener('change', syncUserTypeState);
-    userTypeSelect.addEventListener('change', function() {
-        if (!userTypeSelect.disabled) {
-            userTypeHidden.value = userTypeSelect.value;
-        }
-    });
-
-    syncUserTypeState();
-});
-</script>
 {% endblock %}

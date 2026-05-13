@@ -1,9 +1,10 @@
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import FAQCategory, Manual, UserProfile
+from .models import FAQCategory, Manual
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -143,7 +144,12 @@ class UserCreateForm(forms.Form):
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput)
     company_name = forms.CharField(label='会社名', max_length=120)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
-    user_type = forms.ChoiceField(label='ユーザー区分', choices=UserProfile.USER_TYPE_CHOICES)
+    groups = forms.MultipleChoiceField(
+        label='所属グループ',
+        required=False,
+        choices=(),
+        widget=forms.CheckboxSelectMultiple,
+    )
     email_addresses = forms.CharField(
         label='メールアドレス（複数）',
         required=False,
@@ -155,6 +161,11 @@ class UserCreateForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'rows': 4}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_names = getattr(settings, 'USER_GROUPS', [])
+        self.fields['groups'].choices = [(name, name) for name in group_names]
 
     def clean_username(self):
         username = self.cleaned_data['username']
@@ -199,7 +210,12 @@ class UserUpdateForm(forms.Form):
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput, required=False)
     company_name = forms.CharField(label='会社名', max_length=120)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
-    user_type = forms.ChoiceField(label='ユーザー区分', choices=UserProfile.USER_TYPE_CHOICES)
+    groups = forms.MultipleChoiceField(
+        label='所属グループ',
+        required=False,
+        choices=(),
+        widget=forms.CheckboxSelectMultiple,
+    )
     email_addresses = forms.CharField(
         label='メールアドレス（複数）',
         required=False,
@@ -211,6 +227,11 @@ class UserUpdateForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'rows': 4}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        group_names = getattr(settings, 'USER_GROUPS', [])
+        self.fields['groups'].choices = [(name, name) for name in group_names]
 
     def clean_email_addresses(self):
         value = self.cleaned_data.get('email_addresses', '')

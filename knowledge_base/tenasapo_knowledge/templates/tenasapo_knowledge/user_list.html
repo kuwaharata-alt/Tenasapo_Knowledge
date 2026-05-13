@@ -34,7 +34,7 @@
                     <th scope="col">ユーザー名</th>
                     <th scope="col">会社名</th>
                     <th scope="col">権限</th>
-                    <th scope="col">ユーザー区分</th>
+                    <th scope="col">所属グループ</th>
                     <th scope="col">メールアドレス</th>
                     <th scope="col">備考</th>
                     <th scope="col">操作</th>
@@ -53,10 +53,12 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if account.knowledge_profile.user_type == 'systena' %}
-                                <span class="badge text-bg-info">システナ</span>
+                            {% if account.groups.all %}
+                                {% for group in account.groups.all %}
+                                    <span class="badge text-bg-light me-1">{{ group.name }}</span>
+                                {% endfor %}
                             {% else %}
-                                <span class="badge text-bg-light">カスタマー</span>
+                                <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
                         <td class="text-break">
