@@ -96,6 +96,7 @@ class KnowledgeArticleListTests(TestCase):
                 'category': 'ネットワーク/VPN',
                 'question': 'VPN に接続できない場合は？',
                 'answer': '認証情報と接続先を確認します。',
+                'source_published_at': '2026-05-01',
             },
         )
 
@@ -103,6 +104,7 @@ class KnowledgeArticleListTests(TestCase):
         article = KnowledgeArticle.objects.get(title='VPN に接続できない場合は？')
         self.assertEqual(article.category, 'ネットワーク/VPN')
         self.assertEqual(article.body, '認証情報と接続先を確認します。')
+        self.assertEqual(str(article.source_published_at), '2026-05-01')
         self.assertIsNone(article.customer)
         self.assertEqual(article.created_by, self.user)
 

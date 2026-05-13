@@ -84,6 +84,11 @@
                             {% for error in form.visible_to_systena.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         </div>
                     </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-subsection-label" for="{{ form.source_published_at.id_for_label }}">{{ form.source_published_at.label }}</label>
+                        <input class="form-control{% if form.source_published_at.errors %} is-invalid{% endif %}" type="date" name="{{ form.source_published_at.html_name }}" id="{{ form.source_published_at.id_for_label }}" value="{{ form.source_published_at.value|default_if_none:'' }}">
+                        {% for error in form.source_published_at.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問</label>
                         {% if form.question.help_text %}<div class="form-text mb-2">{{ form.question.help_text }}</div>{% endif %}

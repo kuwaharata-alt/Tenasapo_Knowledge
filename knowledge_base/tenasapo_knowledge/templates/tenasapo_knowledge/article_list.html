@@ -130,6 +130,11 @@
                                                 <span class="badge faq-meta-badge">
                                                     登録日 {{ article.published_at|date:"Y/m/d H:i" }}
                                                 </span>
+                                                {% if article.source_published_at %}
+                                                    <span class="badge faq-meta-badge">
+                                                        ソース公開日 {{ article.source_published_at|date:"Y/m/d" }}
+                                                    </span>
+                                                {% endif %}
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">
                                                         投稿者 {{ article.creator_display_name|default:"-" }}

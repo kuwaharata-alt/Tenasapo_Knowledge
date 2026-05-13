@@ -491,6 +491,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
+            source_published_at=form.cleaned_data['source_published_at'],
             created_by=self.request.user,
             created_by_name=self.request.user.get_username(),
         )
@@ -543,6 +544,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             'answer': self.article.body,
             'visible_to_customer': self.article.visible_to_customer,
             'visible_to_systena': self.article.visible_to_systena,
+            'source_published_at': self.article.source_published_at,
         }
 
     def get_context_data(self, **kwargs):
@@ -567,6 +569,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         self.article.body = form.cleaned_data['answer']
         self.article.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
+        self.article.source_published_at = form.cleaned_data['source_published_at']
         self.article.save(
             update_fields=[
                 'category',
@@ -574,6 +577,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'body',
                 'visible_to_customer',
                 'visible_to_systena',
+                'source_published_at',
                 'updated_at',
             ]
         )

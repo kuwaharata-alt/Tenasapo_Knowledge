@@ -101,6 +101,11 @@ class KnowledgeArticleCreateForm(forms.Form):
         required=False,
         initial=True,
     )
+    source_published_at = forms.DateField(
+        label='ソース公開日',
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

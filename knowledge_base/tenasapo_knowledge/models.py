@@ -102,6 +102,7 @@ class KnowledgeArticle(models.Model):
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
     answer_view_count = models.PositiveIntegerField('回答表示回数', default=0)
     published_at = models.DateTimeField('公開日時', default=timezone.now)
+    source_published_at = models.DateField('ソース公開日', null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
