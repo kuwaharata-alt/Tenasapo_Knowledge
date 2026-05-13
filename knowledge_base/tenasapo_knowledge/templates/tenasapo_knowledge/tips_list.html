@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Tips | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="home-panel p-4 mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1 fw-bold">Tips</h1>
+        </div>
+        {% if user.is_staff or user.is_superuser %}
+            <a class="btn btn-primary" href="{% url 'tip_create' %}">Tips登録</a>
+        {% endif %}
+    </div>
+
+    <form class="row gy-2 gx-2 align-items-end" method="get">
+        {% if selected_parent_category %}
+            <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
+        {% endif %}
+        {% if selected_category %}
+            <input type="hidden" name="category" value="{{ selected_category }}">
+        {% endif %}
+        <div class="col-12 col-md-7">
+            <label class="form-label" for="q">検索</label>
+            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="タイトルで検索">
+        </div>
+        <div class="col-12 col-md-auto">
+            <button class="btn btn-primary" type="submit">絞り込み</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-4 align-items-start">
+    <aside class="col-12 col-lg-2">
+        <div class="category-sidebar">
+            <div class="category-sidebar-title">カテゴリ</div>
+            <div class="list-group list-group-flush">
+                <a
+                    class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
+                    href="?q={{ query|urlencode }}"
+                >
+                    すべて
+                </a>
+                {% for parent_category in parent_categories %}
+                    <a
+                        class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
+                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}"
+                        aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
+                        aria-controls="categoryChildren{{ forloop.counter }}"
+                    >
+                        {{ parent_category.name }}
+                    </a>
+                    <div
+                        class="collapse {% if selected_parent_category == parent_category.name %}show{% endif %}"
+                        id="categoryChildren{{ forloop.counter }}"
+                    >
+                        <div class="category-child-list">
+                            {% for child_category in parent_category.children %}
+                                <a
+                                    class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                    href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                >
+                                    {{ child_category.name }}
+                                </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <section class="col-12 col-lg-10">
+        {% if grouped_tips %}
+            <div class="faq-group-list">
+                {% for group in grouped_tips %}
+                    <section class="faq-group">
+                        <h2 class="faq-group-title">{{ group.parent_name }}</h2>
+                        <div class="accordion shadow-sm" id="tipsAccordion{{ forloop.counter }}">
+                            {% for tip in group.articles %}
+                                <article class="accordion-item faq-item">
+                                    <h3 class="accordion-header" id="tipsHeading{{ forloop.parentloop.counter }}{{ tip.id }}">
+                                        <div class="faq-question d-flex align-items-center gap-3 p-3">
+                                            <span class="badge text-bg-primary flex-shrink-0">Tips</span>
+                                            <div class="flex-grow-1">
+                                                <div class="faq-question-title fw-semibold">{{ tip.title }}</div>
+                                                {% if tip.category_chips %}
+                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                        {% for category in tip.category_chips %}
+                                                            <span class="badge faq-category-chip">{{ category }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <button
+                                                class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
+                                                type="button"
+                                                data-bs-toggle="collapse"
+                                                data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                aria-expanded="false"
+                                                aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                aria-label="内容を表示"
+                                            ></button>
+                                            {% if can_edit_tip %}
+                                                <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
+                                            {% endif %}
+                                            {% if tip.pdf_file %}
+                                                <button
+                                                    class="btn btn-outline-primary btn-sm flex-shrink-0"
+                                                    type="button"
+                                                    data-pdf-url="{{ tip.pdf_file.url }}"
+                                                    data-pdf-title="{{ tip.title }}"
+                                                    onclick="openPdfModal(this)"
+                                                >PDFを見る</button>
+                                            {% endif %}
+                                        </div>
+                                    </h3>
+                                    <div
+                                        class="accordion-collapse collapse"
+                                        id="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                        aria-labelledby="tipsHeading{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                        data-bs-parent="#tipsAccordion{{ forloop.parentloop.counter }}"
+                                    >
+                                        <div class="accordion-body">
+                                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                                <span class="badge faq-meta-badge">登録日 {{ tip.published_at|date:"Y/m/d" }}</span>
+                                                {% if tip.target_os %}
+                                                    <span class="badge faq-meta-badge">対象OS {{ tip.target_os }}</span>
+                                                {% endif %}
+                                                {% if user.is_staff or user.is_superuser %}
+                                                    <span class="badge faq-meta-badge">投稿者 {{ tip.creator_display_name|default:"-" }}</span>
+                                                {% endif %}
+                                                {% if can_view_approval_meta %}
+                                                    <span class="badge text-bg-secondary">
+                                                        {% if tip.is_approved %}
+                                                            承認者 {{ tip.approver_display_name|default:"-" }}
+                                                        {% else %}
+                                                            未承認
+                                                        {% endif %}
+                                                    </span>
+                                                {% endif %}
+                                            </div>
+                                            <div>{{ tip.body|linebreaksbr }}</div>
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    </section>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="alert alert-info" role="status">表示できるTipsがありません。</div>
+        {% endif %}
+    </section>
+</div>
+
+<div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height:90vh;">
+            <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
+                <h5 class="modal-title" id="pdfModalLabel">PDF閲覧</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body p-0" style="flex:1; overflow:hidden;">
+                <iframe id="pdfFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
+                <a id="pdfDownloadLink" href="" download class="btn btn-outline-secondary btn-sm">ダウンロード</a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openPdfModal(btn) {
+    const url = btn.dataset.pdfUrl;
+    const title = btn.dataset.pdfTitle;
+    document.getElementById('pdfFrame').src = url;
+    document.getElementById('pdfDownloadLink').href = url;
+    document.getElementById('pdfModalLabel').textContent = title;
+    const modal = new bootstrap.Modal(document.getElementById('pdfModal'));
+    modal.show();
+}
+document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('pdfFrame').src = '';
+});
+</script>
+{% endblock %}

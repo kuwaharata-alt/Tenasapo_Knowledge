@@ -159,6 +159,10 @@ GROUP_ROLE_PERMISSIONS = {
         'tenasapo_knowledge.change_knowledgearticle',
         'tenasapo_knowledge.delete_knowledgearticle',
         'tenasapo_knowledge.view_knowledgearticle',
+        'tenasapo_knowledge.add_tipsarticle',
+        'tenasapo_knowledge.change_tipsarticle',
+        'tenasapo_knowledge.delete_tipsarticle',
+        'tenasapo_knowledge.view_tipsarticle',
         'tenasapo_knowledge.add_manual',
         'tenasapo_knowledge.change_manual',
         'tenasapo_knowledge.delete_manual',
@@ -167,14 +171,20 @@ GROUP_ROLE_PERMISSIONS = {
     'レビュアー': [
         'tenasapo_knowledge.view_knowledgearticle',
         'tenasapo_knowledge.change_knowledgearticle',
+        'tenasapo_knowledge.view_tipsarticle',
+        'tenasapo_knowledge.change_tipsarticle',
     ],
     'システナ': [
         'tenasapo_knowledge.view_knowledgearticle',
         'tenasapo_knowledge.add_knowledgearticle',
         'tenasapo_knowledge.change_knowledgearticle',
+        'tenasapo_knowledge.view_tipsarticle',
+        'tenasapo_knowledge.add_tipsarticle',
+        'tenasapo_knowledge.change_tipsarticle',
         'tenasapo_knowledge.view_manual',
     ],
     'カスタマー': [
         'tenasapo_knowledge.view_knowledgearticle',
+        'tenasapo_knowledge.view_tipsarticle',
     ],
 }

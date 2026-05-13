@@ -299,9 +299,11 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="{% url 'article_list' %}">FAQ</a></li>
+                            <li><a class="dropdown-item" href="{% url 'tip_list' %}">Tips</a></li>
                             {% if user.is_staff or user.is_superuser %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{% url 'article_create' %}">FAQ登録</a></li>
+                                <li><a class="dropdown-item" href="{% url 'tip_create' %}">Tips登録</a></li>
                                 <li><a class="dropdown-item" href="{% url 'category_create' %}">カテゴリ登録</a></li>
                                 <li><a class="dropdown-item" href="{% url 'manual_list' %}">運用マニュアル</a></li>
                                 <li><hr class="dropdown-divider"></li>

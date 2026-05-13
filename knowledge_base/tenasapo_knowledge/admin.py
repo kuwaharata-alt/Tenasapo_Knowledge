@@ -7,6 +7,7 @@ from .models import (
     KnowledgeArticle,
     LoginHistory,
     Manual,
+    TipsArticle,
     UserProfile,
     ViewHistory,
 )
@@ -92,6 +93,39 @@ class ManualAdmin(admin.ModelAdmin):
     def save_model(self, request, obj, form, change):
         if not obj.created_by:
             obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(TipsArticle)
+class TipsArticleAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'target_os',
+        'category',
+        'is_published',
+        'is_approved',
+        'visible_to_customer',
+        'visible_to_systena',
+        'published_at',
+        'created_by',
+    )
+    list_filter = (
+        'is_published',
+        'is_approved',
+        'visible_to_customer',
+        'visible_to_systena',
+        'category',
+        'published_at',
+    )
+    search_fields = ('title', 'target_os', 'category', 'body')
+    autocomplete_fields = ('created_by', 'approved_by')
+    date_hierarchy = 'published_at'
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by:
+            obj.created_by = request.user
+        if not obj.created_by_name:
+            obj.created_by_name = obj.created_by.get_username() if obj.created_by else request.user.get_username()
         super().save_model(request, obj, form, change)
 
 

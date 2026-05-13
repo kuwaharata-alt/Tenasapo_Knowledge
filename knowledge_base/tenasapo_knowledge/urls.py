@@ -17,6 +17,11 @@ from .views import (
     ManualDetailView,
     ManualListView,
     ManualUpdateView,
+    TipsApproveView,
+    TipsCreateView,
+    TipsDeleteView,
+    TipsListView,
+    TipsUpdateView,
     UserCreateView,
     UserDeleteView,
     ViewHistoryListView,
@@ -27,6 +32,11 @@ from .views import (
 
 urlpatterns = [
     path('', ArticleListView.as_view(), name='article_list'),
+    path('tips/', TipsListView.as_view(), name='tip_list'),
+    path('tips/create/', TipsCreateView.as_view(), name='tip_create'),
+    path('tips/<int:pk>/edit/', TipsUpdateView.as_view(), name='tip_edit'),
+    path('tips/<int:pk>/approve/', TipsApproveView.as_view(), name='tip_approve'),
+    path('tips/<int:pk>/delete/', TipsDeleteView.as_view(), name='tip_delete'),
     path('knowledge/track-answer-view/', FAQAnswerViewTrackView.as_view(), name='faq_answer_track_view'),
     path('knowledge/toggle-good/', FAQGoodToggleView.as_view(), name='faq_toggle_good'),
     path('knowledge/create/', KnowledgeArticleCreateView.as_view(), name='article_create'),

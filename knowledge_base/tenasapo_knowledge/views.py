@@ -12,7 +12,14 @@ from django.views import View
 from django.views.generic import FormView, ListView
 import json
 
-from .forms import FAQCategoryCreateForm, KnowledgeArticleCreateForm, ManualForm, UserCreateForm, UserUpdateForm
+from .forms import (
+    FAQCategoryCreateForm,
+    KnowledgeArticleCreateForm,
+    ManualForm,
+    TipsCreateForm,
+    UserCreateForm,
+    UserUpdateForm,
+)
 from .models import (
     ArticleGood,
     ArticleAttachment,
@@ -21,6 +28,7 @@ from .models import (
     KnowledgeArticle,
     LoginHistory,
     Manual,
+    TipsArticle,
     UserProfile,
     ViewHistory,
 )
@@ -143,6 +151,21 @@ def can_user_access_article(user, article):
     if FAQ_APPROVAL_ENABLED and not article.is_approved:
         return False
     return article.visible_to_customer
+
+
+def can_user_access_tip(user, tip):
+    is_staff_user = user.is_staff or user.is_superuser
+    is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
+    is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+    if is_staff_user:
+        return True
+    if is_reviewer_user:
+        return True
+    if is_systena_user:
+        return tip.visible_to_systena
+    if FAQ_APPROVAL_ENABLED and not tip.is_approved:
+        return False
+    return tip.visible_to_customer
 
 
 def can_approve_article(user):
@@ -371,6 +394,330 @@ class ArticleListView(ListView):
                     }
                 )
         return grouped_articles
+
+
+class TipsListView(ListView):
+    model = TipsArticle
+    template_name = 'tenasapo_knowledge/tips_list.html'
+    context_object_name = 'tips_list'
+
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(
+            request,
+            'Tips一覧',
+            search_query=request.GET.get('q', '')[:200],
+            parent_category=request.GET.get('parent_category', '')[:120],
+            category=request.GET.get('category', '')[:120],
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = TipsArticle.objects.filter(is_published=True)
+
+        user = self.request.user
+        is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
+        is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+        if (
+            not (user.is_authenticated and (user.is_staff or user.is_superuser))
+            and not is_systena_user
+            and not is_reviewer_user
+        ):
+            queryset = queryset.filter(visible_to_customer=True)
+            if FAQ_APPROVAL_ENABLED:
+                queryset = queryset.filter(is_approved=True)
+
+        query = self.request.GET.get('q')
+        if query:
+            queryset = queryset.filter(title__icontains=query)
+
+        parent_category = self.request.GET.get('parent_category')
+        category = self.request.GET.get('category')
+        if category:
+            matching_ids = [
+                tip.id
+                for tip in queryset
+                if category in self.split_categories(tip.category)
+            ]
+            queryset = queryset.filter(id__in=matching_ids)
+        elif parent_category:
+            matching_ids = [
+                tip.id
+                for tip in queryset
+                if parent_category in [
+                    self.parent_category_name(category_name)
+                    for category_name in self.split_categories(tip.category)
+                ]
+            ]
+            queryset = queryset.filter(id__in=matching_ids)
+
+        return queryset.distinct()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
+        context['can_edit_tip'] = can_edit_article(self.request.user)
+        context['can_view_approval_meta'] = can_view_approval_meta
+
+        for tip in context['tips_list']:
+            tip.creator_display_name = tip.created_by_name or (
+                tip.created_by.get_username() if tip.created_by else ''
+            )
+            tip.approver_display_name = tip.approved_by_name or (
+                tip.approved_by.get_username() if tip.approved_by else ''
+            )
+            tip.category_chips = self.split_categories(tip.category)
+
+        selected_parent = self.request.GET.get('parent_category', '')
+        selected_category = self.request.GET.get('category', '')
+        if selected_category and not selected_parent:
+            selected_parent = self.parent_category_name(selected_category)
+        context['parent_categories'] = self.available_parent_category_groups()
+        context['selected_parent_category'] = selected_parent
+        context['selected_category'] = selected_category
+        context['grouped_tips'] = self.group_tips(context['tips_list'], selected_parent)
+        context['query'] = self.request.GET.get('q', '')
+        return context
+
+    @staticmethod
+    def split_categories(value):
+        return [category.strip() for category in (value or '').split(',') if category.strip()]
+
+    @staticmethod
+    def parent_category_name(category):
+        if '/' in category:
+            return category.split('/', 1)[0].strip()
+        return category.strip() or '未分類'
+
+    @classmethod
+    def tip_parent_categories(cls, tip):
+        parent_names = [
+            cls.parent_category_name(category)
+            for category in cls.split_categories(tip.category)
+        ]
+        return list(dict.fromkeys(parent_names or ['未分類']))
+
+    @classmethod
+    def available_parent_categories(cls):
+        parent_categories = [
+            parent_name
+            for parent_name, _ in FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES
+        ]
+        parent_categories.extend(
+            FAQCategory.objects.values_list('parent_name', flat=True).distinct()
+        )
+        for category_text in TipsArticle.objects.filter(is_published=True).values_list('category', flat=True):
+            parent_categories.extend(
+                cls.parent_category_name(category)
+                for category in cls.split_categories(category_text)
+            )
+        return list(dict.fromkeys(parent_categories))
+
+    @classmethod
+    def available_parent_category_groups(cls):
+        child_categories = {}
+        for parent_name in cls.available_parent_categories():
+            child_categories.setdefault(parent_name, [])
+
+        for category in FAQCategory.objects.order_by('parent_name', 'child_name'):
+            child_categories.setdefault(category.parent_name, []).append(
+                {
+                    'name': category.child_name,
+                    'full_name': category.full_name,
+                }
+            )
+
+        for category_text in TipsArticle.objects.filter(is_published=True).values_list('category', flat=True):
+            for category_name in cls.split_categories(category_text):
+                parent_name = cls.parent_category_name(category_name)
+                child_name = category_name.split('/', 1)[1].strip() if '/' in category_name else category_name
+                child_categories.setdefault(parent_name, []).append(
+                    {
+                        'name': child_name,
+                        'full_name': category_name,
+                    }
+                )
+
+        groups = []
+        for parent_name, children in child_categories.items():
+            unique_children = {}
+            for child in children:
+                unique_children[child['full_name']] = child
+            groups.append(
+                {
+                    'name': parent_name,
+                    'children': list(unique_children.values()),
+                }
+            )
+        return groups
+
+    @classmethod
+    def group_tips(cls, tips, selected_parent=''):
+        grouped_tips = []
+        parent_categories = [selected_parent] if selected_parent else cls.available_parent_categories()
+
+        for parent_category in parent_categories:
+            matched_tips = [
+                tip
+                for tip in tips
+                if parent_category in cls.tip_parent_categories(tip)
+            ]
+            if matched_tips:
+                grouped_tips.append(
+                    {
+                        'parent_name': parent_category,
+                        'articles': matched_tips,
+                    }
+                )
+        return grouped_tips
+
+
+class TipsCreateView(FormView):
+    template_name = 'tenasapo_knowledge/tips_form.html'
+    form_class = TipsCreateForm
+    success_url = reverse_lazy('tip_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('tip_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'Tips登録'
+        context['submit_label'] = '登録'
+        context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
+        return context
+
+    def form_valid(self, form):
+        tip = TipsArticle.objects.create(
+            title=form.cleaned_data['title'],
+            target_os=form.cleaned_data['target_os'],
+            category=form.cleaned_data['category'],
+            body=form.cleaned_data['body'],
+            is_approved=not FAQ_APPROVAL_ENABLED,
+            visible_to_customer=form.cleaned_data['visible_to_customer'],
+            visible_to_systena=form.cleaned_data['visible_to_systena'],
+            created_by=self.request.user,
+            created_by_name=self.request.user.get_username(),
+        )
+        pdf_file = form.cleaned_data.get('pdf_file')
+        if pdf_file:
+            tip.pdf_file = pdf_file
+            tip.save(update_fields=['pdf_file'])
+        messages.success(self.request, f'Tips「{tip.title}」を登録しました。')
+        return super().form_valid(form)
+
+
+class TipsUpdateView(FormView):
+    template_name = 'tenasapo_knowledge/tips_form.html'
+    form_class = TipsCreateForm
+    success_url = reverse_lazy('tip_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'この操作を実行する権限がありません。')
+            return redirect('tip_list')
+        self.tip = get_object_or_404(TipsArticle, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        category_names = ArticleListView.split_categories(self.tip.category)
+        registered_category_ids = []
+        for category_name in category_names:
+            if '/' not in category_name:
+                continue
+            parent_name, child_name = category_name.split('/', 1)
+            category = FAQCategory.objects.filter(
+                parent_name=parent_name,
+                child_name=child_name,
+            ).first()
+            if category:
+                registered_category_ids.append(category.id)
+        return {
+            'registered_category': registered_category_ids,
+            'category': self.tip.category,
+            'title': self.tip.title,
+            'target_os': self.tip.target_os,
+            'body': self.tip.body,
+            'visible_to_customer': self.tip.visible_to_customer,
+            'visible_to_systena': self.tip.visible_to_systena,
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'Tips編集'
+        context['submit_label'] = '更新'
+        context['tip'] = self.tip
+        context['tip_approver_display_name'] = self.tip.approved_by_name or (
+            self.tip.approved_by.get_username() if self.tip.approved_by else ''
+        )
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
+        context['can_approve_tip'] = can_approve_article(self.request.user)
+        context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
+        context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
+        context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
+        return context
+
+    def form_valid(self, form):
+        self.tip.title = form.cleaned_data['title']
+        self.tip.target_os = form.cleaned_data['target_os']
+        self.tip.category = form.cleaned_data['category']
+        self.tip.body = form.cleaned_data['body']
+        self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
+        self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
+        update_fields = [
+            'title', 'target_os', 'category', 'body',
+            'visible_to_customer', 'visible_to_systena', 'updated_at',
+        ]
+        if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
+            self.tip.pdf_file.delete(save=False)
+            self.tip.pdf_file = None
+            update_fields.append('pdf_file')
+        elif form.cleaned_data.get('pdf_file'):
+            if self.tip.pdf_file:
+                self.tip.pdf_file.delete(save=False)
+            self.tip.pdf_file = form.cleaned_data['pdf_file']
+            update_fields.append('pdf_file')
+        self.tip.save(update_fields=update_fields)
+        messages.success(self.request, f'Tips「{self.tip.title}」を更新しました。')
+        return super().form_valid(form)
+
+
+class TipsApproveView(View):
+    def post(self, request, pk):
+        if not can_approve_article(request.user):
+            messages.error(request, '承認操作を実行する権限がありません。')
+            return redirect('tip_list')
+        tip = get_object_or_404(TipsArticle, pk=pk)
+        if not FAQ_APPROVAL_ENABLED:
+            messages.info(request, '承認機能は無効です。')
+            return redirect('tip_edit', pk=tip.id)
+
+        if tip.is_approved:
+            messages.info(request, f'Tips「{tip.title}」は既に承認済みです。')
+            return redirect('tip_edit', pk=tip.id)
+
+        tip.is_approved = True
+        tip.approved_by = request.user
+        tip.approved_by_name = request.user.get_username()
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
+        messages.success(request, f'Tips「{tip.title}」を承認しました。')
+        return redirect('tip_edit', pk=tip.id)
+
+
+class TipsDeleteView(View):
+    def post(self, request, pk):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+            messages.error(request, 'この操作を実行する権限がありません。')
+            return redirect('tip_list')
+        tip = get_object_or_404(TipsArticle, pk=pk)
+        title = tip.title
+        if tip.pdf_file:
+            tip.pdf_file.delete(save=False)
+        tip.delete()
+        messages.success(request, f'Tips「{title}」を削除しました。')
+        return redirect('tip_list')
 
 
 class FAQAnswerViewTrackView(View):

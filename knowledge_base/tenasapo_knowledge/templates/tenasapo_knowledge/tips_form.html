@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title|default:"Tips登録" }} | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h3 mb-1">{{ form_title|default:"Tips登録" }}</h1>
+            </div>
+        </div>
+
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-section-label">カテゴリ</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>
+                        <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
+                        <div class="category-group-list{% if form.registered_category.errors %} is-invalid{% endif %}">
+                            {% for group in category_groups %}
+                                <div class="category-group">
+                                    <button
+                                        class="category-group-toggle"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#categoryGroup{{ forloop.counter }}"
+                                        aria-expanded="true"
+                                        aria-controls="categoryGroup{{ forloop.counter }}"
+                                    >
+                                        {{ group.parent_name }}
+                                    </button>
+                                    <div class="collapse show" id="categoryGroup{{ forloop.counter }}">
+                                        <div class="category-checkboxes">
+                                            {% for category in group.categories %}
+                                                <label class="category-checkbox">
+                                                    <input
+                                                        class="form-check-input"
+                                                        type="checkbox"
+                                                        name="{{ form.registered_category.html_name }}"
+                                                        value="{{ category.id }}"
+                                                        {% if category.id|stringformat:"s" in group.selected_values %}checked{% endif %}
+                                                    >
+                                                    <span>{{ category.child_name }}</span>
+                                                </label>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% empty %}
+                                <div class="text-secondary small">登録済みカテゴリがありません。</div>
+                            {% endfor %}
+                        </div>
+                        {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.category.id_for_label }}">未登録カテゴリ</label>
+                        <div class="form-text mb-2">{{ form.category.help_text }}</div>
+                        <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}">
+                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
+                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-subsection-label" for="{{ form.target_os.id_for_label }}">{{ form.target_os.label }}</label>
+                        {% if form.target_os.help_text %}<div class="form-text mb-2">{{ form.target_os.help_text }}</div>{% endif %}
+                        <input class="form-control{% if form.target_os.errors %} is-invalid{% endif %}" type="text" name="{{ form.target_os.html_name }}" id="{{ form.target_os.id_for_label }}" value="{{ form.target_os.value|default_if_none:'' }}">
+                        {% for error in form.target_os.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-section-label">表示対象</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_customer.html_name }}" id="id_visible_to_customer" {% if form.visible_to_customer.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_customer">カスタマーユーザーに表示する</label>
+                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input{% if form.visible_to_systena.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_systena.html_name }}" id="id_visible_to_systena" {% if form.visible_to_systena.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_systena">システナユーザーに表示する</label>
+                            {% for error in form.visible_to_systena.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
+                        <textarea class="form-control{% if form.body.errors %} is-invalid{% endif %}" name="{{ form.body.html_name }}" id="{{ form.body.id_for_label }}" rows="10" required>{{ form.body.value|default_if_none:'' }}</textarea>
+                        {% for error in form.body.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-section-label">PDFファイル</div>
+                    </div>
+                    {% if tip_pdf_url %}
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-3 p-3 border rounded" style="border-color:var(--tk-border)!important; background:#fffaf4;">
+                                <span class="text-muted small">📄 {{ tip_pdf_name }}</span>
+                                <a href="{{ tip_pdf_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">プレビュー</a>
+                                <div class="form-check ms-auto">
+                                    <input class="form-check-input" type="checkbox" name="{{ form.clear_pdf.html_name }}" id="id_clear_pdf">
+                                    <label class="form-check-label text-danger small" for="id_clear_pdf">PDFを削除する</label>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <div class="col-12 col-md-8">
+                        <label class="form-label form-subsection-label" for="{{ form.pdf_file.id_for_label }}">{{ form.pdf_file.label }}</label>
+                        {% if form.pdf_file.help_text %}<div class="form-text mb-2">{{ form.pdf_file.help_text }}</div>{% endif %}
+                        <input class="form-control{% if form.pdf_file.errors %} is-invalid{% endif %}" type="file" name="{{ form.pdf_file.html_name }}" id="{{ form.pdf_file.id_for_label }}" accept=".pdf">
+                        {% for error in form.pdf_file.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'tip_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:"登録" }}</button>
+            </div>
+        </form>
+
+        {% if tip and approval_enabled %}
+            <section class="card shadow-sm mt-4">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="fw-bold">承認状態</div>
+                        {% if tip.is_approved %}
+                            <div class="text-success small">承認済み</div>
+                            <div class="mt-2">
+                                <span class="badge faq-meta-badge">承認者 {{ tip_approver_display_name|default:"-" }}</span>
+                            </div>
+                        {% else %}
+                            <div class="mt-2">
+                                <span class="badge text-bg-secondary">未承認</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% if can_approve_tip and not tip.is_approved %}
+                        <form method="post" action="{% url 'tip_approve' tip.id %}" onsubmit="return confirm('このTipsを承認しますか？');">
+                            {% csrf_token %}
+                            <button class="btn btn-success" type="submit">承認</button>
+                        </form>
+                    {% endif %}
+                </div>
+            </section>
+        {% endif %}
+
+        {% if tip %}
+            <section class="card border-danger shadow-sm mt-4">
+                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <div class="fw-bold text-danger">Tips削除</div>
+                        <div class="text-muted small">このTipsを削除します。</div>
+                    </div>
+                    <form method="post" action="{% url 'tip_delete' tip.id %}" onsubmit="return confirm('このTipsを削除しますか？');">
+                        {% csrf_token %}
+                        <button class="btn btn-outline-danger" type="submit">削除</button>
+                    </form>
+                </div>
+            </section>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

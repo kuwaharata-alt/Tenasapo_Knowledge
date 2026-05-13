@@ -133,6 +133,47 @@ class KnowledgeArticle(models.Model):
         return self.title
 
 
+class TipsArticle(models.Model):
+    title = models.CharField('タイトル', max_length=200)
+    target_os = models.CharField('対象OS', max_length=120, blank=True)
+    category = models.CharField('カテゴリ', max_length=120, blank=True)
+    body = models.TextField('内容')
+    pdf_file = models.FileField('PDFファイル', upload_to='tips_attachments/%Y/%m/', blank=True)
+    is_published = models.BooleanField('公開', default=True)
+    is_approved = models.BooleanField('承認済み', default=True)
+    visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
+    visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
+    published_at = models.DateTimeField('公開日時', default=timezone.now)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_tips_articles',
+        verbose_name='作成者',
+    )
+    created_by_name = models.CharField('投稿者名', max_length=150, blank=True)
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_tips_articles',
+        verbose_name='承認者',
+    )
+    approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = 'Tips'
+        verbose_name_plural = 'Tips'
+        ordering = ['-published_at', '-created_at']
+
+    def __str__(self):
+        return self.title
+
+
 class ArticleAttachment(models.Model):
     PLACEMENT_ATTACHMENT = 'attachment'
     PLACEMENT_QUESTION = 'question'

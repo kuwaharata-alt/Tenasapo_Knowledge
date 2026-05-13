@@ -137,6 +137,87 @@ class KnowledgeArticleCreateForm(forms.Form):
         return cleaned_data
 
 
+class TipsCreateForm(forms.Form):
+    registered_category = forms.ModelMultipleChoiceField(
+        label='登録済みカテゴリ',
+        queryset=FAQCategory.objects.none(),
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        help_text='カテゴリ登録済みの場合はこちらから選択してください。',
+    )
+    category = forms.CharField(
+        label='カテゴリ',
+        max_length=120,
+        required=False,
+        help_text='未登録カテゴリを使う場合は「大カテゴリ/小カテゴリ」で入力してください。',
+    )
+    title = forms.CharField(
+        label='タイトル',
+        max_length=200,
+    )
+    target_os = forms.CharField(
+        label='対象OS',
+        max_length=120,
+        required=False,
+        help_text='例: Windows 11, macOS 15, Ubuntu 24.04',
+    )
+    body = forms.CharField(
+        label='内容',
+        widget=forms.Textarea(attrs={'rows': 10}),
+    )
+    visible_to_customer = forms.BooleanField(
+        label='カスタマーユーザーに表示する',
+        required=False,
+        initial=True,
+    )
+    visible_to_systena = forms.BooleanField(
+        label='システナユーザーに表示する',
+        required=False,
+        initial=True,
+    )
+    pdf_file = forms.FileField(
+        label='PDFファイル',
+        required=False,
+        help_text='PDFファイルをアップロードすると一覧画面からポップアップで閲覧できます。',
+    )
+    clear_pdf = forms.BooleanField(
+        label='PDFファイルを削除する',
+        required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['registered_category'].queryset = FAQCategory.objects.order_by(
+            'parent_name',
+            'child_name',
+        )
+
+    def clean_category(self):
+        return self.cleaned_data.get('category', '').strip()
+
+    def clean_target_os(self):
+        return self.cleaned_data.get('target_os', '').strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        registered_categories = cleaned_data.get('registered_category')
+        category = cleaned_data.get('category')
+        categories = []
+        if registered_categories:
+            categories.extend(category.full_name for category in registered_categories)
+        if category:
+            categories.extend(
+                category_name.strip()
+                for category_name in category.split(',')
+                if category_name.strip()
+            )
+        if categories:
+            cleaned_data['category'] = ','.join(dict.fromkeys(categories))
+        else:
+            self.add_error('category', 'カテゴリを選択するか入力してください。')
+        return cleaned_data
+
+
 class UserCreateForm(forms.Form):
     ROLE_ADMIN = 'admin'
     ROLE_USER = 'user'
