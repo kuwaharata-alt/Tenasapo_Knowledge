@@ -37,6 +37,14 @@ class UserProfile(models.Model):
         related_name='knowledge_profile',
         verbose_name='ユーザー',
     )
+    uid = models.CharField(
+        'ユーザーID',
+        max_length=6,
+        blank=True,
+        null=True,
+        unique=True,
+        help_text='数字6桁',
+    )
     company_name = models.CharField('会社名', max_length=120)
     user_type = models.CharField(
         'ユーザー区分',

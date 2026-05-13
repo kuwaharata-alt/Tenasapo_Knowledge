@@ -226,6 +226,12 @@ class UserCreateForm(forms.Form):
         (ROLE_ADMIN, '管理者'),
     )
 
+    uid = forms.CharField(
+        label='ユーザーID',
+        max_length=6,
+        required=False,
+        help_text='数字6桁で入力してください（省略可）。',
+    )
     username = forms.CharField(label='ユーザー名', max_length=150)
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput)
     company_name = forms.CharField(label='会社名', max_length=120)
@@ -250,8 +256,20 @@ class UserCreateForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._current_user_pk = None
         role_names = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         self.fields['groups'].choices = [(name, name) for name in role_names]
+
+    def clean_uid(self):
+        value = self.cleaned_data.get('uid', '').strip()
+        if not value:
+            return None
+        if not value.isdigit() or len(value) != 6:
+            raise forms.ValidationError('ユーザーIDは数字6桁で入力してください。')
+        from .models import UserProfile
+        if UserProfile.objects.filter(uid=value).exists():
+            raise forms.ValidationError('このユーザーIDはすでに使われています。')
+        return value
 
     def clean_username(self):
         username = self.cleaned_data['username']
@@ -292,6 +310,12 @@ class UserUpdateForm(forms.Form):
         (ROLE_ADMIN, '管理者'),
     )
 
+    uid = forms.CharField(
+        label='ユーザーID',
+        max_length=6,
+        required=False,
+        help_text='数字6桁で入力してください（省略可）。',
+    )
     username = forms.CharField(label='ユーザー名', max_length=150, disabled=True)
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput, required=False)
     company_name = forms.CharField(label='会社名', max_length=120)
@@ -316,8 +340,24 @@ class UserUpdateForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._current_user_pk = None
         role_names = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         self.fields['groups'].choices = [(name, name) for name in role_names]
+
+    def clean_uid(self):
+        value = self.cleaned_data.get('uid', '').strip()
+        if not value:
+            return None
+        if not value.isdigit() or len(value) != 6:
+            raise forms.ValidationError('ユーザーIDは数字6桁で入力してください。')
+        from .models import UserProfile
+        # 自分自身のIDは除外してユニーク確認
+        qs = UserProfile.objects.filter(uid=value)
+        if self._current_user_pk:
+            qs = qs.exclude(user__pk=self._current_user_pk)
+        if qs.exists():
+            raise forms.ValidationError('このユーザーIDはすでに使われています。')
+        return value
 
     def clean_email_addresses(self):
         value = self.cleaned_data.get('email_addresses', '')

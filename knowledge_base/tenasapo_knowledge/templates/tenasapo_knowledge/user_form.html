@@ -24,8 +24,14 @@
                 {% endif %}
 
                 <div class="row g-3">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="{{ form.uid.id_for_label }}">ユーザーID</label>
+                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
+                        <div class="form-text">数字6桁（省略可）</div>
+                        {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
                     {% if is_edit %}
-                        <div class="col-12 col-md-6">
+                        <div class="col-12 col-md-8">
                             <label class="form-label">ユーザー名</label>
                             <input class="form-control" type="text" value="{{ user_obj.username }}" readonly>
                         </div>

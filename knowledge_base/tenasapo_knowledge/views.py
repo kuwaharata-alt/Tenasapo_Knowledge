@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.models import Group
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
-from django.db.models import Count, F
+from django.db.models import Count, F, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -1160,6 +1160,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
 
         UserProfile.objects.create(
             user=user,
+            uid=form.cleaned_data.get('uid') or None,
             company_name=form.cleaned_data['company_name'],
             user_type=profile_user_type_from_groups(selected_group_names),
             email_addresses='\n'.join(emails),
@@ -1180,11 +1181,16 @@ class UserListView(StaffRequiredMixin, ListView):
 
     def get_queryset(self):
         User = get_user_model()
-        queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by('username')
+        queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by(
+            'knowledge_profile__uid', 'username'
+        )
 
         query = self.request.GET.get('q')
         if query:
-            queryset = queryset.filter(username__icontains=query)
+            queryset = queryset.filter(
+                Q(username__icontains=query) |
+                Q(knowledge_profile__uid__icontains=query)
+            )
 
         return queryset
 
@@ -1299,6 +1305,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
     def get_initial(self):
         profile = getattr(self.user_obj, 'knowledge_profile', None)
         return {
+            'uid': profile.uid if profile else '',
             'username': self.user_obj.username,
             'company_name': profile.company_name if profile else '',
             'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
@@ -1306,6 +1313,11 @@ class UserUpdateView(StaffRequiredMixin, FormView):
             'email_addresses': profile.email_addresses if profile else '',
             'note': profile.note if profile else '',
         }
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form._current_user_pk = self.user_obj.pk
+        return form
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1344,6 +1356,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
 
         # プロフィールを更新
         profile, _ = UserProfile.objects.get_or_create(user=self.user_obj)
+        profile.uid = form.cleaned_data.get('uid') or None
         profile.company_name = form.cleaned_data['company_name']
         profile.user_type = profile_user_type_from_groups(selected_group_names)
         profile.email_addresses = '\n'.join(emails)
