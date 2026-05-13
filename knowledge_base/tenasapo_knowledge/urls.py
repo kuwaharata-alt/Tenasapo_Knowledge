@@ -3,6 +3,7 @@ from django.views.generic import RedirectView
 from .views import (
     ArticleListView,
     ArticleAttachmentDeleteView,
+    HomeView,
     FAQCategoryCreateView,
     FAQCategoryUpdateView,
     FAQGoodToggleView,
@@ -31,7 +32,8 @@ from .views import (
 )
 
 urlpatterns = [
-    path('', ArticleListView.as_view(), name='article_list'),
+    path('', HomeView.as_view(), name='home'),
+    path('faq/', ArticleListView.as_view(), name='article_list'),
     path('tips/', TipsListView.as_view(), name='tip_list'),
     path('tips/create/', TipsCreateView.as_view(), name='tip_create'),
     path('tips/<int:pk>/edit/', TipsUpdateView.as_view(), name='tip_edit'),

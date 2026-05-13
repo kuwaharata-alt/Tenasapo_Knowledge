@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}ホーム | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="home-panel p-4 mb-4">
+    <h1 class="h3 mb-3">ホーム</h1>
+    <p class="text-muted mb-0">メニュー一覧</p>
+</div>
+
+<div class="row g-3">
+    {% for group in menu_groups %}
+        <div class="col-12 col-md-6 col-xl-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">{{ group.icon }} {{ group.name }}</h2>
+                    <ul class="list-group list-group-flush">
+                        {% for item in group.items %}
+                            <li class="list-group-item px-0">
+                                <a href="{% url item.url_name %}">{{ item.label }}</a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+</div>
+{% endblock %}

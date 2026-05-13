@@ -9,7 +9,7 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
 from django.views import View
-from django.views.generic import FormView, ListView
+from django.views.generic import FormView, ListView, TemplateView
 import json
 
 from .forms import (
@@ -192,6 +192,47 @@ def is_customer_user(user):
         and in_group(user, CUSTOMER_GROUP_NAME)
         and not (user.is_staff or user.is_superuser)
     )
+
+
+class HomeView(TemplateView):
+    template_name = 'tenasapo_knowledge/home.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        is_admin = user.is_staff or user.is_superuser
+        menu_groups = [
+            {
+                'name': 'Knowledge',
+                'icon': '📚',
+                'items': [
+                    {'label': 'FAQ', 'url_name': 'article_list'},
+                    {'label': 'Tips', 'url_name': 'tip_list'},
+                ],
+            },
+            {'name': 'Input', 'icon': '✍️', 'items': []},
+            {'name': 'Manual', 'icon': '📘', 'items': []},
+            {'name': 'User', 'icon': '👥', 'items': []},
+            {'name': 'History', 'icon': '🕒', 'items': []},
+        ]
+        if is_admin:
+            menu_groups[1]['items'].extend(
+                [
+                    {'label': 'FAQ登録', 'url_name': 'article_create'},
+                    {'label': 'Tips登録', 'url_name': 'tip_create'},
+                    {'label': 'カテゴリ登録', 'url_name': 'category_create'},
+                ]
+            )
+            menu_groups[2]['items'].append({'label': '運用マニュアル', 'url_name': 'manual_list'})
+            menu_groups[3]['items'].append({'label': 'ユーザー一覧', 'url_name': 'user_list'})
+            menu_groups[4]['items'].extend(
+                [
+                    {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
+                    {'label': '閲覧履歴', 'url_name': 'view_history_list'},
+                ]
+            )
+        context['menu_groups'] = [group for group in menu_groups if group['items']]
+        return context
 
 
 class ArticleListView(ListView):
