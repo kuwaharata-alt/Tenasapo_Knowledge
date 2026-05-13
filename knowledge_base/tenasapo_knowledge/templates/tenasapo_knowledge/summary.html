@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}サマライズ | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-bar-chart-fill"></i></span>サマライズ
+            </h1>
+            <p class="page-title-sub">担当者別の投稿数・レビュー数・いいね数とランキングを確認できます。</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small mb-2">総投稿数</div>
+                <div class="display-6 fw-bold text-primary">{{ summary_totals.post_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small mb-2">総レビュー数</div>
+                <div class="display-6 fw-bold text-primary">{{ summary_totals.review_count }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <div class="text-muted small mb-2">総いいね数</div>
+                <div class="display-6 fw-bold text-primary">{{ summary_totals.like_count }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if contributor_summaries %}
+    <div class="row g-4 mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">担当者別 投稿数</h2>
+                    <div style="height: 320px;"><canvas id="postChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">担当者別 レビュー数</h2>
+                    <div style="height: 320px;"><canvas id="reviewChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">担当者別 いいね数</h2>
+                    <div style="height: 320px;"><canvas id="likeChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-info mb-4" role="status">集計対象の担当者データがありません。</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5 faq-group-title">いいね数上位5 FAQ</h2>
+                <div class="list-group list-group-flush">
+                    {% for article in top_faq_articles %}
+                        <div class="list-group-item px-0">
+                            <div class="fw-semibold">{{ article.title }}</div>
+                            <div class="small text-muted d-flex justify-content-between gap-2 mt-1">
+                                <span>投稿者 {{ article.creator_display_name }}</span>
+                                <span>👍 {{ article.good_count }}</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-muted">FAQがありません。</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5 faq-group-title">いいね数上位5 Tips</h2>
+                <div class="list-group list-group-flush">
+                    {% for tip in top_tips_articles %}
+                        <div class="list-group-item px-0">
+                            <div class="fw-semibold">{{ tip.title }}</div>
+                            <div class="small text-muted d-flex justify-content-between gap-2 mt-1">
+                                <span>投稿者 {{ tip.creator_display_name }}</span>
+                                <span>👍 {{ tip.good_count }}</span>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="text-muted">Tipsがありません。</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h2 class="h5 faq-group-title">担当者別投稿数</h2>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>担当者</th>
+                                <th class="text-end">投稿数</th>
+                                <th class="text-end">レビュー数</th>
+                                <th class="text-end">いいね数</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in contributor_post_ranking %}
+                                <tr>
+                                    <td class="fw-semibold">{{ item.name }}</td>
+                                    <td class="text-end">{{ item.post_count }}</td>
+                                    <td class="text-end">{{ item.review_count }}</td>
+                                    <td class="text-end">{{ item.like_count }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td class="text-center text-muted" colspan="4">データがありません。</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{ chart_labels|json_script:"summary-chart-labels" }}
+{{ post_chart_data|json_script:"summary-post-data" }}
+{{ review_chart_data|json_script:"summary-review-data" }}
+{{ like_chart_data|json_script:"summary-like-data" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const labels = JSON.parse(document.getElementById('summary-chart-labels').textContent || '[]');
+    const postData = JSON.parse(document.getElementById('summary-post-data').textContent || '[]');
+    const reviewData = JSON.parse(document.getElementById('summary-review-data').textContent || '[]');
+    const likeData = JSON.parse(document.getElementById('summary-like-data').textContent || '[]');
+
+    function renderBarChart(canvasId, label, data, color) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas || !labels.length) {
+            return;
+        }
+
+        new Chart(canvas, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label,
+                        data,
+                        backgroundColor: color,
+                        borderRadius: 8,
+                        maxBarThickness: 42,
+                    },
+                ],
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0,
+                        },
+                    },
+                },
+            },
+        });
+    }
+
+    renderBarChart('postChart', '投稿数', postData, 'rgba(232, 117, 36, 0.82)');
+    renderBarChart('reviewChart', 'レビュー数', reviewData, 'rgba(73, 136, 232, 0.82)');
+    renderBarChart('likeChart', 'いいね数', likeData, 'rgba(46, 173, 127, 0.82)');
+});
+</script>
+{% endblock %}

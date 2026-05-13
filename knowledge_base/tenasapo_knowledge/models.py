@@ -331,3 +331,33 @@ class ArticleGood(models.Model):
 
     def __str__(self):
         return f'{self.article_id} - {self.user_id}'
+
+
+class TipsGood(models.Model):
+    tip = models.ForeignKey(
+        TipsArticle,
+        on_delete=models.CASCADE,
+        related_name='goods',
+        verbose_name='Tips',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tips_goods',
+        verbose_name='ユーザー',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tipsグッド'
+        verbose_name_plural = 'Tipsグッド'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tip', 'user'],
+                name='unique_tip_good_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.tip_id} - {self.user_id}'

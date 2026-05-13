@@ -7,6 +7,7 @@ from .models import (
     KnowledgeArticle,
     LoginHistory,
     Manual,
+    TipsGood,
     TipsArticle,
     UserProfile,
     ViewHistory,
@@ -181,3 +182,10 @@ class ArticleGoodAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'article', 'user')
     list_filter = ('created_at',)
     search_fields = ('article__title', 'user__username')
+
+
+@admin.register(TipsGood)
+class TipsGoodAdmin(admin.ModelAdmin):
+    list_display = ('created_at', 'tip', 'user')
+    list_filter = ('created_at',)
+    search_fields = ('tip__title', 'user__username')

@@ -1,3 +1,6 @@
+from collections import Counter
+import json
+
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.models import Group
@@ -10,7 +13,6 @@ from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
 from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
-import json
 
 from .forms import (
     FAQCategoryCreateForm,
@@ -28,6 +30,7 @@ from .models import (
     KnowledgeArticle,
     LoginHistory,
     Manual,
+    TipsGood,
     TipsArticle,
     UserProfile,
     ViewHistory,
@@ -241,6 +244,7 @@ class HomeView(TemplateView):
             menu_groups[3]['items'].append({'label': 'ユーザー一覧', 'url_name': 'user_list'})
             menu_groups[4]['items'].extend(
                 [
+                    {'label': 'サマライズ', 'url_name': 'summary'},
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
                     {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
@@ -467,7 +471,7 @@ class TipsListView(ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = TipsArticle.objects.filter(is_published=True)
+        queryset = TipsArticle.objects.filter(is_published=True).annotate(good_count=Count('goods'))
 
         user = self.request.user
         is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
@@ -510,10 +514,18 @@ class TipsListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
+        context['can_use_good'] = is_customer_user(self.request.user)
         context['can_edit_tip'] = can_edit_article(self.request.user)
         context['can_view_approval_meta'] = can_view_approval_meta
+        liked_tip_ids = set(
+            TipsGood.objects.filter(
+                user=self.request.user,
+                tip_id__in=[tip.id for tip in context['tips_list']],
+            ).values_list('tip_id', flat=True)
+        )
 
         for tip in context['tips_list']:
+            tip.is_gooded = tip.id in liked_tip_ids
             tip.creator_display_name = tip.created_by_name or (
                 tip.created_by.get_username() if tip.created_by else ''
             )
@@ -848,6 +860,46 @@ class FAQGoodToggleView(View):
         return JsonResponse({'ok': True, 'liked': liked, 'good_count': good_count})
 
 
+class TipsGoodToggleView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+        if not is_customer_user(request.user):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        tip_id = payload.get('tip_id')
+        if not tip_id:
+            return JsonResponse({'detail': 'tip_id is required'}, status=400)
+
+        tip = get_object_or_404(TipsArticle, pk=tip_id, is_published=True)
+        if not can_user_access_tip(request.user, tip):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        reaction, created = TipsGood.objects.get_or_create(tip=tip, user=request.user)
+        liked = True
+        if not created:
+            reaction.delete()
+            liked = False
+
+        good_count = TipsGood.objects.filter(tip=tip).count()
+
+        record_view_history(
+            request,
+            page_name=f'Tipsグッド: {tip.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'liked': liked, 'good_count': good_count})
+
+
 class StaffRequiredMixin(UserPassesTestMixin):
     raise_exception = True
 
@@ -860,6 +912,98 @@ class StaffRequiredMixin(UserPassesTestMixin):
             messages.error(self.request, 'このページを閲覧する権限がありません。')
             return redirect('article_list')
         return super().handle_no_permission()
+
+
+class SummaryView(StaffRequiredMixin, TemplateView):
+    template_name = 'tenasapo_knowledge/summary.html'
+    excluded_contributor_names = {'admin'}
+
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(request, 'サマライズ')
+        return super().dispatch(request, *args, **kwargs)
+
+    @classmethod
+    def resolve_contributor_name(cls, saved_name='', user=None):
+        name = (saved_name or '').strip()
+        if not name and user:
+            name = user.get_username().strip()
+        return name
+
+    @classmethod
+    def is_excluded_contributor(cls, contributor_name):
+        return not contributor_name or contributor_name.lower() in cls.excluded_contributor_names
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        faq_articles = list(
+            KnowledgeArticle.objects.select_related('created_by', 'approved_by')
+            .annotate(good_count=Count('goods'))
+            .order_by('-good_count', '-published_at', '-created_at')
+        )
+        tips_articles = list(
+            TipsArticle.objects.select_related('created_by', 'approved_by')
+            .annotate(good_count=Count('goods'))
+            .order_by('-good_count', '-published_at', '-created_at')
+        )
+
+        post_counts = Counter()
+        review_counts = Counter()
+        like_counts = Counter()
+
+        for article in faq_articles:
+            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
+            article.creator_display_name = creator_name or '-'
+            if not self.is_excluded_contributor(creator_name):
+                post_counts[creator_name] += 1
+                like_counts[creator_name] += article.good_count
+
+            reviewer_name = self.resolve_contributor_name(article.approved_by_name, article.approved_by)
+            if article.is_approved and not self.is_excluded_contributor(reviewer_name):
+                review_counts[reviewer_name] += 1
+
+        for tip in tips_articles:
+            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
+            tip.creator_display_name = creator_name or '-'
+            if not self.is_excluded_contributor(creator_name):
+                post_counts[creator_name] += 1
+                like_counts[creator_name] += tip.good_count
+
+            reviewer_name = self.resolve_contributor_name(tip.approved_by_name, tip.approved_by)
+            if tip.is_approved and not self.is_excluded_contributor(reviewer_name):
+                review_counts[reviewer_name] += 1
+
+        contributor_names = sorted(
+            set(post_counts) | set(review_counts) | set(like_counts),
+            key=lambda name: (-post_counts[name], -review_counts[name], -like_counts[name], name.lower()),
+        )
+        contributor_summaries = [
+            {
+                'name': name,
+                'post_count': post_counts[name],
+                'review_count': review_counts[name],
+                'like_count': like_counts[name],
+            }
+            for name in contributor_names
+        ]
+
+        context['summary_totals'] = {
+            'post_count': sum(post_counts.values()),
+            'review_count': sum(review_counts.values()),
+            'like_count': sum(like_counts.values()),
+        }
+        context['contributor_summaries'] = contributor_summaries
+        context['chart_labels'] = [item['name'] for item in contributor_summaries]
+        context['post_chart_data'] = [item['post_count'] for item in contributor_summaries]
+        context['review_chart_data'] = [item['review_count'] for item in contributor_summaries]
+        context['like_chart_data'] = [item['like_count'] for item in contributor_summaries]
+        context['top_faq_articles'] = faq_articles[:5]
+        context['top_tips_articles'] = tips_articles[:5]
+        context['contributor_post_ranking'] = sorted(
+            contributor_summaries,
+            key=lambda item: (-item['post_count'], -item['review_count'], -item['like_count'], item['name'].lower()),
+        )
+        return context
 
 
 class ArticleEditorRequiredMixin(UserPassesTestMixin):

@@ -106,6 +106,17 @@
                                                 aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
                                                 aria-label="内容を表示"
                                             ></button>
+                                            {% if can_use_good %}
+                                                <button
+                                                    class="btn btn-sm flex-shrink-0 tips-good-btn {% if tip.is_gooded %}btn-success{% else %}btn-outline-success{% endif %}"
+                                                    type="button"
+                                                    data-tip-id="{{ tip.id }}"
+                                                    data-liked="{% if tip.is_gooded %}1{% else %}0{% endif %}"
+                                                    aria-label="グッド"
+                                                >
+                                                    👍 <span class="tips-good-count">{{ tip.good_count }}</span>
+                                                </button>
+                                            {% endif %}
                                             {% if can_edit_tip %}
                                                 <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
                                             {% endif %}
@@ -183,6 +194,20 @@
 import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
 
+const toggleGoodUrl = "{% url 'tip_toggle_good' %}";
+const filterState = {
+    search_query: "{{ query|escapejs }}",
+    parent_category: "{{ selected_parent_category|escapejs }}",
+    category: "{{ selected_category|escapejs }}",
+};
+
+function getCookie(name) {
+    const cookieValue = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(name + '='));
+    return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+}
+
 window.openPdfModal = async function(btn) {
     const url = btn.dataset.pdfUrl;
     const title = btn.dataset.pdfTitle;
@@ -235,6 +260,44 @@ document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function
     document.getElementById('pdfPageStack').innerHTML = '';
     document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
     document.getElementById('pdfLoadingMsg').style.display = 'block';
+});
+
+document.querySelectorAll('.tips-good-btn[data-tip-id]').forEach(button => {
+    button.addEventListener('click', function() {
+        const tipId = this.dataset.tipId;
+        if (!tipId) {
+            return;
+        }
+
+        fetch(toggleGoodUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({
+                tip_id: Number(tipId),
+                source_path: window.location.pathname + window.location.search,
+                search_query: filterState.search_query,
+                parent_category: filterState.parent_category,
+                category: filterState.category,
+            }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.ok) {
+                    return;
+                }
+                this.dataset.liked = data.liked ? '1' : '0';
+                this.classList.toggle('btn-success', data.liked);
+                this.classList.toggle('btn-outline-success', !data.liked);
+                const countElm = this.querySelector('.tips-good-count');
+                if (countElm) {
+                    countElm.textContent = data.good_count;
+                }
+            })
+            .catch(() => {});
+    });
 });
 </script>
 {% endblock %}
