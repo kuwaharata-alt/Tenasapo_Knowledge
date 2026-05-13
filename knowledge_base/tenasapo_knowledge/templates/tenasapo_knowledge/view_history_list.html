@@ -20,72 +20,102 @@
     </div>
 </form>
 
-{% if grouped_view_histories %}
-    <div class="accordion d-grid gap-3" id="sessionAccordion">
-        {% for group in grouped_view_histories %}
+{% if grouped_user_histories %}
+    <div class="accordion d-grid gap-3" id="userAccordion">
+        {% for group in grouped_user_histories %}
             <section class="card shadow-sm accordion-item border-0">
-                <div class="card-header bg-light accordion-header" id="sessionHeading{{ forloop.counter }}">
+                <div class="card-header bg-light accordion-header" id="userHeading{{ forloop.counter }}">
                     <button
                         class="accordion-button collapsed fw-semibold"
                         type="button"
                         data-bs-toggle="collapse"
-                        data-bs-target="#sessionBody{{ forloop.counter }}"
+                        data-bs-target="#userBody{{ forloop.counter }}"
                         aria-expanded="false"
-                        aria-controls="sessionBody{{ forloop.counter }}"
+                        aria-controls="userBody{{ forloop.counter }}"
                     >
-                        {% if group.session %}
-                            {{ group.session.username }}
-                            | ログイン: {{ group.session.logged_in_at|date:"Y/m/d H:i:s" }}
-                            | ログアウト:
-                            {% if group.session.logged_out_at %}
-                                {{ group.session.logged_out_at|date:"Y/m/d H:i:s" }}
-                            {% else %}
-                                ログイン中
-                            {% endif %}
-                        {% else %}
-                            セッション情報なし
-                        {% endif %}
+                        {{ group.user.username }}
                     </button>
                 </div>
                 <div
-                    id="sessionBody{{ forloop.counter }}"
+                    id="userBody{{ forloop.counter }}"
                     class="accordion-collapse collapse"
-                    aria-labelledby="sessionHeading{{ forloop.counter }}"
-                    data-bs-parent="#sessionAccordion"
+                    aria-labelledby="userHeading{{ forloop.counter }}"
+                    data-bs-parent="#userAccordion"
                 >
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">閲覧日時</th>
-                                    <th scope="col">ページ名</th>
-                                    <th scope="col">絞り込み条件</th>
-                                    <th scope="col">パス</th>
-                                    <th scope="col">IPアドレス</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for history in group.items %}
-                                    <tr>
-                                        <td>{{ history.viewed_at|date:"Y/m/d H:i:s" }}</td>
-                                        <td>{{ history.page_name }}</td>
-                                        <td>
-                                            {% if history.search_query or history.parent_category or history.category %}
-                                                <div class="small">
-                                                    {% if history.search_query %}<div>検索: {{ history.search_query }}</div>{% endif %}
-                                                    {% if history.parent_category %}<div>大カテゴリ: {{ history.parent_category }}</div>{% endif %}
-                                                    {% if history.category %}<div>小カテゴリ: {{ history.category }}</div>{% endif %}
-                                                </div>
-                                            {% else %}
-                                                <span class="text-secondary">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td class="text-break">{{ history.path }}</td>
-                                        <td>{{ history.ip_address|default:"-" }}</td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="card-body border-bottom">
+                        <h2 class="h6 mb-3">ログイン / ログアウト履歴</h2>
+                        {% if group.login_histories %}
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">ログイン日時</th>
+                                            <th scope="col">ログアウト日時</th>
+                                            <th scope="col">IPアドレス</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for history in group.login_histories %}
+                                            <tr>
+                                                <td>{{ history.logged_in_at|date:"Y/m/d H:i:s" }}</td>
+                                                <td>
+                                                    {% if history.logged_out_at %}
+                                                        {{ history.logged_out_at|date:"Y/m/d H:i:s" }}
+                                                    {% else %}
+                                                        <span class="text-secondary">ログイン中</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ history.ip_address|default:"-" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-secondary mb-0">ログイン履歴がありません。</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="card-body">
+                        <h2 class="h6 mb-3">閲覧履歴</h2>
+                        {% if group.view_histories %}
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col">閲覧日時</th>
+                                            <th scope="col">ページ名</th>
+                                            <th scope="col">絞り込み条件</th>
+                                            <th scope="col">パス</th>
+                                            <th scope="col">IPアドレス</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for history in group.view_histories %}
+                                            <tr>
+                                                <td>{{ history.viewed_at|date:"Y/m/d H:i:s" }}</td>
+                                                <td>{{ history.page_name }}</td>
+                                                <td>
+                                                    {% if history.search_query or history.parent_category or history.category %}
+                                                        <div class="small">
+                                                            {% if history.search_query %}<div>検索: {{ history.search_query }}</div>{% endif %}
+                                                            {% if history.parent_category %}<div>大カテゴリ: {{ history.parent_category }}</div>{% endif %}
+                                                            {% if history.category %}<div>小カテゴリ: {{ history.category }}</div>{% endif %}
+                                                        </div>
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-break">{{ history.path }}</td>
+                                                <td>{{ history.ip_address|default:"-" }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-secondary mb-0">閲覧履歴がありません。</p>
+                        {% endif %}
                     </div>
                 </div>
             </section>

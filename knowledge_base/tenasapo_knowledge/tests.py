@@ -6,7 +6,14 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import ArticleAttachment, Customer, FAQCategory, KnowledgeArticle, UserProfile
+from .models import (
+    ArticleAttachment,
+    Customer,
+    FAQCategory,
+    KnowledgeArticle,
+    LoginHistory,
+    UserProfile,
+)
 
 
 class KnowledgeArticleListTests(TestCase):
@@ -212,7 +219,6 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(KnowledgeArticle.objects.filter(id=self.visible_article.id).exists())
-
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_staff_can_add_answer_image_when_updating_article(self):
         self.user.is_staff = True
@@ -701,3 +707,21 @@ class UserCreateViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.staff.refresh_from_db()
         self.assertTrue(self.staff.check_password('password'))
+
+
+class LoginHistorySignalTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='login_user', password='password')
+
+    def test_relogin_closes_previous_open_login_history(self):
+        self.client.force_login(self.user)
+        first_history = LoginHistory.objects.filter(user=self.user).latest('id')
+
+        self.client.force_login(self.user)
+        first_history.refresh_from_db()
+        second_history = LoginHistory.objects.filter(user=self.user).latest('id')
+
+        self.assertIsNotNone(first_history.logged_out_at)
+        self.assertIsNone(second_history.logged_out_at)
+        self.assertNotEqual(first_history.id, second_history.id)

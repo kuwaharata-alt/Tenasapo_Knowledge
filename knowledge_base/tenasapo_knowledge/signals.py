@@ -14,6 +14,11 @@ def client_ip_from_request(request):
 
 @receiver(user_logged_in)
 def record_login_history(sender, request, user, **kwargs):
+    LoginHistory.objects.filter(
+        user=user,
+        logged_out_at__isnull=True,
+    ).update(logged_out_at=timezone.now())
+
     history = LoginHistory.objects.create(
         user=user,
         username=user.get_username(),

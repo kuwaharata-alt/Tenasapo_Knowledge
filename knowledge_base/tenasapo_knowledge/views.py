@@ -1245,32 +1245,44 @@ class LoginHistoryListView(StaffRequiredMixin, ListView):
 
 class ViewHistoryListView(StaffRequiredMixin, ListView):
     template_name = 'tenasapo_knowledge/view_history_list.html'
-    context_object_name = 'view_histories'
-    paginate_by = 50
+    context_object_name = 'users'
+    paginate_by = 20
 
     def get_queryset(self):
-        queryset = ViewHistory.objects.select_related('user', 'login_history')
+        User = get_user_model()
+        queryset = User.objects.all().order_by('username')
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(username__icontains=query)
-        return queryset.order_by('-login_history__logged_in_at', 'viewed_at')
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
-        grouped_histories = {}
-        for history in context['view_histories']:
-            login_history = history.login_history
-            if not login_history:
-                continue
-            session_key = f'session-{login_history.id}'
-            if session_key not in grouped_histories:
-                grouped_histories[session_key] = {
-                    'session': login_history,
-                    'items': [],
-                }
-            grouped_histories[session_key]['items'].append(history)
-        context['grouped_view_histories'] = list(grouped_histories.values())
+
+        users = list(context['users'])
+        user_ids = [user.id for user in users]
+
+        login_histories_by_user = {user.id: [] for user in users}
+        view_histories_by_user = {user.id: [] for user in users}
+
+        if user_ids:
+            login_histories = LoginHistory.objects.filter(user_id__in=user_ids).order_by('-logged_in_at')
+            view_histories = ViewHistory.objects.filter(user_id__in=user_ids).order_by('-viewed_at')
+
+            for history in login_histories:
+                login_histories_by_user.setdefault(history.user_id, []).append(history)
+            for history in view_histories:
+                view_histories_by_user.setdefault(history.user_id, []).append(history)
+
+        context['grouped_user_histories'] = [
+            {
+                'user': user,
+                'login_histories': login_histories_by_user.get(user.id, []),
+                'view_histories': view_histories_by_user.get(user.id, []),
+            }
+            for user in users
+        ]
         return context
 
 
