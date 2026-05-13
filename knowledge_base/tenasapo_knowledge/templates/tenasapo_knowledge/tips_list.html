@@ -157,13 +157,14 @@
 
 <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
-        <div class="modal-content" style="height:90vh;">
+        <div class="modal-content" style="height:90vh; display:flex; flex-direction:column;">
             <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
                 <h5 class="modal-title" id="pdfModalLabel">PDF閲覧</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
-            <div class="modal-body p-0" style="flex:1; overflow:hidden;">
-                <iframe id="pdfFrame" src="" style="width:100%;height:100%;border:none;"></iframe>
+            <div class="modal-body p-2" id="pdfModalBody" style="flex:1; overflow-y:auto; background:#3c3c3c;">
+                <div id="pdfLoadingMsg" class="text-white text-center py-4">読み込み中...</div>
+                <div id="pdfPageStack"></div>
             </div>
             <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
                 <a id="pdfDownloadLink" href="" download class="btn btn-outline-secondary btn-sm">ダウンロード</a>
@@ -173,18 +174,62 @@
     </div>
 </div>
 
-<script>
-function openPdfModal(btn) {
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+
+window.openPdfModal = async function(btn) {
     const url = btn.dataset.pdfUrl;
     const title = btn.dataset.pdfTitle;
-    document.getElementById('pdfFrame').src = url;
-    document.getElementById('pdfDownloadLink').href = url;
     document.getElementById('pdfModalLabel').textContent = title;
-    const modal = new bootstrap.Modal(document.getElementById('pdfModal'));
+    document.getElementById('pdfDownloadLink').href = url;
+    const pageStack = document.getElementById('pdfPageStack');
+    const loadingMsg = document.getElementById('pdfLoadingMsg');
+    pageStack.innerHTML = '';
+    loadingMsg.textContent = '読み込み中...';
+    loadingMsg.style.display = 'block';
+
+    const modalEl = document.getElementById('pdfModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
-}
+
+    try {
+        const pdfDoc = await pdfjsLib.getDocument(url).promise;
+        loadingMsg.style.display = 'none';
+        const bodyWidth = document.getElementById('pdfModalBody').clientWidth - 32;
+        for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
+            const page = await pdfDoc.getPage(pageNo);
+            const section = document.createElement('section');
+            section.className = 'mb-3';
+            const label = document.createElement('div');
+            label.className = 'small text-white-50 mb-1';
+            label.textContent = pageNo + ' ページ';
+            const frame = document.createElement('div');
+            frame.style.cssText = 'background:#fff;border-radius:.5rem;overflow:hidden;display:flex;justify-content:center;';
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = 'max-width:100%;display:block;';
+            const base = page.getViewport({ scale: 1 });
+            const scale = Math.max(1, bodyWidth) / base.width;
+            const viewport = page.getViewport({ scale });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            frame.appendChild(canvas);
+            section.appendChild(label);
+            section.appendChild(frame);
+            pageStack.appendChild(section);
+        }
+    } catch (e) {
+        loadingMsg.textContent = 'PDFの読み込みに失敗しました: ' + e.message;
+        loadingMsg.style.display = 'block';
+        console.error(e);
+    }
+};
+
 document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function() {
-    document.getElementById('pdfFrame').src = '';
+    document.getElementById('pdfPageStack').innerHTML = '';
+    document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
+    document.getElementById('pdfLoadingMsg').style.display = 'block';
 });
 </script>
 {% endblock %}

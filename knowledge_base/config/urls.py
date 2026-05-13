@@ -16,9 +16,9 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
+from django.views.static import serve
 from tenasapo_knowledge import views as tk_views
 
 urlpatterns = [
@@ -38,6 +38,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.BASE_DIR / 'logo')
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# static / media をDEBUG問わず配信（waitress等の本番サーバー対応）
+urlpatterns += [
+    path('static/<path:path>', serve, {'document_root': settings.BASE_DIR / 'logo'}),
+    path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}),
+]
