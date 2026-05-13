@@ -48,7 +48,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'tenasapo_knowledge.middleware.SafeSessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -136,19 +136,22 @@ LOGOUT_REDIRECT_URL = 'login'
 SESSION_COOKIE_AGE = 60 * 30
 SESSION_SAVE_EVERY_REQUEST = True
 
-# Windowsのグループ相当（業務上のユーザー区分）
-USER_GROUPS = [
+# 業務上のユーザー役割
+USER_ROLES = [
     '管理者',
     'レビュアー',
     'システナ',
     'カスタマー',
 ]
 
+# 後方互換（既存コード/運用向け）
+USER_GROUPS = USER_ROLES
+
 USER_GROUP_REVIEWER_NAME = 'レビュアー'
 
 FAQ_APPROVAL_ENABLED = True
 
-# グループごとの役割（権限）
+# 役割ごとの権限
 # 形式: "<app_label>.<codename>"
 GROUP_ROLE_PERMISSIONS = {
     '管理者': [

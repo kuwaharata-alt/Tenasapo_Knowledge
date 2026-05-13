@@ -52,7 +52,7 @@
                         {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label">所属グループ</label>
+                        <label class="form-label">所属役割</label>
                         <div class="border rounded p-3{% if form.groups.errors %} border-danger{% endif %}">
                             {% if form.fields.groups.choices %}
                                 {% for value, label in form.fields.groups.choices %}
@@ -62,7 +62,7 @@
                                     </div>
                                 {% endfor %}
                             {% else %}
-                                <div class="text-secondary">設定済みグループがありません。</div>
+                                <div class="text-secondary">設定済み役割がありません。</div>
                             {% endif %}
                         </div>
                         {% for error in form.groups.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}

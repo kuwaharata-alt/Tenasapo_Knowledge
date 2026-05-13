@@ -150,7 +150,7 @@ class UserCreateForm(forms.Form):
     company_name = forms.CharField(label='会社名', max_length=120)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
     groups = forms.MultipleChoiceField(
-        label='所属グループ',
+        label='所属役割',
         required=False,
         choices=(),
         widget=forms.CheckboxSelectMultiple,
@@ -169,8 +169,8 @@ class UserCreateForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_names = getattr(settings, 'USER_GROUPS', [])
-        self.fields['groups'].choices = [(name, name) for name in group_names]
+        role_names = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
+        self.fields['groups'].choices = [(name, name) for name in role_names]
 
     def clean_username(self):
         username = self.cleaned_data['username']
@@ -216,7 +216,7 @@ class UserUpdateForm(forms.Form):
     company_name = forms.CharField(label='会社名', max_length=120)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
     groups = forms.MultipleChoiceField(
-        label='所属グループ',
+        label='所属役割',
         required=False,
         choices=(),
         widget=forms.CheckboxSelectMultiple,
@@ -235,8 +235,8 @@ class UserUpdateForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        group_names = getattr(settings, 'USER_GROUPS', [])
-        self.fields['groups'].choices = [(name, name) for name in group_names]
+        role_names = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
+        self.fields['groups'].choices = [(name, name) for name in role_names]
 
     def clean_email_addresses(self):
         value = self.cleaned_data.get('email_addresses', '')

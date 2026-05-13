@@ -4,12 +4,12 @@ from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
-    help = 'settings の USER_GROUPS / GROUP_ROLE_PERMISSIONS を Group に同期します。'
+    help = 'settings の USER_ROLES / GROUP_ROLE_PERMISSIONS を役割(Group)に同期します。'
 
     def handle(self, *args, **options):
-        configured_groups = list(getattr(settings, 'USER_GROUPS', []))
+        configured_roles = list(getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', [])))
         role_permissions = dict(getattr(settings, 'GROUP_ROLE_PERMISSIONS', {}))
-        all_group_names = list(dict.fromkeys([*configured_groups, *role_permissions.keys()]))
+        all_group_names = list(dict.fromkeys([*configured_roles, *role_permissions.keys()]))
 
         for group_name in all_group_names:
             group, _ = Group.objects.get_or_create(name=group_name)
@@ -28,4 +28,4 @@ class Command(BaseCommand):
                 except ValueError:
                     self.stdout.write(self.style.WARNING(f'権限形式が不正です: {permission_name}'))
 
-        self.stdout.write(self.style.SUCCESS('グループと権限の同期が完了しました。'))
+        self.stdout.write(self.style.SUCCESS('役割と権限の同期が完了しました。'))

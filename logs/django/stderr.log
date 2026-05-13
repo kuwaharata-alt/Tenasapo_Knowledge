@@ -4792,3 +4792,1050 @@ Not Found: /favicon.ico
 WARNING:django.request:Not Found: /favicon.ico
 INFO:waitress:Serving on http://127.0.0.1:8000
 INFO:waitress:Serving on http://127.0.0.1:8000
+INFO:waitress:Serving on http://127.0.0.1:8000
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+INFO:waitress:Serving on http://127.0.0.1:8000
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+INFO:waitress:Serving on http://127.0.0.1:8000
+Internal Server Error: /
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\views\generic\base.py", line 106, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\tenasapo_knowledge\views.py", line 180, in dispatch
+    record_view_history(
+  File "C:\webapps\knowledge_base\tenasapo_knowledge\views.py", line 119, in record_view_history
+    ViewHistory.objects.create(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 669, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1169, in _save_table
+    results = self._do_insert(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1220, in _do_insert
+    return manager._insert(
+           ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1918, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1925, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+ERROR:django.request:Internal Server Error: /
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\views\generic\base.py", line 106, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\tenasapo_knowledge\views.py", line 180, in dispatch
+    record_view_history(
+  File "C:\webapps\knowledge_base\tenasapo_knowledge\views.py", line 119, in record_view_history
+    ViewHistory.objects.create(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 669, in create
+    obj.save(force_insert=True, using=self.db)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1169, in _save_table
+    results = self._do_insert(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1220, in _do_insert
+    return manager._insert(
+           ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1918, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1925, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+INFO:waitress:Serving on http://127.0.0.1:8000
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+Internal Server Error: /media/knowledge_attachments/2026/05/gpupdate.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+ERROR:django.request:Internal Server Error: /media/knowledge_attachments/2026/05/gpupdate.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+Internal Server Error: /media/knowledge_attachments/2026/05/WindowsUpdate_dis.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+ERROR:django.request:Internal Server Error: /media/knowledge_attachments/2026/05/WindowsUpdate_dis.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+Internal Server Error: /static/systena_logo.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+ERROR:django.request:Internal Server Error: /static/systena_logo.png
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 246, in _get_session
+    return self._session_cache
+           ^^^^^^^^^^^^^^^^^^^
+AttributeError: 'SessionStore' object has no attribute '_session_cache'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\base.py", line 186, in _get_response
+    response = middleware_method(
+               ^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 57, in process_view
+    if request.user.is_authenticated:
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 251, in inner
+    self._setup()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\functional.py", line 404, in _setup
+    self._wrapped = self._setupfunc()
+                    ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 40, in <lambda>
+    request.user = SimpleLazyObject(lambda: get_user(request))
+                                            ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\middleware.py", line 20, in get_user
+    request._cached_user = auth.get_user(request)
+                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 321, in get_user
+    user_id = _get_user_session_key(request)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\auth\__init__.py", line 95, in _get_user_session_key
+    return get_user_model()._meta.pk.to_python(request.session[SESSION_KEY])
+                                               ~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 55, in __getitem__
+    return self._session[key]
+           ^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\base.py", line 251, in _get_session
+    self._session_cache = self.load()
+                          ^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 55, in load
+    s = self._get_session_from_db()
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 34, in _get_session_from_db
+    return self.model.objects.get(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 635, in get
+    num = len(clone)
+          ^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 372, in __len__
+    self._fetch_all()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 2000, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 95, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+WARNING:waitress.queue:Task queue depth is 1
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /favicon.ico
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 127, in save
+    obj.save(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1110, in _save_table
+    results = self._do_update(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1213, in _do_update
+    return filtered._update(values, returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1327, in _update
+    return query.get_compiler(self.db).execute_returning_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2140, in execute_returning_sql
+    row_count = self.execute_sql(ROW_COUNT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2111, in execute_sql
+    row_count = super().execute_sql(result_type)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 60, in process_response
+    request.session.save()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 136, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\deprecation.py", line 311, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 62, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+WARNING:django.request:The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /favicon.ico
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 127, in save
+    obj.save(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1110, in _save_table
+    results = self._do_update(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1213, in _do_update
+    return filtered._update(values, returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1327, in _update
+    return query.get_compiler(self.db).execute_returning_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2140, in execute_returning_sql
+    row_count = self.execute_sql(ROW_COUNT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2111, in execute_sql
+    row_count = super().execute_sql(result_type)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 60, in process_response
+    request.session.save()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 136, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\deprecation.py", line 311, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 62, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /users/
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 127, in save
+    obj.save(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1110, in _save_table
+    results = self._do_update(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1213, in _do_update
+    return filtered._update(values, returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1327, in _update
+    return query.get_compiler(self.db).execute_returning_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2140, in execute_returning_sql
+    row_count = self.execute_sql(ROW_COUNT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2111, in execute_sql
+    row_count = super().execute_sql(result_type)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 60, in process_response
+    request.session.save()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 136, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\deprecation.py", line 311, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 62, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+WARNING:django.request:The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.: /users/
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 127, in save
+    obj.save(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 874, in save
+    self.save_base(
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 966, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1110, in _save_table
+    results = self._do_update(
+              ^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\base.py", line 1213, in _do_update
+    return filtered._update(values, returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\query.py", line 1327, in _update
+    return query.get_compiler(self.db).execute_returning_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2140, in execute_returning_sql
+    row_count = self.execute_sql(ROW_COUNT)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 2111, in execute_sql
+    row_count = super().execute_sql(result_type)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\models\sql\compiler.py", line 1624, in execute_sql
+    cursor.execute(sql, params)
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\utils.py", line 94, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\db\backends\sqlite3\base.py", line 359, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 60, in process_response
+    request.session.save()
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\backends\db.py", line 136, in save
+    raise UpdateError
+django.contrib.sessions.backends.base.UpdateError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\utils\deprecation.py", line 311, in __call__
+    response = self.process_response(request, response)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\webapps\knowledge_base\.venv\Lib\site-packages\django\contrib\sessions\middleware.py", line 62, in process_response
+    raise SessionInterrupted(
+django.contrib.sessions.exceptions.SessionInterrupted: The request's session was deleted before the request completed. The user may have logged out in a concurrent request, for example.
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico

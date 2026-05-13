@@ -26,10 +26,26 @@ from .models import (
 )
 
 
-ADMIN_GROUP_NAME = getattr(settings, 'USER_GROUP_ADMIN_NAME', '管理者')
-SYSTENA_GROUP_NAME = getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ')
-CUSTOMER_GROUP_NAME = getattr(settings, 'USER_GROUP_CUSTOMER_NAME', 'カスタマー')
-REVIEWER_GROUP_NAME = getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー')
+ADMIN_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_ADMIN_NAME',
+    getattr(settings, 'USER_GROUP_ADMIN_NAME', '管理者'),
+)
+SYSTENA_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_SYSTENA_NAME',
+    getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ'),
+)
+CUSTOMER_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_CUSTOMER_NAME',
+    getattr(settings, 'USER_GROUP_CUSTOMER_NAME', 'カスタマー'),
+)
+REVIEWER_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_REVIEWER_NAME',
+    getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー'),
+)
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
 
 
