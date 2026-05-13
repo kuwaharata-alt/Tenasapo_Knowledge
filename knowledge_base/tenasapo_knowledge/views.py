@@ -453,6 +453,12 @@ class StaffRequiredMixin(UserPassesTestMixin):
         user = self.request.user
         return user.is_authenticated and (user.is_staff or user.is_superuser)
 
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'このページを閲覧する権限がありません。')
+            return redirect('article_list')
+        return super().handle_no_permission()
+
 
 class ArticleEditorRequiredMixin(UserPassesTestMixin):
     raise_exception = True
@@ -460,12 +466,24 @@ class ArticleEditorRequiredMixin(UserPassesTestMixin):
     def test_func(self):
         return can_edit_article(self.request.user)
 
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'この操作を実行する権限がありません。')
+            return redirect('article_list')
+        return super().handle_no_permission()
+
 
 class ArticleApprovalRequiredMixin(UserPassesTestMixin):
     raise_exception = True
 
     def test_func(self):
         return can_approve_article(self.request.user)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, '承認操作を実行する権限がありません。')
+            return redirect('article_list')
+        return super().handle_no_permission()
 
 
 class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
