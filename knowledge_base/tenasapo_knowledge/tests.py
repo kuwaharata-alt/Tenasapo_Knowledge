@@ -1,10 +1,16 @@
 import tempfile
+from datetime import timedelta
+from datetime import date
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
+from django.core import mail
+from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import (
     ArticleAttachment,
@@ -12,7 +18,9 @@ from .models import (
     FAQCategory,
     KnowledgeArticle,
     LoginHistory,
+    TipsArticle,
     UserProfile,
+    default_expires_on,
 )
 
 
@@ -219,6 +227,56 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertTrue(KnowledgeArticle.objects.filter(id=self.visible_article.id).exists())
+
+    def test_article_list_hides_expired_article(self):
+        self.client.force_login(self.user)
+        expired_article = KnowledgeArticle.objects.create(
+            title='期限切れFAQ',
+            category='PC/電源',
+            body='本文',
+            expires_on=timezone.localdate() - timedelta(days=1),
+        )
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertNotContains(response, expired_article.title)
+
+    def test_article_expires_on_is_saved_and_shown_in_edit(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'category': 'ネットワーク/VPN',
+                'question': '掲載期限保持FAQ',
+                'answer': '本文',
+                'expires_on': '2026-12-01',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='掲載期限保持FAQ')
+        self.assertEqual(str(article.expires_on), '2026-12-01')
+
+        edit_response = self.client.get(reverse('article_edit', args=[article.id]))
+        self.assertContains(edit_response, 'value="2026-12-01"', html=False)
+
+    def test_article_list_shows_expires_on(self):
+        self.client.force_login(self.user)
+        article = KnowledgeArticle.objects.create(
+            title='期限表示FAQ',
+            category='PC/電源',
+            body='本文',
+            expires_on=timezone.localdate() + timedelta(days=10),
+        )
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, article.title)
+        self.assertContains(response, '掲載期限')
+
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_staff_can_add_answer_image_when_updating_article(self):
         self.user.is_staff = True
@@ -725,3 +783,202 @@ class LoginHistorySignalTests(TestCase):
         self.assertIsNotNone(first_history.logged_out_at)
         self.assertIsNone(second_history.logged_out_at)
         self.assertNotEqual(first_history.id, second_history.id)
+
+
+class TipsListTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='tips_member', password='password')
+        self.client.force_login(self.user)
+
+    def test_tip_list_hides_expired_tip(self):
+        TipsArticle.objects.create(
+            title='期限切れTips',
+            category='PC/設定',
+            body='本文',
+            expires_on=timezone.localdate() - timedelta(days=1),
+        )
+        TipsArticle.objects.create(
+            title='有効なTips',
+            category='PC/設定',
+            body='本文',
+            expires_on=timezone.localdate() + timedelta(days=1),
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertNotContains(response, '期限切れTips')
+        self.assertContains(response, '有効なTips')
+
+    def test_tip_list_shows_expires_on(self):
+        TipsArticle.objects.create(
+            title='期限表示Tips',
+            category='PC/設定',
+            body='本文',
+            expires_on=timezone.localdate() + timedelta(days=5),
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertContains(response, '期限表示Tips')
+        self.assertContains(response, '掲載期限')
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+    DEFAULT_FROM_EMAIL='noreply@example.com',
+)
+class ExpiringArticleNotificationCommandTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.creator = User.objects.create_user(
+            username='creator',
+            password='password',
+            email='creator@example.com',
+        )
+        self.reviewer = User.objects.create_user(
+            username='reviewer',
+            password='password',
+            email='reviewer@example.com',
+        )
+        UserProfile.objects.create(
+            user=self.reviewer,
+            company_name='レビュアー社',
+            email_addresses='reviewer-sub@example.com',
+        )
+
+    def test_notify_expiring_articles_sends_to_creator_and_approver(self):
+        target_date = timezone.localdate() + timedelta(days=7)
+        KnowledgeArticle.objects.create(
+            title='期限通知FAQ',
+            category='PC/設定',
+            body='本文',
+            expires_on=target_date,
+            created_by=self.creator,
+            created_by_name='投稿者A',
+            approved_by=self.reviewer,
+            approved_by_name='承認者A',
+        )
+        TipsArticle.objects.create(
+            title='期限通知Tips',
+            category='PC/設定',
+            body='本文',
+            expires_on=target_date,
+            created_by=self.creator,
+            created_by_name='投稿者A',
+            approved_by=self.reviewer,
+            approved_by_name='承認者A',
+        )
+
+        call_command('notify_expiring_articles')
+
+        self.assertEqual(len(mail.outbox), 2)
+        recipients = set(mail.outbox[0].to) | set(mail.outbox[1].to)
+        self.assertIn('creator@example.com', recipients)
+        self.assertIn('reviewer@example.com', recipients)
+        self.assertIn('reviewer-sub@example.com', recipients)
+
+    def test_notify_expiring_articles_skips_non_target_date(self):
+        KnowledgeArticle.objects.create(
+            title='通知対象外FAQ',
+            category='PC/設定',
+            body='本文',
+            expires_on=timezone.localdate() + timedelta(days=6),
+            created_by=self.creator,
+            created_by_name='投稿者A',
+        )
+
+        call_command('notify_expiring_articles')
+
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class ExpirationDefaultTests(TestCase):
+    def test_default_expires_on_is_six_months_later_when_weekday(self):
+        with patch('tenasapo_knowledge.models.timezone.localdate', return_value=date(2026, 5, 14)):
+            result = default_expires_on()
+
+        self.assertEqual(result, date(2026, 11, 13))
+
+    def test_default_expires_on_moves_to_friday_when_saturday(self):
+        with patch('tenasapo_knowledge.models.timezone.localdate', return_value=date(2026, 1, 4)):
+            result = default_expires_on()
+
+        self.assertEqual(result, date(2026, 7, 3))
+
+    def test_article_create_uses_default_expires_on_when_blank(self):
+        User = get_user_model()
+        staff = User.objects.create_user(username='staff_default_exp', password='password', is_staff=True)
+        self.client.force_login(staff)
+
+        response = self.client.post(
+            reverse('article_create'),
+            {
+                'category': 'ネットワーク/VPN',
+                'question': 'デフォルト期限FAQ',
+                'answer': '本文',
+                'expires_on': '',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article = KnowledgeArticle.objects.get(title='デフォルト期限FAQ')
+        self.assertIsNotNone(article.expires_on)
+
+
+class UnpublishExpiredArticlesCommandTests(TestCase):
+    def test_unpublish_expired_articles_command_unpublishes_faq(self):
+        article = KnowledgeArticle.objects.create(
+            title='期限切れFAQ',
+            category='PC/設定',
+            body='本文',
+            is_published=True,
+            expires_on=timezone.localdate() - timedelta(days=1),
+        )
+
+        call_command('unpublish_expired_articles')
+
+        article.refresh_from_db()
+        self.assertFalse(article.is_published)
+
+    def test_unpublish_expired_articles_command_unpublishes_tip(self):
+        tip = TipsArticle.objects.create(
+            title='期限切れTips',
+            category='PC/設定',
+            body='本文',
+            is_published=True,
+            expires_on=timezone.localdate() - timedelta(days=1),
+        )
+
+        call_command('unpublish_expired_articles')
+
+        tip.refresh_from_db()
+        self.assertFalse(tip.is_published)
+
+    def test_unpublish_expired_articles_command_skips_future_expiry(self):
+        article = KnowledgeArticle.objects.create(
+            title='有効なFAQ',
+            category='PC/設定',
+            body='本文',
+            is_published=True,
+            expires_on=timezone.localdate() + timedelta(days=10),
+        )
+
+        call_command('unpublish_expired_articles')
+
+        article.refresh_from_db()
+        self.assertTrue(article.is_published)
+
+    def test_unpublish_expired_articles_command_dry_run(self):
+        article = KnowledgeArticle.objects.create(
+            title='期限切れFAQ',
+            category='PC/設定',
+            body='本文',
+            is_published=True,
+            expires_on=timezone.localdate() - timedelta(days=1),
+        )
+
+        call_command('unpublish_expired_articles', '--dry-run')
+
+        article.refresh_from_db()
+        self.assertTrue(article.is_published)

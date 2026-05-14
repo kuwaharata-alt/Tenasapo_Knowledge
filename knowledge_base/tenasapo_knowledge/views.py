@@ -11,6 +11,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
+from django.utils import timezone
 from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 
@@ -197,6 +198,11 @@ def is_customer_user(user):
     )
 
 
+def active_until_filter(base_date=None):
+    target_date = base_date or timezone.localdate()
+    return Q(expires_on__isnull=True) | Q(expires_on__gte=target_date)
+
+
 class HomeView(TemplateView):
     template_name = 'tenasapo_knowledge/home.html'
 
@@ -206,8 +212,8 @@ class HomeView(TemplateView):
         is_admin = user.is_staff or user.is_superuser
 
         # 最新FAQ（権限に応じてフィルタ）
-        faq_qs = KnowledgeArticle.objects.filter(is_published=True)
-        tips_qs = TipsArticle.objects.filter(is_published=True)
+        faq_qs = KnowledgeArticle.objects.filter(is_published=True).filter(active_until_filter())
+        tips_qs = TipsArticle.objects.filter(is_published=True).filter(active_until_filter())
         is_systena = in_group(user, SYSTENA_GROUP_NAME)
         is_reviewer = in_group(user, REVIEWER_GROUP_NAME)
         if not is_admin and not is_systena and not is_reviewer:
@@ -273,6 +279,7 @@ class ArticleListView(ListView):
             KnowledgeArticle.objects.select_related('customer', 'created_by', 'approved_by')
             .prefetch_related('attachments')
             .filter(is_published=True)
+            .filter(active_until_filter())
             .annotate(good_count=Count('goods'))
         )
 
@@ -389,7 +396,11 @@ class ArticleListView(ListView):
         parent_categories.extend(
             FAQCategory.objects.values_list('parent_name', flat=True).distinct()
         )
-        for category_text in KnowledgeArticle.objects.filter(is_published=True).values_list('category', flat=True):
+        for category_text in (
+            KnowledgeArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .values_list('category', flat=True)
+        ):
             parent_categories.extend(
                 cls.parent_category_name(category)
                 for category in cls.split_categories(category_text)
@@ -410,7 +421,11 @@ class ArticleListView(ListView):
                 }
             )
 
-        for category_text in KnowledgeArticle.objects.filter(is_published=True).values_list('category', flat=True):
+        for category_text in (
+            KnowledgeArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .values_list('category', flat=True)
+        ):
             for category_name in cls.split_categories(category_text):
                 parent_name = cls.parent_category_name(category_name)
                 child_name = category_name.split('/', 1)[1].strip() if '/' in category_name else category_name
@@ -471,7 +486,11 @@ class TipsListView(ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = TipsArticle.objects.filter(is_published=True).annotate(good_count=Count('goods'))
+        queryset = (
+            TipsArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .annotate(good_count=Count('goods'))
+        )
 
         user = self.request.user
         is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
@@ -572,7 +591,11 @@ class TipsListView(ListView):
         parent_categories.extend(
             FAQCategory.objects.values_list('parent_name', flat=True).distinct()
         )
-        for category_text in TipsArticle.objects.filter(is_published=True).values_list('category', flat=True):
+        for category_text in (
+            TipsArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .values_list('category', flat=True)
+        ):
             parent_categories.extend(
                 cls.parent_category_name(category)
                 for category in cls.split_categories(category_text)
@@ -593,7 +616,11 @@ class TipsListView(ListView):
                 }
             )
 
-        for category_text in TipsArticle.objects.filter(is_published=True).values_list('category', flat=True):
+        for category_text in (
+            TipsArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .values_list('category', flat=True)
+        ):
             for category_name in cls.split_categories(category_text):
                 parent_name = cls.parent_category_name(category_name)
                 child_name = category_name.split('/', 1)[1].strip() if '/' in category_name else category_name
@@ -662,6 +689,7 @@ class TipsCreateView(FormView):
             target_os=form.cleaned_data['target_os'],
             category=form.cleaned_data['category'],
             body=form.cleaned_data['body'],
+            expires_on=form.cleaned_data['expires_on'],
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
@@ -707,6 +735,7 @@ class TipsUpdateView(FormView):
             'title': self.tip.title,
             'target_os': self.tip.target_os,
             'body': self.tip.body,
+            'expires_on': self.tip.expires_on,
             'visible_to_customer': self.tip.visible_to_customer,
             'visible_to_systena': self.tip.visible_to_systena,
         }
@@ -731,10 +760,11 @@ class TipsUpdateView(FormView):
         self.tip.target_os = form.cleaned_data['target_os']
         self.tip.category = form.cleaned_data['category']
         self.tip.body = form.cleaned_data['body']
+        self.tip.expires_on = form.cleaned_data['expires_on']
         self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
         update_fields = [
-            'title', 'target_os', 'category', 'body',
+            'title', 'target_os', 'category', 'body', 'expires_on',
             'visible_to_customer', 'visible_to_systena', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
@@ -1073,6 +1103,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
             source_published_at=form.cleaned_data['source_published_at'],
+            expires_on=form.cleaned_data['expires_on'],
             created_by=self.request.user,
             created_by_name=self.request.user.get_username(),
         )
@@ -1126,6 +1157,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             'visible_to_customer': self.article.visible_to_customer,
             'visible_to_systena': self.article.visible_to_systena,
             'source_published_at': self.article.source_published_at,
+            'expires_on': self.article.expires_on,
         }
 
     def get_context_data(self, **kwargs):
@@ -1154,6 +1186,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         self.article.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
         self.article.source_published_at = form.cleaned_data['source_published_at']
+        self.article.expires_on = form.cleaned_data['expires_on']
         self.article.save(
             update_fields=[
                 'category',
@@ -1162,6 +1195,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'visible_to_customer',
                 'visible_to_systena',
                 'source_published_at',
+                'expires_on',
                 'updated_at',
             ]
         )

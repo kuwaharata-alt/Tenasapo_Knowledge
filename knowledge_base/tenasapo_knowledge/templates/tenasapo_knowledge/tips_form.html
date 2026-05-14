@@ -79,6 +79,11 @@
                         <input class="form-control{% if form.target_os.errors %} is-invalid{% endif %}" type="text" name="{{ form.target_os.html_name }}" id="{{ form.target_os.id_for_label }}" value="{{ form.target_os.value|default_if_none:'' }}">
                         {% for error in form.target_os.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-subsection-label" for="{{ form.expires_on.id_for_label }}">{{ form.expires_on.label }}</label>
+                        <input class="form-control{% if form.expires_on.errors %} is-invalid{% endif %}" type="date" name="{{ form.expires_on.html_name }}" id="{{ form.expires_on.id_for_label }}" value="{{ form.expires_on.value|date:'Y-m-d'|default_if_none:'' }}">
+                        {% for error in form.expires_on.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
 
                     <div class="col-12">
                         <div class="form-section-label">表示対象</div>

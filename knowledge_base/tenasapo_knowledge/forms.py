@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import FAQCategory, Manual
+from .models import FAQCategory, Manual, default_expires_on
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -106,6 +106,12 @@ class KnowledgeArticleCreateForm(forms.Form):
         required=False,
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
+    expires_on = forms.DateField(
+        label='掲載期限',
+        required=False,
+        initial=default_expires_on,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -116,6 +122,9 @@ class KnowledgeArticleCreateForm(forms.Form):
 
     def clean_category(self):
         return self.cleaned_data.get('category', '').strip()
+
+    def clean_expires_on(self):
+        return self.cleaned_data.get('expires_on') or default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -184,6 +193,12 @@ class TipsCreateForm(forms.Form):
         label='PDFファイルを削除する',
         required=False,
     )
+    expires_on = forms.DateField(
+        label='掲載期限',
+        required=False,
+        initial=default_expires_on,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -197,6 +212,9 @@ class TipsCreateForm(forms.Form):
 
     def clean_target_os(self):
         return self.cleaned_data.get('target_os', '').strip()
+
+    def clean_expires_on(self):
+        return self.cleaned_data.get('expires_on') or default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()

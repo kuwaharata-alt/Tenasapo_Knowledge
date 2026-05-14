@@ -1,6 +1,24 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from calendar import monthrange
+from datetime import timedelta
+
+
+def default_expires_on():
+    today = timezone.localdate()
+    year = today.year
+    month = today.month + 6
+    if month > 12:
+        year += (month - 1) // 12
+        month = ((month - 1) % 12) + 1
+    day = min(today.day, monthrange(year, month)[1])
+    target_date = today.replace(year=year, month=month, day=day)
+    if target_date.weekday() == 5:
+        return target_date - timedelta(days=1)
+    if target_date.weekday() == 6:
+        return target_date - timedelta(days=2)
+    return target_date
 
 
 class Customer(models.Model):
@@ -111,6 +129,7 @@ class KnowledgeArticle(models.Model):
     answer_view_count = models.PositiveIntegerField('回答表示回数', default=0)
     published_at = models.DateTimeField('公開日時', default=timezone.now)
     source_published_at = models.DateField('ソース公開日', null=True, blank=True)
+    expires_on = models.DateField('掲載期限', null=True, blank=True, default=default_expires_on)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -152,6 +171,7 @@ class TipsArticle(models.Model):
     visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
     published_at = models.DateTimeField('公開日時', default=timezone.now)
+    expires_on = models.DateField('掲載期限', null=True, blank=True, default=default_expires_on)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -188,3 +189,17 @@ GROUP_ROLE_PERMISSIONS = {
         'tenasapo_knowledge.view_tipsarticle',
     ],
 }
+
+# メール設定
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'  # または使用するSMTPサーバー
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'Tenasapo@gmail.com'  # 送信元メールアドレス
+EMAIL_HOST_PASSWORD = 'your-app-password'  # Gmailはアプリパスワード推奨
+DEFAULT_FROM_EMAIL = 'your-email@gmail.com'
+
+# メール設定（開発環境：ファイル出力）
+EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
+EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
+DEFAULT_FROM_EMAIL = 'tenasapo@systena.co.jp'

@@ -135,6 +135,11 @@
                                                 <span class="badge faq-meta-badge">
                                                     登録日 {{ article.published_at|date:"Y/m/d" }}
                                                 </span>
+                                                {% if article.expires_on %}
+                                                    <span class="badge faq-meta-badge">
+                                                        掲載期限 {{ article.expires_on|date:"Y/m/d" }}
+                                                    </span>
+                                                {% endif %}
                                                 {% if article.source_published_at %}
                                                     <span class="badge faq-meta-badge">
                                                         ソース公開日 {{ article.source_published_at|date:"Y/m/d" }}

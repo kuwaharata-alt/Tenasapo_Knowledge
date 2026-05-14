@@ -40,6 +40,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
         'visible_to_systena',
         'answer_view_count',
         'published_at',
+        'expires_on',
         'created_by',
     )
     list_filter = (
@@ -50,6 +51,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
         'category',
         'customer',
         'published_at',
+        'expires_on',
     )
     search_fields = ('title', 'category', 'summary', 'body', 'customer__name')
     autocomplete_fields = ('customer', 'created_by')
@@ -108,6 +110,7 @@ class TipsArticleAdmin(admin.ModelAdmin):
         'visible_to_customer',
         'visible_to_systena',
         'published_at',
+        'expires_on',
         'created_by',
     )
     list_filter = (
@@ -117,6 +120,7 @@ class TipsArticleAdmin(admin.ModelAdmin):
         'visible_to_systena',
         'category',
         'published_at',
+        'expires_on',
     )
     search_fields = ('title', 'target_os', 'category', 'body')
     autocomplete_fields = ('created_by', 'approved_by')
