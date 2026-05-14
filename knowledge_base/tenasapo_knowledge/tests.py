@@ -93,6 +93,22 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, self.hidden_article.title)
         self.assertContains(response, 'FAQ登録')
 
+    def test_hidden_for_all_article_is_not_shown_even_to_staff(self):
+        self.user.is_staff = True
+        self.user.save()
+        hidden_for_all_article = KnowledgeArticle.objects.create(
+            title='全員非表示FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=False,
+            visible_to_systena=False,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertNotContains(response, hidden_for_all_article.title)
+
     def test_non_staff_cannot_view_article_create_page(self):
         self.client.force_login(self.user)
 
@@ -615,9 +631,66 @@ class KnowledgeArticleListTests(TestCase):
 
         approve_response = self.client.post(reverse('article_approve', args=[article.id]))
 
-        self.assertRedirects(approve_response, reverse('article_edit', args=[article.id]))
+        self.assertRedirects(approve_response, reverse('article_list'))
         article.refresh_from_db()
         self.assertTrue(article.is_approved)
+
+    def test_reviewer_cannot_republish_hidden_for_all_article(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='reviewer_republish', password='password')
+        reviewer.groups.add(reviewer_group)
+        article = KnowledgeArticle.objects.create(
+            title='全員非表示FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=False,
+            visible_to_systena=False,
+        )
+        self.client.force_login(reviewer)
+
+        response = self.client.post(
+            reverse('article_edit', args=[article.id]),
+            {
+                'category': article.category,
+                'question': article.title,
+                'answer': article.body,
+                'visible_to_customer': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '全ユーザー非表示のFAQを再公開できるのはSystenaAdminのみです。')
+        article.refresh_from_db()
+        self.assertFalse(article.visible_to_customer)
+        self.assertFalse(article.visible_to_systena)
+
+    def test_admin_can_republish_hidden_for_all_article(self):
+        self.user.is_staff = True
+        self.user.is_superuser = True
+        self.user.save()
+        article = KnowledgeArticle.objects.create(
+            title='再公開対象FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=False,
+            visible_to_systena=False,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('article_edit', args=[article.id]),
+            {
+                'category': article.category,
+                'question': article.title,
+                'answer': article.body,
+                'visible_to_customer': 'on',
+            },
+        )
+
+        self.assertRedirects(response, reverse('article_list'))
+        article.refresh_from_db()
+        self.assertTrue(article.visible_to_customer)
+        self.assertFalse(article.visible_to_systena)
 
 
 class UserCreateViewTests(TestCase):
@@ -823,6 +896,21 @@ class TipsListTests(TestCase):
         self.assertContains(response, '期限表示Tips')
         self.assertContains(response, '掲載期限')
 
+    def test_hidden_for_all_tip_is_not_shown_even_to_staff(self):
+        self.user.is_staff = True
+        self.user.save()
+        TipsArticle.objects.create(
+            title='全員非表示Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=False,
+            visible_to_systena=False,
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertNotContains(response, '全員非表示Tips')
+
 
 class TipsFormTests(TestCase):
     def setUp(self):
@@ -873,6 +961,38 @@ class TipsFormTests(TestCase):
         tip.refresh_from_db()
         self.assertEqual(str(tip.source_published_at), '2026-05-12')
         self.assertEqual(str(tip.expires_on), '2026-12-20')
+
+    def test_reviewer_cannot_republish_hidden_for_all_tip(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='tips_reviewer', password='password')
+        reviewer.groups.add(reviewer_group)
+        tip = TipsArticle.objects.create(
+            title='全員非表示Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=False,
+            visible_to_systena=False,
+            created_by=self.staff,
+            created_by_name=self.staff.get_username(),
+        )
+        self.client.force_login(reviewer)
+
+        response = self.client.post(
+            reverse('tip_edit', args=[tip.id]),
+            {
+                'category': tip.category,
+                'title': tip.title,
+                'target_os': 'Windows 11',
+                'body': tip.body,
+                'visible_to_customer': 'on',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '全ユーザー非表示のTipsを再公開できるのはSystenaAdminのみです。')
+        tip.refresh_from_db()
+        self.assertFalse(tip.visible_to_customer)
+        self.assertFalse(tip.visible_to_systena)
 
 
 @override_settings(

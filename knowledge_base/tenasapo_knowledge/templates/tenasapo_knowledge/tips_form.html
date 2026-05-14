@@ -73,10 +73,10 @@
                         <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
                         {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-subsection-label" for="{{ form.target_os.id_for_label }}">{{ form.target_os.label }}</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.target_os.id_for_label }}">{{ form.target_os.label }}</label>
                         {% if form.target_os.help_text %}<div class="form-text mb-2">{{ form.target_os.help_text }}</div>{% endif %}
-                        <input class="form-control{% if form.target_os.errors %} is-invalid{% endif %}" type="text" name="{{ form.target_os.html_name }}" id="{{ form.target_os.id_for_label }}" value="{{ form.target_os.value|default_if_none:'' }}">
+                        <input class="form-control{% if form.target_os.errors %} is-invalid{% endif %}" type="text" name="{{ form.target_os.html_name }}" id="{{ form.target_os.id_for_label }}" value="{{ form.target_os.value|default_if_none:'' }}" required>
                         {% for error in form.target_os.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
 

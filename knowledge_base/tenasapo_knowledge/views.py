@@ -65,6 +65,24 @@ def in_group(user, group_name):
     return user.is_authenticated and user.groups.filter(name=group_name).exists()
 
 
+def visible_to_any_account_filter():
+    return Q(visible_to_customer=True) | Q(visible_to_systena=True)
+
+
+def is_hidden_for_all_accounts(article_or_tip):
+    return not article_or_tip.visible_to_customer and not article_or_tip.visible_to_systena
+
+
+def can_republish_hidden_content(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_superuser
+            or in_group(user, ADMIN_GROUP_NAME)
+        )
+    )
+
+
 def profile_user_type_from_groups(group_names):
     if SYSTENA_GROUP_NAME in group_names or ADMIN_GROUP_NAME in group_names:
         return UserProfile.USER_TYPE_SYSTENA
@@ -143,6 +161,9 @@ def record_view_history(
 
 
 def can_user_access_article(user, article):
+    if is_hidden_for_all_accounts(article):
+        return False
+
     is_staff_user = user.is_staff or user.is_superuser
     is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
     is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
@@ -158,6 +179,9 @@ def can_user_access_article(user, article):
 
 
 def can_user_access_tip(user, tip):
+    if is_hidden_for_all_accounts(tip):
+        return False
+
     is_staff_user = user.is_staff or user.is_superuser
     is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
     is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
@@ -212,8 +236,16 @@ class HomeView(TemplateView):
         is_admin = user.is_staff or user.is_superuser
 
         # 最新FAQ（権限に応じてフィルタ）
-        faq_qs = KnowledgeArticle.objects.filter(is_published=True).filter(active_until_filter())
-        tips_qs = TipsArticle.objects.filter(is_published=True).filter(active_until_filter())
+        faq_qs = (
+            KnowledgeArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
+        )
+        tips_qs = (
+            TipsArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
+        )
         is_systena = in_group(user, SYSTENA_GROUP_NAME)
         is_reviewer = in_group(user, REVIEWER_GROUP_NAME)
         if not is_admin and not is_systena and not is_reviewer:
@@ -280,6 +312,7 @@ class ArticleListView(ListView):
             .prefetch_related('attachments')
             .filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
         )
 
@@ -399,6 +432,7 @@ class ArticleListView(ListView):
         for category_text in (
             KnowledgeArticle.objects.filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .values_list('category', flat=True)
         ):
             parent_categories.extend(
@@ -424,6 +458,7 @@ class ArticleListView(ListView):
         for category_text in (
             KnowledgeArticle.objects.filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .values_list('category', flat=True)
         ):
             for category_name in cls.split_categories(category_text):
@@ -489,6 +524,7 @@ class TipsListView(ListView):
         queryset = (
             TipsArticle.objects.filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
         )
 
@@ -594,6 +630,7 @@ class TipsListView(ListView):
         for category_text in (
             TipsArticle.objects.filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .values_list('category', flat=True)
         ):
             parent_categories.extend(
@@ -619,6 +656,7 @@ class TipsListView(ListView):
         for category_text in (
             TipsArticle.objects.filter(is_published=True)
             .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
             .values_list('category', flat=True)
         ):
             for category_name in cls.split_categories(category_text):
@@ -758,6 +796,21 @@ class TipsUpdateView(FormView):
         return context
 
     def form_valid(self, form):
+        was_hidden_for_all = is_hidden_for_all_accounts(self.tip)
+        will_be_visible_for_any = (
+            form.cleaned_data['visible_to_customer']
+            or form.cleaned_data['visible_to_systena']
+        )
+        if (
+            was_hidden_for_all
+            and will_be_visible_for_any
+            and not can_republish_hidden_content(self.request.user)
+        ):
+            error_message = '全ユーザー非表示のTipsを再公開できるのはSystenaAdminのみです。'
+            form.add_error('visible_to_customer', error_message)
+            form.add_error('visible_to_systena', error_message)
+            return self.form_invalid(form)
+
         self.tip.title = form.cleaned_data['title']
         self.tip.target_os = form.cleaned_data['target_os']
         self.tip.category = form.cleaned_data['category']
@@ -971,11 +1024,13 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
         faq_articles = list(
             KnowledgeArticle.objects.select_related('created_by', 'approved_by')
+            .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
         )
         tips_articles = list(
             TipsArticle.objects.select_related('created_by', 'approved_by')
+            .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
         )
@@ -1183,6 +1238,21 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         return context
 
     def form_valid(self, form):
+        was_hidden_for_all = is_hidden_for_all_accounts(self.article)
+        will_be_visible_for_any = (
+            form.cleaned_data['visible_to_customer']
+            or form.cleaned_data['visible_to_systena']
+        )
+        if (
+            was_hidden_for_all
+            and will_be_visible_for_any
+            and not can_republish_hidden_content(self.request.user)
+        ):
+            error_message = '全ユーザー非表示のFAQを再公開できるのはSystenaAdminのみです。'
+            form.add_error('visible_to_customer', error_message)
+            form.add_error('visible_to_systena', error_message)
+            return self.form_invalid(form)
+
         self.article.category = form.cleaned_data['category']
         self.article.title = form.cleaned_data['question']
         self.article.body = form.cleaned_data['answer']

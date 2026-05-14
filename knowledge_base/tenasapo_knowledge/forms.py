@@ -166,8 +166,7 @@ class TipsCreateForm(forms.Form):
     )
     target_os = forms.CharField(
         label='対象OS',
-        max_length=120,
-        required=False,
+        max_length=200,
         help_text='例: Windows 11, macOS 15, Ubuntu 24.04',
     )
     body = forms.CharField(
@@ -190,12 +189,12 @@ class TipsCreateForm(forms.Form):
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
     pdf_file = forms.FileField(
-        label='PDFファイル',
+        label='マニュアル',
         required=False,
-        help_text='PDFファイルをアップロードすると一覧画面からポップアップで閲覧できます。',
+        help_text='PDFファイルをアップロードすると一覧画面からポップアップでマニュアルを閲覧できます。',
     )
     clear_pdf = forms.BooleanField(
-        label='PDFファイルを削除する',
+        label='マニュア ルを削除する',
         required=False,
     )
     expires_on = forms.DateField(
@@ -214,9 +213,6 @@ class TipsCreateForm(forms.Form):
 
     def clean_category(self):
         return self.cleaned_data.get('category', '').strip()
-
-    def clean_target_os(self):
-        return self.cleaned_data.get('target_os', '').strip()
 
     def clean_expires_on(self):
         return self.cleaned_data.get('expires_on') or default_expires_on()
