@@ -72,24 +72,24 @@ class KnowledgeArticleCreateForm(forms.Form):
         label='質問',
         max_length=200,
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image1> のように書くと指定番号の画像を挿入できます（<image> は順番に挿入）。',
+        help_text='本文内で <image> と記載した場所に画像を挿入できます。',
     )
     answer = forms.CharField(
         label='回答',
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image1> のように書くと指定番号の画像を挿入できます（<image> は順番に挿入）。',
+        help_text='本文内で <image> と記載した場所に画像を挿入できます。',
     )
     question_images = MultipleImageField(
         label='質問画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
-        help_text='アップロード順で1枚目が <image1>、2枚目が <image2> です。',
+        help_text='アップロード順に表示されます。複数選択する場合は、順番に注意してください。',
     )
     answer_images = MultipleImageField(
         label='回答画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
-        help_text='アップロード順で1枚目が <image1>、2枚目が <image2> です。',
+        help_text='アップロード順に表示されます。複数選択する場合は、順番に注意してください。',
     )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',

@@ -792,18 +792,18 @@ class TipsApproveView(View):
         tip = get_object_or_404(TipsArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('tip_edit', pk=tip.id)
+            return redirect('tip_list')
 
         if tip.is_approved:
             messages.info(request, f'Tips「{tip.title}」は既に承認済みです。')
-            return redirect('tip_edit', pk=tip.id)
+            return redirect('tip_list')
 
         tip.is_approved = True
         tip.approved_by = request.user
         tip.approved_by_name = request.user.get_username()
         tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
-        return redirect('tip_edit', pk=tip.id)
+        return redirect('tip_list')
 
 
 class TipsDeleteView(View):
@@ -1212,18 +1212,18 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article = get_object_or_404(KnowledgeArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('article_edit', pk=article.id)
+            return redirect('article_list')
 
         if article.is_approved:
             messages.info(request, f'FAQ「{article.title}」は既に承認済みです。')
-            return redirect('article_edit', pk=article.id)
+            return redirect('article_list')
 
         article.is_approved = True
         article.approved_by = request.user
         article.approved_by_name = request.user.get_username()
         article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
-        return redirect('article_edit', pk=article.id)
+        return redirect('article_list')
 
 
 class ArticleAttachmentDeleteView(StaffRequiredMixin, View):
