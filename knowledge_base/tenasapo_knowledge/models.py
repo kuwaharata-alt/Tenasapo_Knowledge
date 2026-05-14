@@ -171,6 +171,7 @@ class TipsArticle(models.Model):
     visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
     published_at = models.DateTimeField('公開日時', default=timezone.now)
+    source_published_at = models.DateField('ソース公開日', null=True, blank=True)
     expires_on = models.DateField('掲載期限', null=True, blank=True, default=default_expires_on)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

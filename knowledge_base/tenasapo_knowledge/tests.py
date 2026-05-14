@@ -824,6 +824,57 @@ class TipsListTests(TestCase):
         self.assertContains(response, '掲載期限')
 
 
+class TipsFormTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(username='tips_staff', password='password', is_staff=True)
+        self.client.force_login(self.staff)
+
+    def test_staff_can_create_tip_with_source_published_at(self):
+        response = self.client.post(
+            reverse('tip_create'),
+            {
+                'category': 'PC/設定',
+                'title': '公開日付きTips',
+                'target_os': 'Windows 11',
+                'body': '本文',
+                'source_published_at': '2026-05-10',
+                'expires_on': '2026-12-10',
+            },
+        )
+
+        self.assertRedirects(response, reverse('tip_list'))
+        tip = TipsArticle.objects.get(title='公開日付きTips')
+        self.assertEqual(str(tip.source_published_at), '2026-05-10')
+        self.assertEqual(str(tip.expires_on), '2026-12-10')
+
+    def test_staff_can_update_tip_source_published_at(self):
+        tip = TipsArticle.objects.create(
+            title='更新対象Tips',
+            category='PC/設定',
+            body='本文',
+            created_by=self.staff,
+            created_by_name=self.staff.get_username(),
+        )
+
+        response = self.client.post(
+            reverse('tip_edit', args=[tip.id]),
+            {
+                'category': 'PC/設定',
+                'title': '更新対象Tips',
+                'target_os': 'Windows 11',
+                'body': '更新本文',
+                'source_published_at': '2026-05-12',
+                'expires_on': '2026-12-20',
+            },
+        )
+
+        self.assertRedirects(response, reverse('tip_list'))
+        tip.refresh_from_db()
+        self.assertEqual(str(tip.source_published_at), '2026-05-12')
+        self.assertEqual(str(tip.expires_on), '2026-12-20')
+
+
 @override_settings(
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
     DEFAULT_FROM_EMAIL='noreply@example.com',

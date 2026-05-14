@@ -184,6 +184,11 @@ class TipsCreateForm(forms.Form):
         required=False,
         initial=True,
     )
+    source_published_at = forms.DateField(
+        label='ソース公開日',
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
     pdf_file = forms.FileField(
         label='PDFファイル',
         required=False,

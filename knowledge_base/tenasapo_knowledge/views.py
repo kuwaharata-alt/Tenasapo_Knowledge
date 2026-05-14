@@ -689,6 +689,7 @@ class TipsCreateView(FormView):
             target_os=form.cleaned_data['target_os'],
             category=form.cleaned_data['category'],
             body=form.cleaned_data['body'],
+            source_published_at=form.cleaned_data['source_published_at'],
             expires_on=form.cleaned_data['expires_on'],
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
@@ -735,6 +736,7 @@ class TipsUpdateView(FormView):
             'title': self.tip.title,
             'target_os': self.tip.target_os,
             'body': self.tip.body,
+            'source_published_at': self.tip.source_published_at,
             'expires_on': self.tip.expires_on,
             'visible_to_customer': self.tip.visible_to_customer,
             'visible_to_systena': self.tip.visible_to_systena,
@@ -760,11 +762,12 @@ class TipsUpdateView(FormView):
         self.tip.target_os = form.cleaned_data['target_os']
         self.tip.category = form.cleaned_data['category']
         self.tip.body = form.cleaned_data['body']
+        self.tip.source_published_at = form.cleaned_data['source_published_at']
         self.tip.expires_on = form.cleaned_data['expires_on']
         self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
         update_fields = [
-            'title', 'target_os', 'category', 'body', 'expires_on',
+            'title', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
             'visible_to_customer', 'visible_to_systena', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
