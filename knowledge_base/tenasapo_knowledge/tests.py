@@ -24,6 +24,23 @@ from .models import (
 )
 
 
+class LoginRedirectTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='login-user', password='password')
+
+    def test_login_always_redirects_to_home_even_with_next_parameter(self):
+        response = self.client.post(
+            f"{reverse('login')}?next={reverse('article_list')}",
+            {
+                'username': 'login-user',
+                'password': 'password',
+            },
+        )
+
+        self.assertRedirects(response, reverse('home'))
+
+
 class KnowledgeArticleListTests(TestCase):
     def setUp(self):
         User = get_user_model()

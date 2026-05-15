@@ -31,7 +31,7 @@ urlpatterns = [
     path('manuals/<int:pk>/delete/', tk_views.ManualDeleteView.as_view(), name='manual_delete_root'),
     path(
         'accounts/login/',
-        auth_views.LoginView.as_view(template_name='registration/login.html'),
+        tk_views.HomeRedirectLoginView.as_view(template_name='registration/login.html'),
         name='login',
     ),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),

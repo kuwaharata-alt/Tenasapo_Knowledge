@@ -3,6 +3,7 @@ import json
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
+from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
@@ -59,6 +60,11 @@ REVIEWER_GROUP_NAME = getattr(
     getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー'),
 )
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
+
+
+class HomeRedirectLoginView(LoginView):
+    def get_success_url(self):
+        return reverse_lazy('home')
 
 
 def in_group(user, group_name):

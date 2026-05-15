@@ -7470,3 +7470,6 @@ Not Found: /favicon.ico
 WARNING:django.request:Not Found: /favicon.ico
 Not Found: /favicon.ico
 WARNING:django.request:Not Found: /favicon.ico
+INFO:waitress:Serving on http://127.0.0.1:8000
+Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
