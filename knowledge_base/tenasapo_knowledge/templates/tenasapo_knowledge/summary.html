@@ -1,18 +1,41 @@
 {% extends "base.html" %}
 
-{% block title %}サマライズ | Tenasapo Knowledge{% endblock %}
+{% block title %}データ分析まとめ | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
             <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-bar-chart-fill"></i></span>サマライズ
+                <span class="page-title-icon"><i class="bi bi-bar-chart-fill"></i></span>データ分析まとめ
             </h1>
-            <p class="page-title-sub">担当者別の投稿数・レビュー数・いいね数とランキングを確認できます。</p>
+            <p class="page-title-sub">社内・顧客の利用状況を確認できます。</p>
         </div>
     </div>
 </div>
+
+{# ── タブナビゲーション ── #}
+<ul class="nav nav-tabs mb-4" id="summaryTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="internal-tab" data-bs-toggle="tab" data-bs-target="#internal-pane"
+            type="button" role="tab" aria-controls="internal-pane" aria-selected="true">
+            <i class="bi bi-people-fill me-1"></i>社内
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="customer-tab" data-bs-toggle="tab" data-bs-target="#customer-pane"
+            type="button" role="tab" aria-controls="customer-pane" aria-selected="false">
+            <i class="bi bi-person-badge me-1"></i>顧客
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="summaryTabContent">
+
+{# ════════════════════════════════════════════════════ #}
+{# 社内タブ（既存コンテンツそのまま） #}
+{# ════════════════════════════════════════════════════ #}
+<div class="tab-pane fade show active" id="internal-pane" role="tabpanel" aria-labelledby="internal-tab">
 
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
@@ -205,4 +228,223 @@ document.addEventListener('DOMContentLoaded', function() {
     renderBarChart('likeChart', 'いいね数', likeData, 'rgba(46, 173, 127, 0.82)');
 });
 </script>
+
+</div>{# /internal-pane #}
+
+{# ════════════════════════════════════════════════════ #}
+{# 顧客タブ #}
+{# ════════════════════════════════════════════════════ #}
+<div class="tab-pane fade" id="customer-pane" role="tabpanel" aria-labelledby="customer-tab">
+
+    {# ── サマリーカード ── #}
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-2">カスタマーユーザー 総アクセス数</div>
+                    <div class="display-6 fw-bold text-primary">{{ customer_total_access }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-2">回答 総閲覧数</div>
+                    <div class="display-6 fw-bold text-primary">{{ customer_answer_total_access }}</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small mb-2">FAQ Goodボタン 総数</div>
+                    <div class="display-6 fw-bold text-primary">{{ customer_faq_good_total }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        {# ── カスタマーユーザーのアクセス数 ── #}
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">カスタマーユーザー別 アクセス数</h2>
+                    {% if customer_access_per_user %}
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>ユーザー名</th>
+                                        <th class="text-end">アクセス数</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in customer_access_per_user %}
+                                        <tr>
+                                            <td class="fw-semibold">{{ row.username }}</td>
+                                            <td class="text-end">{{ row.access_count }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">アクセス履歴がありません。</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# ── カテゴリ・回答へのアクセス数 ── #}
+        <div class="col-12 col-lg-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">カテゴリ別 アクセス数</h2>
+                    {% if customer_category_access %}
+                        <div class="accordion accordion-flush" id="categoryAccessAccordion">
+                            {% for grp in customer_category_access %}
+                                <div class="accordion-item border-0 border-bottom">
+                                    <h3 class="accordion-header" id="catHead-{{ forloop.counter }}">
+                                        <button class="accordion-button collapsed px-0 py-2 bg-transparent fw-semibold"
+                                            type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#catBody-{{ forloop.counter }}"
+                                            aria-expanded="false"
+                                            aria-controls="catBody-{{ forloop.counter }}">
+                                            {{ grp.parent_category }}
+                                            <span class="badge bg-primary ms-2">{{ grp.total }}</span>
+                                        </button>
+                                    </h3>
+                                    <div id="catBody-{{ forloop.counter }}" class="accordion-collapse collapse"
+                                        aria-labelledby="catHead-{{ forloop.counter }}">
+                                        <div class="accordion-body px-0 pt-0 pb-2">
+                                            {% if grp.children %}
+                                                <table class="table table-sm mb-0">
+                                                    <tbody>
+                                                        {% for child in grp.children %}
+                                                            <tr>
+                                                                <td class="ps-3 text-muted">{{ child.category }}</td>
+                                                                <td class="text-end">{{ child.access_count }}</td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            {% else %}
+                                                <p class="ps-3 text-muted small mb-0">小カテゴリなし</p>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">カテゴリアクセス履歴がありません。</p>
+                    {% endif %}
+
+                    {% if customer_answer_access %}
+                        <h2 class="h5 faq-group-title mt-4">回答別 閲覧数</h2>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>FAQ タイトル</th>
+                                        <th class="text-end">閲覧数</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in customer_answer_access %}
+                                        <tr>
+                                            <td>{{ row.title }}</td>
+                                            <td class="text-end">{{ row.access_count }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {# ── Goodボタン数（FAQ・展開形式） ── #}
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 faq-group-title">Goodボタン数 ナレッジ一覧（FAQ）</h2>
+                    {% if customer_faq_goods %}
+                        <div class="accordion" id="faqGoodAccordion">
+                            {% for article in customer_faq_goods %}
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header" id="faqGoodHead-{{ forloop.counter }}">
+                                        <button class="accordion-button collapsed py-2" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#faqGoodBody-{{ forloop.counter }}"
+                                            aria-expanded="false"
+                                            aria-controls="faqGoodBody-{{ forloop.counter }}">
+                                            <span class="me-auto">{{ article.title }}</span>
+                                            <span class="badge bg-success ms-3 me-2">👍 {{ article.good_count }}</span>
+                                        </button>
+                                    </h3>
+                                    <div id="faqGoodBody-{{ forloop.counter }}" class="accordion-collapse collapse"
+                                        aria-labelledby="faqGoodHead-{{ forloop.counter }}">
+                                        <div class="accordion-body py-2">
+                                            <div class="row g-2 small text-muted">
+                                                <div class="col-auto">投稿者：{{ article.creator_display_name }}</div>
+                                                <div class="col-auto">👍 いいね数：<strong>{{ article.good_count }}</strong></div>
+                                                {% if article.answer_view_count %}
+                                                    <div class="col-auto">回答閲覧数：{{ article.answer_view_count }}</div>
+                                                {% endif %}
+                                                {% if article.category %}
+                                                    <div class="col-auto">カテゴリ：{{ article.category }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-2">Goodが押されたFAQがありません。</p>
+                    {% endif %}
+
+                    {% if customer_tips_goods %}
+                        <h2 class="h5 faq-group-title mt-4">Goodボタン数 ナレッジ一覧（Tips）</h2>
+                        <div class="accordion" id="tipsGoodAccordion">
+                            {% for tip in customer_tips_goods %}
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header" id="tipsGoodHead-{{ forloop.counter }}">
+                                        <button class="accordion-button collapsed py-2" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#tipsGoodBody-{{ forloop.counter }}"
+                                            aria-expanded="false"
+                                            aria-controls="tipsGoodBody-{{ forloop.counter }}">
+                                            <span class="me-auto">{{ tip.title }}</span>
+                                            <span class="badge bg-success ms-3 me-2">👍 {{ tip.good_count }}</span>
+                                        </button>
+                                    </h3>
+                                    <div id="tipsGoodBody-{{ forloop.counter }}" class="accordion-collapse collapse"
+                                        aria-labelledby="tipsGoodHead-{{ forloop.counter }}">
+                                        <div class="accordion-body py-2">
+                                            <div class="row g-2 small text-muted">
+                                                <div class="col-auto">投稿者：{{ tip.creator_display_name }}</div>
+                                                <div class="col-auto">👍 いいね数：<strong>{{ tip.good_count }}</strong></div>
+                                                {% if tip.category %}
+                                                    <div class="col-auto">カテゴリ：{{ tip.category }}</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+    </div>{# /row #}
+</div>{# /customer-pane #}
+
+</div>{# /tab-content #}
 {% endblock %}

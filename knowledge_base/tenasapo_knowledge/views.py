@@ -282,7 +282,7 @@ class HomeView(TemplateView):
             menu_groups[3]['items'].append({'label': 'ユーザー一覧', 'url_name': 'user_list'})
             menu_groups[4]['items'].extend(
                 [
-                    {'label': 'サマライズ', 'url_name': 'summary'},
+                    {'label': 'データ分析まとめ', 'url_name': 'summary'},
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
                     {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
@@ -1005,7 +1005,7 @@ class SummaryView(StaffRequiredMixin, TemplateView):
     excluded_contributor_names = {'admin'}
 
     def dispatch(self, request, *args, **kwargs):
-        record_view_history(request, 'サマライズ')
+        record_view_history(request, 'データ分析まとめ')
         return super().dispatch(request, *args, **kwargs)
 
     @classmethod
@@ -1091,6 +1091,79 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             contributor_summaries,
             key=lambda item: (-item['post_count'], -item['review_count'], -item['like_count'], item['name'].lower()),
         )
+
+        # ── 顧客タブ用データ ──────────────────────────────────────────────
+        User = get_user_model()
+        customer_users = User.objects.filter(groups__name=CUSTOMER_GROUP_NAME)
+        customer_user_ids = list(customer_users.values_list('id', flat=True))
+
+        # カスタマーユーザーのアクセス数（ユーザー別）
+        customer_access_per_user = (
+            ViewHistory.objects.filter(user_id__in=customer_user_ids)
+            .values('username')
+            .annotate(access_count=Count('id'))
+            .order_by('-access_count')
+        )
+        context['customer_access_per_user'] = list(customer_access_per_user)
+        context['customer_total_access'] = sum(r['access_count'] for r in context['customer_access_per_user'])
+
+        # カテゴリへのアクセス数（大カテゴリ別）
+        category_access_qs = (
+            ViewHistory.objects.filter(user_id__in=customer_user_ids)
+            .exclude(parent_category='')
+            .values('parent_category', 'category')
+            .annotate(access_count=Count('id'))
+            .order_by('parent_category', 'category')
+        )
+        category_access_list = list(category_access_qs)
+        # 大カテゴリ別にグループ化
+        category_groups_map = {}
+        for row in category_access_list:
+            pc = row['parent_category']
+            if pc not in category_groups_map:
+                category_groups_map[pc] = {'total': 0, 'children': []}
+            category_groups_map[pc]['total'] += row['access_count']
+            if row['category']:
+                category_groups_map[pc]['children'].append({
+                    'category': row['category'],
+                    'access_count': row['access_count'],
+                })
+        context['customer_category_access'] = [
+            {'parent_category': k, 'total': v['total'], 'children': v['children']}
+            for k, v in sorted(category_groups_map.items(), key=lambda x: -x[1]['total'])
+        ]
+
+        # 回答へのアクセス数（FAQ回答表示）
+        answer_access_qs = (
+            ViewHistory.objects.filter(
+                user_id__in=customer_user_ids,
+                page_name__startswith='FAQ回答表示:',
+            )
+            .values('page_name')
+            .annotate(access_count=Count('id'))
+            .order_by('-access_count')
+        )
+        context['customer_answer_access'] = [
+            {
+                'title': row['page_name'].removeprefix('FAQ回答表示:').strip(),
+                'access_count': row['access_count'],
+            }
+            for row in answer_access_qs
+        ]
+        context['customer_answer_total_access'] = sum(r['access_count'] for r in context['customer_answer_access'])
+
+        # Goodボタン数（FAQナレッジ一覧、good_count > 0 のもの含む全件）
+        faq_with_goods = [
+            a for a in faq_articles if a.good_count > 0
+        ]
+        tips_with_goods = [
+            t for t in tips_articles if t.good_count > 0
+        ]
+        context['customer_faq_goods'] = faq_with_goods
+        context['customer_tips_goods'] = tips_with_goods
+        context['customer_faq_good_total'] = sum(a.good_count for a in faq_with_goods)
+        context['customer_tips_good_total'] = sum(t.good_count for t in tips_with_goods)
+
         return context
 
 
