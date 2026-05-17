@@ -10,9 +10,12 @@
                 <span class="page-title-icon"><i class="bi bi-lightbulb-fill"></i></span>Tips
             </h1>
         </div>
-        {% if user.is_staff or user.is_superuser %}
-            <a class="btn btn-primary" href="{% url 'tip_create' %}">Tips登録</a>
-        {% endif %}
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a class="btn btn-outline-primary" href="{% url 'article_list' %}">FAQへ</a>
+            {% if user.is_staff or user.is_superuser %}
+                <a class="btn btn-primary" href="{% url 'tip_create' %}">Tips登録</a>
+            {% endif %}
+        </div>
     </div>
 </div>
 
