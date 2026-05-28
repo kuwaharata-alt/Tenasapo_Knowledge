@@ -56,8 +56,8 @@
 ### Azure Key Vault（推奨）
 - [ ] Key Vault リソース作成
 - [ ] 以下のシークレットを追加:
-  - [ ] `SECRET-KEY` : Django SECRET_KEY
-  - [ ] `DB-PASSWORD` : PostgreSQL パスワード
+  - [ ] `SECRET-KEY` : f#zjx28!23@8esjhokxzg=x(q@@%d90_x*91x%))voa%@7ud3#
+  - [ ] `DB-PASSWORD` :P@ssw0rd
   - [ ] `EMAIL-HOST-PASSWORD` : メール送信用パスワード
 
 ### App Service 設定
@@ -66,9 +66,9 @@
   - [ ] `ALLOWED_HOSTS` = `yourdomain.azurewebsites.net,yourdomain.com`
   - [ ] `CSRF_TRUSTED_ORIGINS` = `https://yourdomain.azurewebsites.net,https://yourdomain.com`
   - [ ] `DB_ENGINE` = `django.db.backends.postgresql`
-  - [ ] `DB_NAME` = PostgreSQL データベース名
-  - [ ] `DB_USER` = PostgreSQL ユーザー名
-  - [ ] `DB_HOST` = PostgreSQL サーバーホスト名
+  - [ ] `DB_NAME` = `nexusdb` ###移行後に作成
+  - [ ] `DB_USER` = `nexusadmin`
+  - [ ] `DB_HOST` = `nexus2026-psql`
   - [ ] `DB_PORT` = 5432
 - [ ] `Database` タブで接続文字列を設定（オプション）
 
