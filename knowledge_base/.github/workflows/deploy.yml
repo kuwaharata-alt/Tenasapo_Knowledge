@@ -1,0 +1,86 @@
+name: Deploy to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+
+env:
+  PYTHON_VERSION: '3.11'
+  AZURE_WEBAPP_NAME: 'app-tenasapo-prod'
+  AZURE_RESOURCE_GROUP: 'rg-tenasapo-prod'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python environment
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Create virtual environment and install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django checks
+        run: |
+          source venv/bin/activate
+          python knowledge_base/manage.py check
+
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          python knowledge_base/manage.py test
+
+      - name: Collect static files
+        run: |
+          source venv/bin/activate
+          python knowledge_base/manage.py collectstatic --noinput
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-build
+          path: .
+          retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: app-build
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
+
+      - name: Run migrations on Azure
+        run: |
+          az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az webapp remote-call --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name ${{ env.AZURE_WEBAPP_NAME }} --command "python manage.py migrate"
+
+      - name: Post-deployment smoke test
+        run: |
+          curl -f https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net/ || exit 1
+          echo "✅ Deployment successful!"
