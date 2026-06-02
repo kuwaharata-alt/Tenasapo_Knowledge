@@ -25,15 +25,38 @@
         <label class="form-label" for="q">検索</label>
         <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ユーザー名・ユーザーIDで検索">
     </div>
+    <div class="col-12 col-md-3">
+        <label class="form-label" for="role">所属役割</label>
+        <select class="form-select" id="role" name="role">
+            <option value="">すべて</option>
+            {% for role in roles %}
+                <option value="{{ role }}" {% if selected_role == role %}selected{% endif %}>{{ role }}</option>
+            {% endfor %}
+            <option value="__none__" {% if selected_role == '__none__' %}selected{% endif %}>（役割なし）</option>
+        </select>
+    </div>
     <div class="col-12 col-md-auto">
         <button class="btn btn-outline-primary" type="submit">検索</button>
+        {% if query or selected_role %}
+            <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
+        {% endif %}
     </div>
 </form>
 
 <div style="width: 100vw; position: relative; left: 50%; margin-left: -50vw;">
     <div class="card shadow-sm mx-auto" style="width: min(1650px, calc(100vw - 2rem)); max-width: none;">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
+            <table class="table table-hover align-middle mb-0" style="table-layout: fixed; min-width: 900px;">
+            <colgroup>
+                <col style="width: 8%">
+                <col style="width: 14%">
+                <col style="width: 14%">
+                <col style="width: 8%">
+                <col style="width: 14%">
+                <col style="width: 18%">
+                <col style="width: 16%">
+                <col style="width: 8%">
+            </colgroup>
             <thead class="table-light">
                 <tr>
                     <th scope="col">ユーザーID</th>
@@ -108,7 +131,7 @@
         <ul class="pagination">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}">前へ</a>
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&role={{ selected_role }}">前へ</a>
                 </li>
             {% endif %}
             <li class="page-item active" aria-current="page">
@@ -116,7 +139,7 @@
             </li>
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}">次へ</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&role={{ selected_role }}">次へ</a>
                 </li>
             {% endif %}
         </ul>

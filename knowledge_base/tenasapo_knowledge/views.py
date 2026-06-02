@@ -1787,18 +1787,26 @@ class UserListView(StaffRequiredMixin, ListView):
             'knowledge_profile__uid', 'username'
         )
 
-        query = self.request.GET.get('q')
+        query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
                 Q(username__icontains=query) |
                 Q(knowledge_profile__uid__icontains=query)
             )
 
-        return queryset
+        role = self.request.GET.get('role', '').strip()
+        if role == '__none__':
+            queryset = queryset.filter(groups__isnull=True)
+        elif role:
+            queryset = queryset.filter(groups__name=role)
+
+        return queryset.distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
+        context['selected_role'] = self.request.GET.get('role', '')
+        context['roles'] = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         return context
 
 
