@@ -1,4 +1,7 @@
 from collections import Counter
+import csv
+from datetime import datetime
+import io
 import json
 
 from django.contrib import messages
@@ -7,6 +10,7 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
+from django.db import transaction
 from django.db.models import Count, F, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -17,6 +21,7 @@ from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 
 from .forms import (
+    CSVImportForm,
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
@@ -215,6 +220,7 @@ def can_edit_article(user):
         and (
             user.is_staff
             or user.is_superuser
+            or in_group(user, ADMIN_GROUP_NAME)
             or in_group(user, REVIEWER_GROUP_NAME)
         )
     )
@@ -240,6 +246,7 @@ class HomeView(TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         is_admin = user.is_staff or user.is_superuser
+        can_edit = can_edit_article(user)
 
         # 最新FAQ（権限に応じてフィルタ）
         faq_qs = (
@@ -276,6 +283,14 @@ class HomeView(TemplateView):
             {'name': 'User', 'icon': '👥', 'items': []},
             {'name': 'History', 'icon': '🕒', 'items': []},
         ]
+        if can_edit:
+            menu_groups[1]['items'].extend(
+                [
+                    {'label': 'FAQ CSV一括登録', 'url_name': 'article_csv_import'},
+                    {'label': 'Tips CSV一括登録', 'url_name': 'tip_csv_import'},
+                ]
+            )
+
         if is_admin:
             menu_groups[1]['items'].extend(
                 [
@@ -724,6 +739,7 @@ class TipsCreateView(FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'Tips登録'
         context['submit_label'] = '登録'
+        context['can_csv_import'] = can_edit_article(self.request.user)
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         return context
 
@@ -790,6 +806,7 @@ class TipsUpdateView(FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'Tips編集'
         context['submit_label'] = '更新'
+        context['can_csv_import'] = can_edit_article(self.request.user)
         context['tip'] = self.tip
         context['tip_approver_display_name'] = self.tip.approved_by_name or (
             self.tip.approved_by.get_username() if self.tip.approved_by else ''
@@ -1199,6 +1216,259 @@ class ArticleApprovalRequiredMixin(UserPassesTestMixin):
         return super().handle_no_permission()
 
 
+class CSVImportBaseView(UserPassesTestMixin, FormView):
+    raise_exception = True
+    template_name = 'tenasapo_knowledge/csv_import.html'
+    form_class = CSVImportForm
+    required_headers = ()
+    optional_headers = ()
+    success_url = reverse_lazy('home')
+    form_title = ''
+    submit_label = '一括登録'
+    back_url_name = 'home'
+    import_target_label = ''
+
+    def test_func(self):
+        return can_edit_article(self.request.user)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'この操作を実行する権限がありません。')
+            return redirect(self.back_url_name)
+        return super().handle_no_permission()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = self.form_title
+        context['submit_label'] = self.submit_label
+        context['back_url_name'] = self.back_url_name
+        context['required_headers'] = self.required_headers
+        context['optional_headers'] = self.optional_headers
+        return context
+
+    @staticmethod
+    def parse_bool(raw_value, default=True):
+        value = (raw_value or '').strip().lower()
+        if not value:
+            return default
+        if value in {'1', 'true', 't', 'yes', 'y', 'on'}:
+            return True
+        if value in {'0', 'false', 'f', 'no', 'n', 'off'}:
+            return False
+        raise ValueError('true/false または 1/0 を指定してください。')
+
+    @staticmethod
+    def parse_optional_date(raw_value):
+        value = (raw_value or '').strip()
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, '%Y-%m-%d').date()
+        except ValueError as exc:
+            raise ValueError('YYYY-MM-DD 形式で指定してください。') from exc
+
+    @staticmethod
+    def read_csv_rows(uploaded_file):
+        raw_content = uploaded_file.read()
+        text = None
+        for encoding in ('utf-8-sig', 'cp932', 'utf-8'):
+            try:
+                text = raw_content.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            raise ValueError('CSVの文字コードは UTF-8 または Shift_JIS(cp932) を使用してください。')
+
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            raise ValueError('ヘッダー行がありません。')
+
+        reader.fieldnames = [(header or '').strip() for header in reader.fieldnames]
+        rows = []
+        for line_no, row in enumerate(reader, start=2):
+            normalized = {
+                (key or '').strip(): (value or '').strip()
+                for key, value in row.items()
+            }
+            if not any(normalized.values()):
+                continue
+            rows.append((line_no, normalized))
+        return reader.fieldnames, rows
+
+    def validate_headers(self, headers):
+        missing_headers = [header for header in self.required_headers if header not in headers]
+        if missing_headers:
+            missing_text = ', '.join(missing_headers)
+            raise ValueError(f'必須ヘッダーが不足しています: {missing_text}')
+
+    def form_valid(self, form):
+        try:
+            headers, rows = self.read_csv_rows(form.cleaned_data['csv_file'])
+            self.validate_headers(headers)
+        except ValueError as exc:
+            form.add_error('csv_file', str(exc))
+            return self.form_invalid(form)
+
+        if not rows:
+            form.add_error('csv_file', '登録対象のデータ行がありません。')
+            return self.form_invalid(form)
+
+        try:
+            created_count = self.import_rows(rows)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
+            return self.form_invalid(form)
+
+        messages.success(self.request, f'{self.import_target_label}を {created_count} 件一括登録しました。')
+        return super().form_valid(form)
+
+    def import_rows(self, rows):
+        raise NotImplementedError
+
+
+class KnowledgeArticleCSVImportView(CSVImportBaseView):
+    success_url = reverse_lazy('article_list')
+    form_title = 'FAQ CSV一括登録'
+    back_url_name = 'article_list'
+    import_target_label = 'FAQ'
+    required_headers = ('question', 'answer', 'category')
+    optional_headers = (
+        'visible_to_customer',
+        'visible_to_systena',
+        'source_published_at',
+        'expires_on',
+    )
+
+    def import_rows(self, rows):
+        payloads = []
+        errors = []
+
+        for line_no, row in rows:
+            row_errors = []
+            question = row.get('question', '').strip()
+            answer = row.get('answer', '').strip()
+            category = row.get('category', '').strip()
+
+            if not question:
+                row_errors.append(f'{line_no}行目: question は必須です。')
+            if not answer:
+                row_errors.append(f'{line_no}行目: answer は必須です。')
+            if not category:
+                row_errors.append(f'{line_no}行目: category は必須です。')
+            if row_errors:
+                errors.extend(row_errors)
+                continue
+
+            try:
+                visible_to_customer = self.parse_bool(row.get('visible_to_customer'), default=True)
+                visible_to_systena = self.parse_bool(row.get('visible_to_systena'), default=True)
+                source_published_at = self.parse_optional_date(row.get('source_published_at'))
+                expires_on = self.parse_optional_date(row.get('expires_on'))
+            except ValueError as exc:
+                errors.append(f'{line_no}行目: {exc}')
+                continue
+
+            payloads.append(
+                {
+                    'category': category,
+                    'title': question,
+                    'body': answer,
+                    'visible_to_customer': visible_to_customer,
+                    'visible_to_systena': visible_to_systena,
+                    'source_published_at': source_published_at,
+                    'expires_on': expires_on,
+                }
+            )
+
+        if errors:
+            raise ValueError(' / '.join(errors[:10]))
+
+        with transaction.atomic():
+            for payload in payloads:
+                KnowledgeArticle.objects.create(
+                    **payload,
+                    is_approved=not FAQ_APPROVAL_ENABLED,
+                    created_by=self.request.user,
+                    created_by_name=self.request.user.get_username(),
+                )
+
+        return len(payloads)
+
+
+class TipsCSVImportView(CSVImportBaseView):
+    success_url = reverse_lazy('tip_list')
+    form_title = 'Tips CSV一括登録'
+    back_url_name = 'tip_list'
+    import_target_label = 'Tips'
+    required_headers = ('title', 'target_os', 'body', 'category')
+    optional_headers = (
+        'visible_to_customer',
+        'visible_to_systena',
+        'source_published_at',
+        'expires_on',
+    )
+
+    def import_rows(self, rows):
+        payloads = []
+        errors = []
+
+        for line_no, row in rows:
+            row_errors = []
+            title = row.get('title', '').strip()
+            target_os = row.get('target_os', '').strip()
+            body = row.get('body', '').strip()
+            category = row.get('category', '').strip()
+
+            if not title:
+                row_errors.append(f'{line_no}行目: title は必須です。')
+            if not target_os:
+                row_errors.append(f'{line_no}行目: target_os は必須です。')
+            if not body:
+                row_errors.append(f'{line_no}行目: body は必須です。')
+            if not category:
+                row_errors.append(f'{line_no}行目: category は必須です。')
+            if row_errors:
+                errors.extend(row_errors)
+                continue
+
+            try:
+                visible_to_customer = self.parse_bool(row.get('visible_to_customer'), default=True)
+                visible_to_systena = self.parse_bool(row.get('visible_to_systena'), default=True)
+                source_published_at = self.parse_optional_date(row.get('source_published_at'))
+                expires_on = self.parse_optional_date(row.get('expires_on'))
+            except ValueError as exc:
+                errors.append(f'{line_no}行目: {exc}')
+                continue
+
+            payloads.append(
+                {
+                    'title': title,
+                    'target_os': target_os,
+                    'body': body,
+                    'category': category,
+                    'visible_to_customer': visible_to_customer,
+                    'visible_to_systena': visible_to_systena,
+                    'source_published_at': source_published_at,
+                    'expires_on': expires_on,
+                }
+            )
+
+        if errors:
+            raise ValueError(' / '.join(errors[:10]))
+
+        with transaction.atomic():
+            for payload in payloads:
+                TipsArticle.objects.create(
+                    **payload,
+                    is_approved=not FAQ_APPROVAL_ENABLED,
+                    created_by=self.request.user,
+                    created_by_name=self.request.user.get_username(),
+                )
+
+        return len(payloads)
+
+
 class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
     template_name = 'tenasapo_knowledge/article_form.html'
     form_class = KnowledgeArticleCreateForm
@@ -1208,6 +1478,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'FAQ登録'
         context['submit_label'] = '登録'
+        context['can_csv_import'] = can_edit_article(self.request.user)
         context['category_groups'] = self.category_groups(context['form'])
         return context
 
@@ -1301,6 +1572,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
+        context['can_csv_import'] = can_edit_article(self.request.user)
         context['article'] = self.article
         context['article_approver_display_name'] = self.article.approved_by_name or (
             self.article.approved_by.get_username() if self.article.approved_by else ''

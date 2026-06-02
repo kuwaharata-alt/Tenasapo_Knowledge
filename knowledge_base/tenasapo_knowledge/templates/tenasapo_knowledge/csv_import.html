@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title }} | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-filetype-csv"></i></span>{{ form_title }}
+            </h1>
+        </div>
+
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="form-section-label">CSVアップロード</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.csv_file.id_for_label }}">{{ form.csv_file.label }}</label>
+                        {% if form.csv_file.help_text %}<div class="form-text mb-2">{{ form.csv_file.help_text }}</div>{% endif %}
+                        <input class="form-control{% if form.csv_file.errors %} is-invalid{% endif %}" type="file" name="{{ form.csv_file.html_name }}" id="{{ form.csv_file.id_for_label }}" accept=".csv" required>
+                        {% for error in form.csv_file.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-section-label">CSVヘッダー仕様</div>
+                    </div>
+                    <div class="col-12">
+                        <div class="home-panel p-3">
+                            <div class="mb-2 fw-semibold">必須ヘッダー</div>
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                {% for header in required_headers %}
+                                    <span class="badge faq-meta-badge">{{ header }}</span>
+                                {% endfor %}
+                            </div>
+                            {% if optional_headers %}
+                                <div class="mb-2 fw-semibold">任意ヘッダー</div>
+                                <div class="d-flex flex-wrap gap-2 mb-0">
+                                    {% for header in optional_headers %}
+                                        <span class="badge text-bg-secondary">{{ header }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <div class="alert alert-info mb-0" role="status">
+                            日付は YYYY-MM-DD 形式、真偽値は true/false または 1/0 で指定してください。
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url back_url_name %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:"一括登録" }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

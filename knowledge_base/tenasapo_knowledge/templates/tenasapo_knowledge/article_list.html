@@ -13,6 +13,9 @@
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <a class="btn btn-outline-primary" href="{% url 'tip_list' %}">Tipsへ</a>
+            {% if can_edit_article %}
+                <a class="btn btn-outline-primary" href="{% url 'article_csv_import' %}">FAQ CSV一括登録</a>
+            {% endif %}
             {% if user.is_staff or user.is_superuser %}
                 <a class="btn btn-primary" href="{% url 'article_create' %}">FAQ登録</a>
             {% endif %}
