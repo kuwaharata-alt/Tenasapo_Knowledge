@@ -2,6 +2,13 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+LOCAL_VENV_SITE_PACKAGES = PROJECT_ROOT / '.venv' / 'Lib' / 'site-packages'
+if LOCAL_VENV_SITE_PACKAGES.exists():
+    sys.path.insert(0, str(LOCAL_VENV_SITE_PACKAGES))
 
 
 def main():
