@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 # .env ファイルを読み込む
 load_dotenv()
@@ -81,31 +82,57 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-# 環境変数から DATABASE_URL を取得（Azure App Service 対応）
-db_engine = os.getenv('DB_ENGINE', 'django.db.backends.sqlite3')
+# 本番環境では PostgreSQL のみ許可（SQLite へのフォールバックを禁止）
+is_running_on_azure = bool(os.getenv('WEBSITE_SITE_NAME') or os.getenv('WEBSITE_INSTANCE_ID'))
+db_engine = os.getenv('DB_ENGINE', '').strip()
+
+if not db_engine:
+    if DEBUG and not is_running_on_azure:
+        db_engine = 'django.db.backends.sqlite3'
+    else:
+        raise ImproperlyConfigured(
+            'DB_ENGINE が未設定です。本番環境では django.db.backends.postgresql を設定してください。'
+        )
+
+if is_running_on_azure and db_engine != 'django.db.backends.postgresql':
+    raise ImproperlyConfigured(
+        'Azure App Service では PostgreSQL のみ許可されています。DB_ENGINE=django.db.backends.postgresql を設定してください。'
+    )
 
 if db_engine == 'django.db.backends.postgresql':
+    required_env_vars = ('DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT')
+    missing_env_vars = [env_name for env_name in required_env_vars if not os.getenv(env_name)]
+    if missing_env_vars:
+        missing_text = ', '.join(missing_env_vars)
+        raise ImproperlyConfigured(
+            f'PostgreSQL 接続情報が不足しています: {missing_text}'
+        )
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', 'appdb'),
-            'USER': os.getenv('DB_USER', 'pgadmin'),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
             'CONN_MAX_AGE': 600,
             'OPTIONS': {
                 'sslmode': 'require',
             }
         }
     }
-else:
+elif db_engine == 'django.db.backends.sqlite3' and DEBUG:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
+else:
+    raise ImproperlyConfigured(
+        '許可されていない DB_ENGINE です。本番環境では django.db.backends.postgresql を使用してください。'
+    )
 
 
 # Password validation

@@ -8247,3 +8247,13 @@ C:\webapps\knowledge_base\config\wsgi.py:20: UserWarning: No directory at: C:\we
   application = WhiteNoise(application, root=os.path.join(os.path.dirname(__file__), '..', 'staticfiles'))
 INFO:waitress:Serving on http://127.0.0.1:8000
 WARNING:django.request:Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+C:\webapps\knowledge_base\config\wsgi.py:20: UserWarning: No directory at: C:\webapps\knowledge_base\staticfiles\
+  application = WhiteNoise(application, root=os.path.join(os.path.dirname(__file__), '..', 'staticfiles'))
+INFO:waitress:Serving on http://127.0.0.1:8000
+WARNING:django.request:Not Found: /favicon.ico
+WARNING:django.request:Not Found: /favicon.ico
+C:\webapps\knowledge_base\config\wsgi.py:20: UserWarning: No directory at: C:\webapps\knowledge_base\staticfiles\
+  application = WhiteNoise(application, root=os.path.join(os.path.dirname(__file__), '..', 'staticfiles'))
+INFO:waitress:Serving on http://127.0.0.1:8000
+WARNING:django.request:Not Found: /favicon.ico
