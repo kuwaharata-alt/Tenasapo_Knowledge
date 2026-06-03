@@ -44,11 +44,14 @@ class CSVImportForm(forms.Form):
 
 class FAQCategoryCreateForm(forms.ModelForm):
     PARENT_CATEGORY_CHOICES = (
-        ('PC', 'PC'),
         ('サーバー', 'サーバー'),
-        ('ネットワーク', 'ネットワーク'),
-        ('アプリ', 'アプリ'),
-        ('その他', 'その他'),
+        ('PC', 'PC'),
+        ('Azure', 'Azure'),
+        ('Microsoft 365', 'Microsoft 365'),
+        ('ソフトウェア', 'ソフトウェア'),
+        ('ハードウェア', 'ハードウェア'),
+        ('周辺機器', '周辺機器'),
+        ('運用・保守', '運用・保守'),
     )
 
     parent_name = forms.ChoiceField(

@@ -3,3 +3,6 @@ knowledge_base/sample_csv/faq_import_sample.csv
 knowledge_base/sample_csv/tips_import_sample.csv
 knowledge_base/log/001.png
 knowledge_base/db.sqlite3
+__pycache__/
+*.py[cod]
+logs/
