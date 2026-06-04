@@ -1266,3 +1266,12 @@ class RichTextTemplateFilterTests(TestCase):
         self.assertNotIn('<script>', rendered)
         self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', rendered)
         self.assertIn('<strong>ok</strong>', rendered)
+
+    def test_render_rich_text_allows_safe_html_from_editor(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '<p><strong>見出し</strong><span style="color:#ff0000;">赤</span></p>'})
+        )
+
+        self.assertIn('<p><strong>見出し</strong><span style="color:#ff0000;">赤</span></p>', rendered)

@@ -1,6 +1,8 @@
 from django import template
 import os
 import re
+import bleach
+from bleach.css_sanitizer import CSSSanitizer
 from django.utils.html import conditional_escape, format_html
 from django.utils.safestring import mark_safe
 
@@ -15,6 +17,20 @@ RICH_TEXT_COLOR_PATTERN = re.compile(
     r'\[color=(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,20})\](.*?)\[/color\]',
     flags=re.IGNORECASE | re.DOTALL,
 )
+BLOCK_HTML_PATTERN = re.compile(r'</?(p|div|ul|ol|li|h[1-6]|blockquote|pre|br|img)\b', flags=re.IGNORECASE)
+ALLOWED_TAGS = [
+    'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'span',
+    'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'pre', 'code',
+    'div', 'img',
+]
+ALLOWED_ATTRIBUTES = {
+    'span': ['style'],
+    'p': ['style'],
+    'div': ['class'],
+    'a': ['href', 'target', 'rel'],
+    'img': ['src', 'alt', 'class'],
+}
+CSS_SANITIZER = CSSSanitizer(allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight'])
 
 
 @register.filter
@@ -52,11 +68,11 @@ def render_inline_images(value, images):
 @register.filter
 def render_rich_text(value):
     text = str(value or '')
-    
-    # Apply rich-text markup to entire text first (before splitting into lines)
     rendered_text = _apply_rich_text_markup(text)
-    
-    # Then split into paragraphs for display
+
+    if BLOCK_HTML_PATTERN.search(rendered_text):
+        return mark_safe(rendered_text)
+
     parts = []
     for line in rendered_text.splitlines():
         if line.strip():
@@ -74,7 +90,7 @@ def _replace_image_tokens(text, image_list, next_image_index):
 
     for match in IMAGE_TOKEN_PATTERN.finditer(text):
         token_start, token_end = match.span()
-        parts.append(conditional_escape(text[cursor:token_start]))
+        parts.append(text[cursor:token_start])
         if match.group(1) is not None or match.group(2) is not None:
             has_explicit_marker = True
         image = _resolve_image(match, image_list, next_image_index)
@@ -87,13 +103,12 @@ def _replace_image_tokens(text, image_list, next_image_index):
             parts.append(conditional_escape(match.group(0)))
         cursor = token_end
 
-    parts.append(conditional_escape(text[cursor:]))
+    parts.append(text[cursor:])
     return ''.join(str(part) for part in parts), found_marker, has_explicit_marker, next_image_index
 
 
 def _apply_rich_text_markup(text):
-    # First escape raw HTML to prevent XSS
-    rendered_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    rendered_text = text
 
     for _ in range(10):
         updated_text = RICH_TEXT_BOLD_PATTERN.sub(_replace_bold_tag, rendered_text)
@@ -125,7 +140,13 @@ def _apply_rich_text_markup(text):
             break
         rendered_text = updated_text
 
-    return rendered_text
+    return bleach.clean(
+        rendered_text,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        css_sanitizer=CSS_SANITIZER,
+        strip=False,
+    )
 
 
 def _replace_bold_tag(match):
