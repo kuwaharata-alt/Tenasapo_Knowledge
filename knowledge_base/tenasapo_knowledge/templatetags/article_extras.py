@@ -51,12 +51,16 @@ def render_inline_images(value, images):
 
 @register.filter
 def render_rich_text(value):
+    text = str(value or '')
+    
+    # Apply rich-text markup to entire text first (before splitting into lines)
+    rendered_text = _apply_rich_text_markup(text)
+    
+    # Then split into paragraphs for display
     parts = []
-    for line in str(value or '').splitlines():
+    for line in rendered_text.splitlines():
         if line.strip():
-            # First apply rich-text markup, then escape remaining text
-            rendered = _apply_rich_text_markup(line)
-            parts.append(format_html('<p>{}</p>', mark_safe(rendered)))
+            parts.append(format_html('<p>{}</p>', mark_safe(line)))
         else:
             parts.append('<br>')
     return mark_safe(''.join(str(part) for part in parts))
