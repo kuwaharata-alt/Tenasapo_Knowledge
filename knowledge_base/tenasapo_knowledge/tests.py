@@ -1316,3 +1316,23 @@ class RichTextTemplateFilterTests(TestCase):
 
         self.assertIn('class="inline-faq-image"', rendered)
         self.assertIn('src="/media/tips_attachments/2026/guide.png"', rendered)
+
+    def test_render_inline_images_accepts_related_manager_like_object(self):
+        class ManagerLike:
+            def __init__(self, items):
+                self._items = items
+
+            def all(self):
+                return self._items
+
+        image = SimpleNamespace(
+            display_name='first.png',
+            file=SimpleNamespace(name='tips_attachments/2026/first.png', url='/media/tips_attachments/2026/first.png'),
+        )
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({'text': '本文\n【画像:first.png】', 'images': ManagerLike([image])})
+        )
+
+        self.assertIn('src="/media/tips_attachments/2026/first.png"', rendered)

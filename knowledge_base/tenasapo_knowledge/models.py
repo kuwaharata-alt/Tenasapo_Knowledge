@@ -179,6 +179,26 @@ class KnowledgeArticle(models.Model):
         return self.title
 
 
+class KnowledgeArticleImageAttachment(models.Model):
+    article = models.ForeignKey(
+        KnowledgeArticle,
+        on_delete=models.CASCADE,
+        related_name='images',
+        verbose_name='ナレッジ記事',
+    )
+    file = models.FileField('画像ファイル', upload_to='knowledge_attachments/%Y/%m/')
+    display_name = models.CharField('表示名', max_length=200, blank=True)
+    uploaded_at = models.DateTimeField('アップロード日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'ナレッジ記事画像'
+        verbose_name_plural = 'ナレッジ記事画像'
+        ordering = ['uploaded_at', 'id']
+
+    def __str__(self):
+        return f'{self.article.title} - {self.display_name or self.file.name}'
+
+
 class TipsArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
     target_os = models.CharField('対象OS', max_length=120, blank=True)

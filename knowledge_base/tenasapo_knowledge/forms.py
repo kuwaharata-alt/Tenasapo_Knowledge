@@ -143,25 +143,23 @@ class KnowledgeArticleCreateForm(forms.Form):
         max_length=200,
         required=False,
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image> と記載した場所に画像を挿入できます。太字・文字サイズ・文字色はエディタから設定できます。',
     )
     answer = forms.CharField(
         label='回答',
         required=False,
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image> と記載した場所に画像を挿入できます。太字・文字サイズ・文字色はエディタから設定できます。',
     )
     question_images = MultipleImageField(
         label='質問画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
-        help_text='アップロード順に表示されます。複数選択する場合は、順番に注意してください。',
+        help_text='質問に差し込む画像を選択し、「本文へ挿入」ボタンで挿入位置を指定してください。',
     )
     answer_images = MultipleImageField(
         label='回答画像',
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
-        help_text='アップロード順に表示されます。複数選択する場合は、順番に注意してください。',
+        help_text='回答に差し込む画像を選択し、「本文へ挿入」ボタンで挿入位置を指定してください。',
     )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',
@@ -246,7 +244,6 @@ class TipsCreateForm(forms.Form):
         label='内容',
         required=False,
         widget=forms.Textarea(attrs={'rows': 10}),
-        help_text='太字・文字サイズ・文字色はエディタから設定できます。本文画像はファイル選択後に「本文へ挿入」ボタンで差し込めます。',
     )
     tips_images = MultipleImageField(
         label='本文画像',

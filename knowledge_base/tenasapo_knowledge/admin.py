@@ -6,6 +6,7 @@ from .models import (
     FAQCategory,
     FAQParentCategorySetting,
     KnowledgeArticle,
+    KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
     TipsGood,
@@ -25,6 +26,13 @@ class ArticleAttachmentInline(admin.TabularInline):
 
 class TipsImageAttachmentInline(admin.TabularInline):
     model = TipsImageAttachment
+    extra = 1
+    fields = ('file', 'display_name', 'uploaded_at')
+    readonly_fields = ('uploaded_at',)
+
+
+class KnowledgeArticleImageAttachmentInline(admin.TabularInline):
+    model = KnowledgeArticleImageAttachment
     extra = 1
     fields = ('file', 'display_name', 'uploaded_at')
     readonly_fields = ('uploaded_at',)
@@ -64,7 +72,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
     )
     search_fields = ('title', 'category', 'summary', 'body', 'customer__name')
     autocomplete_fields = ('customer', 'created_by')
-    inlines = (ArticleAttachmentInline,)
+    inlines = (ArticleAttachmentInline, KnowledgeArticleImageAttachmentInline)
     date_hierarchy = 'published_at'
 
     def save_model(self, request, obj, form, change):

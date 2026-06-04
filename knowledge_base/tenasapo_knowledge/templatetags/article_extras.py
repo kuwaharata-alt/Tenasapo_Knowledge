@@ -40,7 +40,10 @@ CSS_SANITIZER = CSSSanitizer(allowed_css_properties=['color', 'font-size', 'text
 
 @register.filter
 def render_inline_images(value, images):
-    image_list = list(images or [])
+    image_source = images
+    if image_source is not None and hasattr(image_source, 'all'):
+        image_source = image_source.all()
+    image_list = list(image_source or [])
     next_image_index = 0
     parts = []
     has_marker = False

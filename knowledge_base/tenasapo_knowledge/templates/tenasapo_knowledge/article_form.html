@@ -139,17 +139,20 @@
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.question_images.id_for_label }}">質問画像</label>
                         {% if form.question_images.help_text %}<div class="form-text mb-2">{{ form.question_images.help_text }}</div>{% endif %}
-                        <input class="form-control{% if form.question_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.question_images.html_name }}" id="{{ form.question_images.id_for_label }}" accept="image/*" multiple>
-                        {% for error in form.question_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <input class="form-control{% if form.question_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.question_images.html_name }}" id="{{ form.question_images.id_for_label }}" accept="image/*" multiple>
+                        </div>
+                        <div class="form-text">選択後、下の一覧から画像を1枚ずつ本文に挿入できます。</div>
+                        <div id="article_question_image_insert_list" class="mt-2 d-flex flex-column gap-2"></div>
+                        {% for error in form.question_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         {% if question_images %}
-                            <div class="inline-image-preview-list mt-2">
+                            <div class="mt-2 d-flex flex-column gap-2">
                                 {% for image in question_images %}
-                                    <div class="inline-image-preview-item">
-                                        <a href="{{ image.file.url }}" target="_blank" rel="noopener">
-                                            <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
-                                        </a>
+                                    <div class="d-flex align-items-center gap-2 p-2 border rounded">
+                                        <span class="small text-muted">{{ image.display_name }}</span>
+                                        <a class="btn btn-outline-secondary btn-sm" href="{{ image.file.url }}" target="_blank" rel="noopener">表示</a>
                                         <button
-                                            class="btn btn-outline-danger btn-sm w-100"
+                                            class="btn btn-outline-danger btn-sm"
                                             type="submit"
                                             formaction="{% url 'attachment_delete' image.id %}"
                                             formmethod="post"
@@ -207,19 +210,22 @@
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.answer_images.id_for_label }}">回答画像</label>
                         {% if form.answer_images.help_text %}<div class="form-text mb-2">{{ form.answer_images.help_text }}</div>{% endif %}
-                        <input class="form-control{% if form.answer_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.answer_images.html_name }}" id="{{ form.answer_images.id_for_label }}" accept="image/*" multiple>
-                        {% for error in form.answer_images.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <input class="form-control{% if form.answer_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.answer_images.html_name }}" id="{{ form.answer_images.id_for_label }}" accept="image/*" multiple>
+                        </div>
+                        <div class="form-text">選択後、下の一覧から画像を1枚ずつ本文に挿入できます。</div>
+                        <div id="article_image_insert_list" class="mt-2 d-flex flex-column gap-2"></div>
+                        {% for error in form.answer_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         {% if answer_images %}
-                            <div class="inline-image-preview-list mt-2">
+                            <div class="mt-2 d-flex flex-column gap-2">
                                 {% for image in answer_images %}
-                                    <div class="inline-image-preview-item">
-                                        <a href="{{ image.file.url }}" target="_blank" rel="noopener">
-                                            <img class="inline-image-preview" src="{{ image.file.url }}" alt="{{ image.display_name }}">
-                                        </a>
+                                    <div class="d-flex align-items-center gap-2 p-2 border rounded">
+                                        <span class="small text-muted">{{ image.display_name }}</span>
+                                        <a class="btn btn-outline-secondary btn-sm" href="{{ image.file.url }}" target="_blank" rel="noopener">表示</a>
                                         <button
-                                            class="btn btn-outline-danger btn-sm w-100"
+                                            class="btn btn-outline-danger btn-sm"
                                             type="submit"
-                                            formaction="{% url 'attachment_delete' image.id %}"
+                                            formaction="{% url 'article_image_delete' image.id %}"
                                             formmethod="post"
                                             onclick="return confirm('この画像を削除しますか？');"
                                         >削除</button>
@@ -905,6 +911,180 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    // 質問画像の1枚ずつ本文挿入
+    const articleQuestionImagesInput = document.getElementById('{{ form.question_images.id_for_label }}');
+    const articleQuestionImageInsertList = document.getElementById('article_question_image_insert_list');
+    const questionFieldId = '{{ form.question.id_for_label|escapejs }}';
+
+    function questionImageMarkerFromFileName(fileName) {
+        const normalized = (fileName || '').trim();
+        if (!normalized) {
+            return '';
+        }
+        return '【画像:' + normalized + '】';
+    }
+
+    function insertQuestionImageMarker(markerText) {
+        if (!markerText) {
+            return;
+        }
+
+        const editor = window.tinymce ? window.tinymce.get(questionFieldId) : null;
+        if (editor) {
+            const escaped = markerText
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            editor.focus();
+            editor.insertContent(escaped);
+            editor.save();
+            return;
+        }
+
+        const textarea = document.getElementById(questionFieldId);
+        if (!textarea) {
+            return;
+        }
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const before = textarea.value.slice(0, start);
+        const after = textarea.value.slice(end);
+        textarea.value = before + markerText + after;
+        const nextPos = before.length + markerText.length;
+        textarea.setSelectionRange(nextPos, nextPos);
+        textarea.focus();
+    }
+
+    function renderArticleQuestionImageInsertList() {
+        if (!articleQuestionImageInsertList || !articleQuestionImagesInput) {
+            return;
+        }
+        articleQuestionImageInsertList.innerHTML = '';
+
+        const files = Array.from(articleQuestionImagesInput.files || []);
+        if (!files.length) {
+            return;
+        }
+
+        files.forEach(function(file) {
+            const markerText = questionImageMarkerFromFileName(file.name);
+            if (!markerText) {
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 p-2 border rounded';
+
+            const name = document.createElement('span');
+            name.className = 'small text-muted';
+            name.textContent = file.name;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.textContent = '本文へ挿入';
+            button.addEventListener('click', function() {
+                insertQuestionImageMarker(markerText);
+            });
+
+            row.appendChild(name);
+            row.appendChild(button);
+            articleQuestionImageInsertList.appendChild(row);
+        });
+    }
+
+    if (articleQuestionImagesInput) {
+        articleQuestionImagesInput.addEventListener('change', renderArticleQuestionImageInsertList);
+        renderArticleQuestionImageInsertList();
+    }
+
+    // 回答画像の1枚ずつ本文挿入
+    const articleImagesInput = document.getElementById('{{ form.answer_images.id_for_label }}');
+    const articleImageInsertList = document.getElementById('article_image_insert_list');
+    const answerBodyFieldId = '{{ form.answer.id_for_label|escapejs }}';
+
+    function imageMarkerFromFileName(fileName) {
+        const normalized = (fileName || '').trim();
+        if (!normalized) {
+            return '';
+        }
+        return '【画像:' + normalized + '】';
+    }
+
+    function insertImageMarkerToBody(markerText) {
+        if (!markerText) {
+            return;
+        }
+
+        const editor = window.tinymce ? window.tinymce.get(answerBodyFieldId) : null;
+        if (editor) {
+            const escaped = markerText
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            editor.focus();
+            editor.insertContent(escaped);
+            editor.save();
+            return;
+        }
+
+        const textarea = document.getElementById(answerBodyFieldId);
+        if (!textarea) {
+            return;
+        }
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const before = textarea.value.slice(0, start);
+        const after = textarea.value.slice(end);
+        textarea.value = before + markerText + after;
+        const nextPos = before.length + markerText.length;
+        textarea.setSelectionRange(nextPos, nextPos);
+        textarea.focus();
+    }
+
+    function renderArticleImageInsertList() {
+        if (!articleImageInsertList || !articleImagesInput) {
+            return;
+        }
+        articleImageInsertList.innerHTML = '';
+
+        const files = Array.from(articleImagesInput.files || []);
+        if (!files.length) {
+            return;
+        }
+
+        files.forEach(function(file) {
+            const markerText = imageMarkerFromFileName(file.name);
+            if (!markerText) {
+                return;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 p-2 border rounded';
+
+            const name = document.createElement('span');
+            name.className = 'small text-muted';
+            name.textContent = file.name;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.textContent = '本文へ挿入';
+            button.addEventListener('click', function() {
+                insertImageMarkerToBody(markerText);
+            });
+
+            row.appendChild(name);
+            row.appendChild(button);
+            articleImageInsertList.appendChild(row);
+        });
+    }
+
+    if (articleImagesInput) {
+        articleImagesInput.addEventListener('change', renderArticleImageInsertList);
+        renderArticleImageInsertList();
+    }
 
     // 参考リンク管理
     const referenceLinksContainer = document.getElementById('reference_links_container');

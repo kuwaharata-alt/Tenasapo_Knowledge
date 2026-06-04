@@ -36,6 +36,7 @@ from .models import (
     FAQCategory,
     FAQParentCategorySetting,
     KnowledgeArticle,
+    KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
     TipsGood,
@@ -529,7 +530,7 @@ class ArticleListView(ListView):
     def get_queryset(self):
         queryset = (
             KnowledgeArticle.objects.select_related('customer', 'created_by', 'approved_by')
-            .prefetch_related('attachments')
+            .prefetch_related('attachments', 'images')
             .filter(is_published=True)
             .filter(active_until_filter())
             .filter(visible_to_any_account_filter())
@@ -1798,24 +1799,29 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             created_by_name=self.request.user.get_username(),
             reference_links=reference_links,
         )
-        self.save_inline_images(article, form)
+        self.save_question_images(article, form)
+        self.save_answer_images(article, form)
         messages.success(self.request, f'FAQ「{article.title}」を登録しました。')
         return super().form_valid(form)
 
     @staticmethod
-    def save_inline_images(article, form):
-        placements = (
-            ('question_images', ArticleAttachment.PLACEMENT_QUESTION),
-            ('answer_images', ArticleAttachment.PLACEMENT_ANSWER),
-        )
-        for field_name, placement in placements:
-            for uploaded_file in form.cleaned_data.get(field_name, []):
-                ArticleAttachment.objects.create(
-                    article=article,
-                    file=uploaded_file,
-                    placement=placement,
-                    display_name=uploaded_file.name,
-                )
+    def save_question_images(article, form):
+        for uploaded_file in form.cleaned_data.get('question_images', []):
+            ArticleAttachment.objects.create(
+                article=article,
+                file=uploaded_file,
+                placement=ArticleAttachment.PLACEMENT_QUESTION,
+                display_name=uploaded_file.name,
+            )
+
+    @staticmethod
+    def save_answer_images(article, form):
+        for uploaded_file in form.cleaned_data.get('answer_images', []):
+            KnowledgeArticleImageAttachment.objects.create(
+                article=article,
+                file=uploaded_file,
+                display_name=uploaded_file.name,
+            )
 
 
 class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
@@ -1866,9 +1872,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['question_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_QUESTION
         ).order_by('uploaded_at', 'id')
-        context['answer_images'] = self.article.attachments.filter(
-            placement=ArticleAttachment.PLACEMENT_ANSWER
-        ).order_by('uploaded_at', 'id')
+        context['answer_images'] = self.article.images.all().order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.article.reference_links or [])
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
@@ -1923,7 +1927,8 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'updated_at',
             ]
         )
-        KnowledgeArticleCreateView.save_inline_images(self.article, form)
+        KnowledgeArticleCreateView.save_question_images(self.article, form)
+        KnowledgeArticleCreateView.save_answer_images(self.article, form)
         messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
         return super().form_valid(form)
 
@@ -1947,6 +1952,16 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         return redirect('article_list')
 
 
+class KnowledgeArticleImageAttachmentDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        image = get_object_or_404(KnowledgeArticleImageAttachment, pk=pk)
+        article_id = image.article_id
+        image.file.delete(save=False)
+        image.delete()
+        messages.success(request, '画像を削除しました。')
+        return redirect('article_edit', pk=article_id)
+
+
 class ArticleAttachmentDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         attachment = get_object_or_404(ArticleAttachment, pk=pk)
@@ -1963,6 +1978,8 @@ class KnowledgeArticleDeleteView(StaffRequiredMixin, View):
         title = article.title
         for attachment in article.attachments.all():
             attachment.file.delete(save=False)
+        for image in article.images.all():
+            image.file.delete(save=False)
         article.delete()
         messages.success(request, f'FAQ「{title}」を削除しました。')
         return redirect('article_list')
