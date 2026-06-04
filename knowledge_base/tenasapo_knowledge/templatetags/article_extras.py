@@ -53,9 +53,10 @@ def render_inline_images(value, images):
 def render_rich_text(value):
     parts = []
     for line in str(value or '').splitlines():
-        escaped_line = conditional_escape(line)
-        if escaped_line.strip():
-            parts.append(format_html('<p>{}</p>', mark_safe(_apply_rich_text_markup(str(escaped_line)))))
+        if line.strip():
+            # First apply rich-text markup, then escape remaining text
+            rendered = _apply_rich_text_markup(line)
+            parts.append(format_html('<p>{}</p>', mark_safe(rendered)))
         else:
             parts.append('<br>')
     return mark_safe(''.join(str(part) for part in parts))
@@ -86,23 +87,24 @@ def _replace_image_tokens(text, image_list, next_image_index):
     return ''.join(str(part) for part in parts), found_marker, has_explicit_marker, next_image_index
 
 
-def _apply_rich_text_markup(escaped_text):
-    rendered_text = escaped_text
+def _apply_rich_text_markup(text):
+    # First escape raw HTML to prevent XSS
+    rendered_text = text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
     for _ in range(10):
-        updated_text = RICH_TEXT_BOLD_PATTERN.sub(r'<strong>\1</strong>', rendered_text)
+        updated_text = RICH_TEXT_BOLD_PATTERN.sub(_replace_bold_tag, rendered_text)
         if updated_text == rendered_text:
             break
         rendered_text = updated_text
 
     for _ in range(10):
-        updated_text = RICH_TEXT_UNDERLINE_PATTERN.sub(r'<u>\1</u>', rendered_text)
+        updated_text = RICH_TEXT_UNDERLINE_PATTERN.sub(_replace_underline_tag, rendered_text)
         if updated_text == rendered_text:
             break
         rendered_text = updated_text
 
     for _ in range(10):
-        updated_text = RICH_TEXT_STRIKE_PATTERN.sub(r'<s>\1</s>', rendered_text)
+        updated_text = RICH_TEXT_STRIKE_PATTERN.sub(_replace_strike_tag, rendered_text)
         if updated_text == rendered_text:
             break
         rendered_text = updated_text
@@ -120,6 +122,21 @@ def _apply_rich_text_markup(escaped_text):
         rendered_text = updated_text
 
     return rendered_text
+
+
+def _replace_bold_tag(match):
+    content = match.group(1)
+    return f'<strong>{content}</strong>'
+
+
+def _replace_underline_tag(match):
+    content = match.group(1)
+    return f'<u>{content}</u>'
+
+
+def _replace_strike_tag(match):
+    content = match.group(1)
+    return f'<s>{content}</s>'
 
 
 def _replace_size_tag(match):
