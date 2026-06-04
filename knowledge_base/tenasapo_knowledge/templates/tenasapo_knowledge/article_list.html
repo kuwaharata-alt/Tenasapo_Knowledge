@@ -75,6 +75,34 @@
                                     {{ child_category.name }}
                                 </a>
                             {% endfor %}
+                            {% for middle_group in parent_category.middle_groups %}
+                                <a
+                                    class="category-child-link category-sidebar-toggle {% if selected_category in middle_group.full_names %}active{% endif %}"
+                                    href="#"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                    aria-expanded="{% if selected_category in middle_group.full_names %}true{% else %}false{% endif %}"
+                                    aria-controls="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                    onclick="event.preventDefault();"
+                                >
+                                    {{ middle_group.name }}
+                                </a>
+                                <div
+                                    class="collapse {% if selected_category in middle_group.full_names %}show{% endif %}"
+                                    id="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                >
+                                    <div class="category-child-list ps-3">
+                                        {% for child_category in middle_group.children %}
+                                            <a
+                                                class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                                href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                            >
+                                                {{ child_category.name }}
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endfor %}
                         </div>
                     </div>
                 {% endfor %}
@@ -83,6 +111,7 @@
     </aside>
 
     <section class="col-12 col-lg-10">
+
         {% if grouped_articles %}
             <div class="faq-group-list">
                 {% for group in grouped_articles %}

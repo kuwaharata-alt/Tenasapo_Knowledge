@@ -86,6 +86,7 @@ class UserProfile(models.Model):
 
 class FAQCategory(models.Model):
     parent_name = models.CharField('大カテゴリ', max_length=120)
+    middle_name = models.CharField('中カテゴリ', max_length=120, blank=True, default='')
     child_name = models.CharField('小カテゴリ', max_length=120)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
@@ -93,25 +94,42 @@ class FAQCategory(models.Model):
     class Meta:
         verbose_name = 'FAQカテゴリ'
         verbose_name_plural = 'FAQカテゴリ'
-        ordering = ['parent_name', 'child_name']
+        ordering = ['parent_name', 'middle_name', 'child_name']
         constraints = [
             models.UniqueConstraint(
-                fields=['parent_name', 'child_name'],
-                name='unique_faq_category_pair',
+                fields=['parent_name', 'middle_name', 'child_name'],
+                name='unique_faq_category_triplet',
             ),
         ]
 
     @property
     def full_name(self):
+        if self.middle_name:
+            return f'{self.parent_name}/{self.middle_name}/{self.child_name}'
         return f'{self.parent_name}/{self.child_name}'
 
     def __str__(self):
         return self.full_name
 
 
+class FAQParentCategorySetting(models.Model):
+    name = models.CharField('大カテゴリ名', max_length=120, unique=True)
+    visible_to_customer = models.BooleanField('カスタマーユーザーに表示', default=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = 'FAQ大カテゴリ設定'
+        verbose_name_plural = 'FAQ大カテゴリ設定'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class KnowledgeArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
-    category = models.CharField('カテゴリ', max_length=120, blank=True)
+    category = models.CharField('カテゴリ', max_length=180, blank=True)
     customer = models.ForeignKey(
         Customer,
         on_delete=models.SET_NULL,
@@ -164,7 +182,7 @@ class KnowledgeArticle(models.Model):
 class TipsArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
     target_os = models.CharField('対象OS', max_length=120, blank=True)
-    category = models.CharField('カテゴリ', max_length=120, blank=True)
+    category = models.CharField('カテゴリ', max_length=180, blank=True)
     body = models.TextField('内容')
     pdf_file = models.FileField('PDFファイル', upload_to='tips_attachments/%Y/%m/', blank=True)
     is_published = models.BooleanField('公開', default=True)

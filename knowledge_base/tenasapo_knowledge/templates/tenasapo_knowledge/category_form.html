@@ -30,9 +30,30 @@
                         {% for error in form.parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ</label>
+                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">サブカテゴリ1（任意）</label>
+                        <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証">
+                        {% for error in form.middle_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.child_name.id_for_label }}">サブカテゴリ2</label>
                         <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源" required>
                         {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check mt-2">
+                            <input
+                                class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}"
+                                type="checkbox"
+                                name="{{ form.visible_to_customer.html_name }}"
+                                id="{{ form.visible_to_customer.id_for_label }}"
+                                {% if form.visible_to_customer.value %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="{{ form.visible_to_customer.id_for_label }}">
+                                大カテゴリをカスタマーユーザーに表示する
+                            </label>
+                            <div class="form-text">オフにすると、この大カテゴリ配下のFAQ/Tipsは公開対象でもカスタマーユーザーには表示されません。</div>
+                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -47,36 +68,129 @@
         </form>
 
         <section class="mt-4">
-            <h2 class="h5 fw-bold mb-3">登録済みカテゴリ</h2>
-            <div class="card shadow-sm">
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th scope="col">大カテゴリ</th>
-                                <th scope="col">小カテゴリ</th>
-                                <th scope="col" class="text-end">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for item in categories %}
-                                <tr{% if category and category.id == item.id %} class="table-warning"{% endif %}>
-                                    <td>{{ item.parent_name }}</td>
-                                    <td>{{ item.child_name }}</td>
-                                    <td class="text-end">
-                                        <a class="btn btn-outline-primary btn-sm" href="{% url 'category_edit' item.id %}">修正</a>
-                                    </td>
-                                </tr>
+            <h2 class="h5 fw-bold mb-3">登録済みカテゴリ（3ペイン）</h2>
+            <div class="category-sidebar category-browser">
+                <div class="category-browser-header">カテゴリブラウザ</div>
+                <div class="category-browser-grid">
+                    <div class="category-browser-pane">
+                        <div class="category-browser-pane-title">大カテゴリ</div>
+                        <div class="list-group list-group-flush">
+                            {% for parent in category_browser %}
+                                <div class="list-group-item category-sidebar-link d-flex justify-content-between align-items-center">
+                                    <span>{{ parent.name }}</span>
+                                    <span class="badge {% if parent.visible_to_customer %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                                        {% if parent.visible_to_customer %}表示{% else %}非表示{% endif %}
+                                    </span>
+                                </div>
                             {% empty %}
-                                <tr>
-                                    <td colspan="3" class="text-center text-muted py-4">登録済みカテゴリはありません。</td>
-                                </tr>
+                                <div class="list-group-item text-muted">カテゴリがありません。</div>
                             {% endfor %}
-                        </tbody>
-                    </table>
+                        </div>
+                    </div>
+                    <div class="category-browser-pane">
+                        <div class="category-browser-pane-title">サブカテゴリ1</div>
+                        <div class="category-browser-list">
+                            <div id="subcategory1Pane" class="category-browser-empty">大カテゴリを選択してください。</div>
+                        </div>
+                    </div>
+                    <div class="category-browser-pane">
+                        <div class="category-browser-pane-title">サブカテゴリ2</div>
+                        <div class="category-browser-list">
+                            <div id="subcategory2Pane" class="category-browser-empty">サブカテゴリ1を選択してください。</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const data = JSON.parse('{{ category_browser_json|escapejs }}');
+    const parentContainer = document.querySelector('.category-browser-pane .list-group.list-group-flush');
+    const sub1Pane = document.getElementById('subcategory1Pane');
+    const sub2Pane = document.getElementById('subcategory2Pane');
+
+    if (!parentContainer || !sub1Pane || !sub2Pane || !Array.isArray(data)) {
+        return;
+    }
+
+    function renderSub2(parentName, sub1Name) {
+        const parent = data.find(item => item.name === parentName);
+        if (!parent) {
+            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+            return;
+        }
+
+        const middle = (parent.middles || []).find(item => item.name === sub1Name);
+        if (!middle || !Array.isArray(middle.children) || middle.children.length === 0) {
+            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ2はありません。</div>';
+            return;
+        }
+
+        const editUrlBase = '{% url "category_edit" 0 %}'.replace(/0\/$/, '');
+        sub2Pane.innerHTML = middle.children.map(child => (
+            '<div class="category-browser-link d-flex justify-content-between align-items-center">'
+            + '<span>' + parentName + ' / ' + sub1Name + ' / ' + child.name + '</span>'
+            + '<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + child.id + '/">修正</a>'
+            + '</div>'
+        )).join('');
+    }
+
+    function renderSub1(parentName) {
+        const parent = data.find(item => item.name === parentName);
+        if (!parent) {
+            sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+            return;
+        }
+
+        const middleItems = Array.isArray(parent.middles) ? parent.middles : [];
+        const directChildren = Array.isArray(parent.direct_children) ? parent.direct_children : [];
+
+        const rows = [];
+        middleItems.forEach(item => {
+            const hasSub2 = Array.isArray(item.children) && item.children.length > 0;
+            rows.push(
+                '<button type="button" class="category-browser-link w-100 text-start border-0 bg-transparent" data-sub1="' + item.name + '">'
+                + item.name + (hasSub2 ? ' ＞' : '')
+                + '</button>'
+            );
+        });
+        const editUrlBase = '{% url "category_edit" 0 %}'.replace(/0\/$/, '');
+        directChildren.forEach(item => {
+            rows.push(
+                '<div class="category-browser-link d-flex justify-content-between align-items-center">'
+                + '<span>' + item.name + '</span>'
+                + '<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + item.id + '/">修正</a>'
+                + '</div>'
+            );
+        });
+
+        sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
+        sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+
+        sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
+            button.addEventListener('click', function () {
+                renderSub2(parentName, button.getAttribute('data-sub1'));
+            });
+        });
+    }
+
+    parentContainer.querySelectorAll('.category-sidebar-link').forEach(item => {
+        const nameSpan = item.querySelector('span');
+        const parentName = nameSpan ? nameSpan.textContent.trim() : '';
+        if (!parentName) {
+            return;
+        }
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', function () {
+            renderSub1(parentName);
+        });
+    });
+});
+</script>
 {% endblock %}

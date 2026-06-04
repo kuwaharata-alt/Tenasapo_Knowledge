@@ -4,6 +4,7 @@ from .models import (
     ArticleAttachment,
     Customer,
     FAQCategory,
+    FAQParentCategorySetting,
     KnowledgeArticle,
     LoginHistory,
     Manual,
@@ -77,6 +78,13 @@ class ArticleAttachmentAdmin(admin.ModelAdmin):
 class FAQCategoryAdmin(admin.ModelAdmin):
     list_display = ('parent_name', 'child_name', 'created_at', 'updated_at')
     search_fields = ('parent_name', 'child_name')
+
+
+@admin.register(FAQParentCategorySetting)
+class FAQParentCategorySettingAdmin(admin.ModelAdmin):
+    list_display = ('name', 'visible_to_customer', 'created_at', 'updated_at')
+    list_filter = ('visible_to_customer',)
+    search_fields = ('name',)
 
 
 @admin.register(UserProfile)

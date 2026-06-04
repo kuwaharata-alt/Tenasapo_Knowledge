@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import FAQCategory, Manual, default_expires_on
+from .models import FAQCategory, FAQParentCategorySetting, Manual, default_expires_on
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -58,17 +58,70 @@ class FAQCategoryCreateForm(forms.ModelForm):
         label='大カテゴリ',
         choices=PARENT_CATEGORY_CHOICES,
     )
+    middle_name = forms.CharField(
+        label='中カテゴリ',
+        required=False,
+        max_length=120,
+    )
+    visible_to_customer = forms.BooleanField(
+        label='大カテゴリをカスタマーユーザーに表示する',
+        required=False,
+        initial=True,
+    )
 
     class Meta:
         model = FAQCategory
-        fields = ('parent_name', 'child_name')
+        fields = ('parent_name', 'middle_name', 'child_name')
         labels = {
             'parent_name': '大カテゴリ',
+            'middle_name': '中カテゴリ',
             'child_name': '小カテゴリ',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choice_map = dict(self.PARENT_CATEGORY_CHOICES)
+        parent_choices = list(self.PARENT_CATEGORY_CHOICES)
+        for parent_name in FAQCategory.objects.values_list('parent_name', flat=True).distinct():
+            if parent_name and parent_name not in choice_map:
+                parent_choices.append((parent_name, parent_name))
+        self.fields['parent_name'].choices = parent_choices
+
+        current_parent_name = ''
+        if self.is_bound:
+            current_parent_name = (self.data.get(self.add_prefix('parent_name')) or '').strip()
+        elif self.instance and getattr(self.instance, 'pk', None):
+            current_parent_name = self.instance.parent_name
+        else:
+            current_parent_name = (self.initial.get('parent_name') or '').strip()
+
+        if current_parent_name:
+            setting = FAQParentCategorySetting.objects.filter(name=current_parent_name).first()
+            self.fields['visible_to_customer'].initial = (
+                setting.visible_to_customer if setting else True
+            )
+
+    def clean_middle_name(self):
+        return self.cleaned_data.get('middle_name', '').strip()
+
     def clean_child_name(self):
         return self.cleaned_data['child_name'].strip()
+
+    def save(self, commit=True):
+        category = super().save(commit=commit)
+        if commit:
+            self.save_parent_setting()
+        return category
+
+    def save_parent_setting(self):
+        parent_name = self.cleaned_data.get('parent_name', '').strip()
+        if not parent_name:
+            return None
+        setting, _ = FAQParentCategorySetting.objects.update_or_create(
+            name=parent_name,
+            defaults={'visible_to_customer': self.cleaned_data.get('visible_to_customer', True)},
+        )
+        return setting
 
 
 class KnowledgeArticleCreateForm(forms.Form):
@@ -81,9 +134,9 @@ class KnowledgeArticleCreateForm(forms.Form):
     )
     category = forms.CharField(
         label='カテゴリ',
-        max_length=120,
+        max_length=180,
         required=False,
-        help_text='未登録カテゴリを使う場合は「大カテゴリ/小カテゴリ」で入力してください。',
+        help_text='未登録カテゴリを使う場合は「大カテゴリ/中カテゴリ/小カテゴリ」で入力してください。',
     )
     question = forms.CharField(
         label='質問',
@@ -134,6 +187,7 @@ class KnowledgeArticleCreateForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields['registered_category'].queryset = FAQCategory.objects.order_by(
             'parent_name',
+            'middle_name',
             'child_name',
         )
 
@@ -173,9 +227,9 @@ class TipsCreateForm(forms.Form):
     )
     category = forms.CharField(
         label='カテゴリ',
-        max_length=120,
+        max_length=180,
         required=False,
-        help_text='未登録カテゴリを使う場合は「大カテゴリ/小カテゴリ」で入力してください。',
+        help_text='未登録カテゴリを使う場合は「大カテゴリ/中カテゴリ/小カテゴリ」で入力してください。',
     )
     title = forms.CharField(
         label='タイトル',
@@ -226,6 +280,7 @@ class TipsCreateForm(forms.Form):
         super().__init__(*args, **kwargs)
         self.fields['registered_category'].queryset = FAQCategory.objects.order_by(
             'parent_name',
+            'middle_name',
             'child_name',
         )
 

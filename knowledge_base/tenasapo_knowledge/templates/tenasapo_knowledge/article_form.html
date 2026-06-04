@@ -54,7 +54,7 @@
                                                         value="{{ category.id }}"
                                                         {% if category.id|stringformat:"s" in group.selected_values %}checked{% endif %}
                                                     >
-                                                    <span>{{ category.child_name }}</span>
+                                                    <span>{% if category.middle_name %}{{ category.middle_name }}/{{ category.child_name }}{% else %}{{ category.child_name }}{% endif %}</span>
                                                 </label>
                                             {% endfor %}
                                         </div>

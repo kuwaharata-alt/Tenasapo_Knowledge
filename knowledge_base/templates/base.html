@@ -216,6 +216,72 @@
             background: var(--tk-primary-soft);
             color: var(--tk-primary-dark);
         }
+        .category-browser {
+            position: static;
+            overflow: hidden;
+        }
+        .category-browser-header {
+            background: var(--tk-surface-warm);
+            color: var(--tk-primary-dark);
+            font-weight: 700;
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid var(--tk-border);
+        }
+        .category-browser-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .category-browser-pane {
+            min-height: 14rem;
+            border-right: 1px solid var(--tk-border);
+            background: var(--tk-surface);
+        }
+        .category-browser-pane:last-child {
+            border-right: 0;
+        }
+        .category-browser-pane-title {
+            padding: 0.75rem 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--tk-muted);
+            border-bottom: 1px solid var(--tk-border);
+            background: #fffdf9;
+        }
+        .category-browser-list {
+            display: grid;
+            gap: 0.25rem;
+            padding: 0.6rem;
+        }
+        .category-browser-link {
+            display: block;
+            padding: 0.55rem 0.65rem;
+            border-radius: 0.6rem;
+            color: var(--tk-text);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .category-browser-link:hover,
+        .category-browser-link.active {
+            background: var(--tk-primary-soft);
+            color: var(--tk-primary-dark);
+        }
+        .category-browser-empty {
+            padding: 1rem;
+            color: var(--tk-muted);
+            font-size: 0.92rem;
+        }
+        @media (max-width: 991.98px) {
+            .category-browser-grid {
+                grid-template-columns: 1fr;
+            }
+            .category-browser-pane {
+                border-right: 0;
+                border-bottom: 1px solid var(--tk-border);
+            }
+            .category-browser-pane:last-child {
+                border-bottom: 0;
+            }
+        }
         .faq-group-list {
             display: grid;
             gap: 1.5rem;

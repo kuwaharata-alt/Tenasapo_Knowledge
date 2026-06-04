@@ -34,6 +34,7 @@ from .models import (
     ArticleAttachment,
     Customer,
     FAQCategory,
+    FAQParentCategorySetting,
     KnowledgeArticle,
     LoginHistory,
     Manual,
@@ -239,6 +240,191 @@ def active_until_filter(base_date=None):
     return Q(expires_on__isnull=True) | Q(expires_on__gte=target_date)
 
 
+def hidden_parent_category_names_for_customer():
+    return set(
+        FAQParentCategorySetting.objects.filter(visible_to_customer=False)
+        .values_list('name', flat=True)
+    )
+
+
+def category_visible_to_customer_parent_settings(
+    category_text,
+    split_categories,
+    parent_category_name,
+    hidden_parent_names=None,
+):
+    hidden_parent_names = hidden_parent_names or hidden_parent_category_names_for_customer()
+    if not hidden_parent_names:
+        return True
+
+    category_names = split_categories(category_text)
+    if not category_names:
+        return True
+
+    parent_names = {
+        parent_category_name(category_name)
+        for category_name in category_names
+    }
+    return parent_names.isdisjoint(hidden_parent_names)
+
+
+def filter_queryset_by_customer_parent_settings(
+    queryset,
+    user,
+    split_categories,
+    parent_category_name,
+):
+    if not is_customer_user(user):
+        return queryset
+
+    hidden_parent_names = hidden_parent_category_names_for_customer()
+    if not hidden_parent_names:
+        return queryset
+
+    visible_ids = [
+        item.id
+        for item in queryset
+        if category_visible_to_customer_parent_settings(
+            item.category,
+            split_categories,
+            parent_category_name,
+            hidden_parent_names,
+        )
+    ]
+    return queryset.filter(id__in=visible_ids)
+
+
+def ordered_parent_category_names(parent_choices):
+    parent_names = [parent_name for parent_name, _ in parent_choices]
+    parent_names.extend(FAQParentCategorySetting.objects.values_list('name', flat=True))
+    parent_names.extend(FAQCategory.objects.values_list('parent_name', flat=True).distinct())
+    return list(dict.fromkeys(parent_name for parent_name in parent_names if parent_name))
+
+
+def build_parent_category_groups(
+    *,
+    user,
+    category_texts,
+    split_categories,
+    split_category_parts,
+    parent_choices,
+):
+    hidden_parent_names = hidden_parent_category_names_for_customer() if is_customer_user(user) else set()
+    parent_map = {
+        parent_name: {'direct_children': {}, 'middle_groups': {}}
+        for parent_name in ordered_parent_category_names(parent_choices)
+        if parent_name not in hidden_parent_names
+    }
+
+    for category in FAQCategory.objects.order_by('parent_name', 'middle_name', 'child_name'):
+        parent_name = category.parent_name.strip()
+        if not parent_name or parent_name in hidden_parent_names:
+            continue
+
+        node = parent_map.setdefault(parent_name, {'direct_children': {}, 'middle_groups': {}})
+        if category.middle_name:
+            middle_node = node['middle_groups'].setdefault(category.middle_name, {})
+            middle_node[category.full_name] = {
+                'name': category.child_name,
+                'full_name': category.full_name,
+            }
+        else:
+            node['direct_children'][category.full_name] = {
+                'name': category.child_name,
+                'full_name': category.full_name,
+            }
+
+    for category_text in category_texts:
+        for category_name in split_categories(category_text):
+            parent_name, middle_name, child_name = split_category_parts(category_name)
+            if not parent_name or parent_name in hidden_parent_names:
+                continue
+
+            node = parent_map.setdefault(parent_name, {'direct_children': {}, 'middle_groups': {}})
+            if not child_name:
+                continue
+            if middle_name:
+                middle_node = node['middle_groups'].setdefault(middle_name, {})
+                middle_node[category_name] = {
+                    'name': child_name,
+                    'full_name': category_name,
+                }
+            else:
+                node['direct_children'][category_name] = {
+                    'name': child_name,
+                    'full_name': category_name,
+                }
+
+    groups = []
+    for parent_name, node in parent_map.items():
+        middle_groups = []
+        for middle_name, children_map in node['middle_groups'].items():
+            children = list(children_map.values())
+            middle_groups.append(
+                {
+                    'name': middle_name,
+                    'children': children,
+                    'full_names': [child['full_name'] for child in children],
+                }
+            )
+
+        groups.append(
+            {
+                'name': parent_name,
+                'children': list(node['direct_children'].values()),
+                'middle_groups': middle_groups,
+            }
+        )
+    return groups
+
+
+def resolve_category_browser_state(
+    *,
+    parent_categories,
+    split_category_parts,
+    selected_parent='',
+    selected_middle='',
+    selected_category='',
+):
+    if selected_category:
+        inferred_parent, inferred_middle, _ = split_category_parts(selected_category)
+        if inferred_parent and not selected_parent:
+            selected_parent = inferred_parent
+        if inferred_middle and not selected_middle:
+            selected_middle = inferred_middle
+
+    selected_parent_group = next(
+        (group for group in parent_categories if group['name'] == selected_parent),
+        None,
+    )
+
+    if selected_parent_group and selected_parent_group['middle_groups']:
+        if not any(group['name'] == selected_middle for group in selected_parent_group['middle_groups']):
+            selected_middle = selected_parent_group['middle_groups'][0]['name']
+
+    selected_middle_group = None
+    if selected_parent_group and selected_middle:
+        selected_middle_group = next(
+            (
+                group
+                for group in selected_parent_group['middle_groups']
+                if group['name'] == selected_middle
+            ),
+            None,
+        )
+
+    if not selected_parent_group:
+        selected_parent = ''
+        selected_middle = ''
+
+    return {
+        'selected_parent': selected_parent,
+        'selected_middle': selected_middle,
+        'selected_parent_group': selected_parent_group,
+        'selected_middle_group': selected_middle_group,
+    }
+
+
 class HomeView(TemplateView):
     template_name = 'tenasapo_knowledge/home.html'
 
@@ -267,6 +453,18 @@ class HomeView(TemplateView):
             if FAQ_APPROVAL_ENABLED:
                 faq_qs = faq_qs.filter(is_approved=True)
                 tips_qs = tips_qs.filter(is_approved=True)
+        faq_qs = filter_queryset_by_customer_parent_settings(
+            faq_qs,
+            user,
+            ArticleListView.split_categories,
+            ArticleListView.parent_category_name,
+        )
+        tips_qs = filter_queryset_by_customer_parent_settings(
+            tips_qs,
+            user,
+            TipsListView.split_categories,
+            TipsListView.parent_category_name,
+        )
         context['recent_faqs'] = faq_qs.order_by('-updated_at')[:3]
         context['recent_tips'] = tips_qs.order_by('-updated_at')[:3]
         menu_groups = [
@@ -349,6 +547,13 @@ class ArticleListView(ListView):
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
 
+        queryset = filter_queryset_by_customer_parent_settings(
+            queryset,
+            user,
+            self.split_categories,
+            self.parent_category_name,
+        )
+
         query = self.request.GET.get('q')
         if query:
             queryset = queryset.filter(title__icontains=query)
@@ -378,13 +583,29 @@ class ArticleListView(ListView):
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_edit_article'] = can_edit_article(self.request.user)
         context['can_view_approval_meta'] = can_view_approval_meta
+
+        visible_articles = list(context['articles'])
+        if is_customer_user(self.request.user):
+            hidden_parent_names = hidden_parent_category_names_for_customer()
+            visible_articles = [
+                article
+                for article in visible_articles
+                if category_visible_to_customer_parent_settings(
+                    article.category,
+                    self.split_categories,
+                    self.parent_category_name,
+                    hidden_parent_names,
+                )
+            ]
+        context['articles'] = visible_articles
+
         liked_article_ids = set(
             ArticleGood.objects.filter(
                 user=self.request.user,
-                article_id__in=[article.id for article in context['articles']],
+                article_id__in=[article.id for article in visible_articles],
             ).values_list('article_id', flat=True)
         )
-        for article in context['articles']:
+        for article in visible_articles:
             article.is_gooded = article.id in liked_article_ids
             article.creator_display_name = article.created_by_name or (
                 article.created_by.get_username() if article.created_by else ''
@@ -414,12 +635,17 @@ class ArticleListView(ListView):
             ]
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
+        parent_categories = self.available_parent_category_groups()
         if selected_category and not selected_parent:
             selected_parent = self.parent_category_name(selected_category)
-        context['parent_categories'] = self.available_parent_category_groups()
+        context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
-        context['grouped_articles'] = self.group_articles(context['articles'], selected_parent)
+        context['grouped_articles'] = self.group_articles(
+            visible_articles,
+            selected_parent,
+            [group['name'] for group in parent_categories],
+        )
         context['query'] = self.request.GET.get('q', '')
         return context
 
@@ -428,10 +654,20 @@ class ArticleListView(ListView):
         return [category.strip() for category in (value or '').split(',') if category.strip()]
 
     @staticmethod
+    def split_category_parts(category):
+        parts = [part.strip() for part in (category or '').split('/') if part.strip()]
+        if len(parts) >= 3:
+            return parts[0], parts[1], '/'.join(parts[2:])
+        if len(parts) == 2:
+            return parts[0], '', parts[1]
+        if len(parts) == 1:
+            return parts[0], '', ''
+        return '未分類', '', ''
+
+    @staticmethod
     def parent_category_name(category):
-        if '/' in category:
-            return category.split('/', 1)[0].strip()
-        return category.strip() or '未分類'
+        parent_name, _, _ = ArticleListView.split_category_parts(category)
+        return parent_name or '未分類'
 
     @classmethod
     def article_parent_categories(cls, article):
@@ -441,74 +677,38 @@ class ArticleListView(ListView):
         ]
         return list(dict.fromkeys(parent_names or ['未分類']))
 
-    @classmethod
-    def available_parent_categories(cls):
-        parent_categories = [
-            parent_name
-            for parent_name, _ in FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES
-        ]
-        parent_categories.extend(
-            FAQCategory.objects.values_list('parent_name', flat=True).distinct()
+    def navigation_category_texts(self):
+        queryset = (
+            KnowledgeArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
         )
-        for category_text in (
-            KnowledgeArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-            .values_list('category', flat=True)
-        ):
-            parent_categories.extend(
-                cls.parent_category_name(category)
-                for category in cls.split_categories(category_text)
+        user = self.request.user
+        if is_customer_user(user):
+            queryset = queryset.filter(visible_to_customer=True)
+            if FAQ_APPROVAL_ENABLED:
+                queryset = queryset.filter(is_approved=True)
+            queryset = filter_queryset_by_customer_parent_settings(
+                queryset,
+                user,
+                self.split_categories,
+                self.parent_category_name,
             )
-        return list(dict.fromkeys(parent_categories))
+        return queryset.values_list('category', flat=True)
+
+    def available_parent_category_groups(self):
+        return build_parent_category_groups(
+            user=self.request.user,
+            category_texts=self.navigation_category_texts(),
+            split_categories=self.split_categories,
+            split_category_parts=self.split_category_parts,
+            parent_choices=FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES,
+        )
 
     @classmethod
-    def available_parent_category_groups(cls):
-        child_categories = {}
-        for parent_name in cls.available_parent_categories():
-            child_categories.setdefault(parent_name, [])
-
-        for category in FAQCategory.objects.order_by('parent_name', 'child_name'):
-            child_categories.setdefault(category.parent_name, []).append(
-                {
-                    'name': category.child_name,
-                    'full_name': category.full_name,
-                }
-            )
-
-        for category_text in (
-            KnowledgeArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-            .values_list('category', flat=True)
-        ):
-            for category_name in cls.split_categories(category_text):
-                parent_name = cls.parent_category_name(category_name)
-                child_name = category_name.split('/', 1)[1].strip() if '/' in category_name else category_name
-                child_categories.setdefault(parent_name, []).append(
-                    {
-                        'name': child_name,
-                        'full_name': category_name,
-                    }
-                )
-
-        groups = []
-        for parent_name, children in child_categories.items():
-            unique_children = {}
-            for child in children:
-                unique_children[child['full_name']] = child
-            groups.append(
-                {
-                    'name': parent_name,
-                    'children': list(unique_children.values()),
-                }
-            )
-        return groups
-
-    @classmethod
-    def group_articles(cls, articles, selected_parent=''):
+    def group_articles(cls, articles, selected_parent='', parent_categories=None):
         grouped_articles = []
-        parent_categories = [selected_parent] if selected_parent else cls.available_parent_categories()
+        parent_categories = [selected_parent] if selected_parent else (parent_categories or [])
 
         for parent_category in parent_categories:
             matched_articles = [
@@ -561,6 +761,13 @@ class TipsListView(ListView):
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
 
+        queryset = filter_queryset_by_customer_parent_settings(
+            queryset,
+            user,
+            self.split_categories,
+            self.parent_category_name,
+        )
+
         query = self.request.GET.get('q')
         if query:
             queryset = queryset.filter(title__icontains=query)
@@ -593,14 +800,30 @@ class TipsListView(ListView):
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_edit_tip'] = can_edit_article(self.request.user)
         context['can_view_approval_meta'] = can_view_approval_meta
+
+        visible_tips = list(context['tips_list'])
+        if is_customer_user(self.request.user):
+            hidden_parent_names = hidden_parent_category_names_for_customer()
+            visible_tips = [
+                tip
+                for tip in visible_tips
+                if category_visible_to_customer_parent_settings(
+                    tip.category,
+                    self.split_categories,
+                    self.parent_category_name,
+                    hidden_parent_names,
+                )
+            ]
+        context['tips_list'] = visible_tips
+
         liked_tip_ids = set(
             TipsGood.objects.filter(
                 user=self.request.user,
-                tip_id__in=[tip.id for tip in context['tips_list']],
+                tip_id__in=[tip.id for tip in visible_tips],
             ).values_list('tip_id', flat=True)
         )
 
-        for tip in context['tips_list']:
+        for tip in visible_tips:
             tip.is_gooded = tip.id in liked_tip_ids
             tip.creator_display_name = tip.created_by_name or (
                 tip.created_by.get_username() if tip.created_by else ''
@@ -612,12 +835,17 @@ class TipsListView(ListView):
 
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
+        parent_categories = self.available_parent_category_groups()
         if selected_category and not selected_parent:
             selected_parent = self.parent_category_name(selected_category)
-        context['parent_categories'] = self.available_parent_category_groups()
+        context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
-        context['grouped_tips'] = self.group_tips(context['tips_list'], selected_parent)
+        context['grouped_tips'] = self.group_tips(
+            visible_tips,
+            selected_parent,
+            [group['name'] for group in parent_categories],
+        )
         context['query'] = self.request.GET.get('q', '')
         return context
 
@@ -626,10 +854,20 @@ class TipsListView(ListView):
         return [category.strip() for category in (value or '').split(',') if category.strip()]
 
     @staticmethod
+    def split_category_parts(category):
+        parts = [part.strip() for part in (category or '').split('/') if part.strip()]
+        if len(parts) >= 3:
+            return parts[0], parts[1], '/'.join(parts[2:])
+        if len(parts) == 2:
+            return parts[0], '', parts[1]
+        if len(parts) == 1:
+            return parts[0], '', ''
+        return '未分類', '', ''
+
+    @staticmethod
     def parent_category_name(category):
-        if '/' in category:
-            return category.split('/', 1)[0].strip()
-        return category.strip() or '未分類'
+        parent_name, _, _ = TipsListView.split_category_parts(category)
+        return parent_name or '未分類'
 
     @classmethod
     def tip_parent_categories(cls, tip):
@@ -639,74 +877,38 @@ class TipsListView(ListView):
         ]
         return list(dict.fromkeys(parent_names or ['未分類']))
 
-    @classmethod
-    def available_parent_categories(cls):
-        parent_categories = [
-            parent_name
-            for parent_name, _ in FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES
-        ]
-        parent_categories.extend(
-            FAQCategory.objects.values_list('parent_name', flat=True).distinct()
+    def navigation_category_texts(self):
+        queryset = (
+            TipsArticle.objects.filter(is_published=True)
+            .filter(active_until_filter())
+            .filter(visible_to_any_account_filter())
         )
-        for category_text in (
-            TipsArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-            .values_list('category', flat=True)
-        ):
-            parent_categories.extend(
-                cls.parent_category_name(category)
-                for category in cls.split_categories(category_text)
+        user = self.request.user
+        if is_customer_user(user):
+            queryset = queryset.filter(visible_to_customer=True)
+            if FAQ_APPROVAL_ENABLED:
+                queryset = queryset.filter(is_approved=True)
+            queryset = filter_queryset_by_customer_parent_settings(
+                queryset,
+                user,
+                self.split_categories,
+                self.parent_category_name,
             )
-        return list(dict.fromkeys(parent_categories))
+        return queryset.values_list('category', flat=True)
+
+    def available_parent_category_groups(self):
+        return build_parent_category_groups(
+            user=self.request.user,
+            category_texts=self.navigation_category_texts(),
+            split_categories=self.split_categories,
+            split_category_parts=self.split_category_parts,
+            parent_choices=FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES,
+        )
 
     @classmethod
-    def available_parent_category_groups(cls):
-        child_categories = {}
-        for parent_name in cls.available_parent_categories():
-            child_categories.setdefault(parent_name, [])
-
-        for category in FAQCategory.objects.order_by('parent_name', 'child_name'):
-            child_categories.setdefault(category.parent_name, []).append(
-                {
-                    'name': category.child_name,
-                    'full_name': category.full_name,
-                }
-            )
-
-        for category_text in (
-            TipsArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-            .values_list('category', flat=True)
-        ):
-            for category_name in cls.split_categories(category_text):
-                parent_name = cls.parent_category_name(category_name)
-                child_name = category_name.split('/', 1)[1].strip() if '/' in category_name else category_name
-                child_categories.setdefault(parent_name, []).append(
-                    {
-                        'name': child_name,
-                        'full_name': category_name,
-                    }
-                )
-
-        groups = []
-        for parent_name, children in child_categories.items():
-            unique_children = {}
-            for child in children:
-                unique_children[child['full_name']] = child
-            groups.append(
-                {
-                    'name': parent_name,
-                    'children': list(unique_children.values()),
-                }
-            )
-        return groups
-
-    @classmethod
-    def group_tips(cls, tips, selected_parent=''):
+    def group_tips(cls, tips, selected_parent='', parent_categories=None):
         grouped_tips = []
-        parent_categories = [selected_parent] if selected_parent else cls.available_parent_categories()
+        parent_categories = [selected_parent] if selected_parent else (parent_categories or [])
 
         for parent_category in parent_categories:
             matched_tips = [
@@ -789,11 +991,12 @@ class TipsUpdateView(FormView):
         category_names = ArticleListView.split_categories(self.tip.category)
         registered_category_ids = []
         for category_name in category_names:
-            if '/' not in category_name:
+            parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
+            if not parent_name or not child_name:
                 continue
-            parent_name, child_name = category_name.split('/', 1)
             category = FAQCategory.objects.filter(
                 parent_name=parent_name,
+                middle_name=middle_name,
                 child_name=child_name,
             ).first()
             if category:
@@ -1573,11 +1776,12 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         category_names = ArticleListView.split_categories(self.article.category)
         registered_category_ids = []
         for category_name in category_names:
-            if '/' not in category_name:
+            parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
+            if not parent_name or not child_name:
                 continue
-            parent_name, child_name = category_name.split('/', 1)
             category = FAQCategory.objects.filter(
                 parent_name=parent_name,
+                middle_name=middle_name,
                 child_name=child_name,
             ).first()
             if category:
@@ -1712,8 +1916,68 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'カテゴリ登録'
         context['submit_label'] = '登録'
-        context['categories'] = FAQCategory.objects.all()
+        context['categories'] = self.categories_with_parent_visibility()
+        context['category_browser'] = self.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
         return context
+
+    @staticmethod
+    def categories_with_parent_visibility():
+        parent_category_visibility = {
+            setting.name: setting.visible_to_customer
+            for setting in FAQParentCategorySetting.objects.all()
+        }
+        categories = list(FAQCategory.objects.all())
+        for item in categories:
+            item.parent_visible_to_customer = parent_category_visibility.get(item.parent_name, True)
+        return categories
+
+    @staticmethod
+    def category_browser_data():
+        categories = FAQCategory.objects.order_by('parent_name', 'middle_name', 'child_name')
+        visibility_map = {
+            item['name']: item['visible_to_customer']
+            for item in FAQParentCategorySetting.objects.values('name', 'visible_to_customer')
+        }
+
+        parent_map = {}
+        for category in categories:
+            parent_node = parent_map.setdefault(
+                category.parent_name,
+                {
+                    'name': category.parent_name,
+                    'visible_to_customer': visibility_map.get(category.parent_name, True),
+                    'direct_children': [],
+                    'middles': {},
+                },
+            )
+            if category.middle_name:
+                middle_node = parent_node['middles'].setdefault(
+                    category.middle_name,
+                    {
+                        'name': category.middle_name,
+                        'children': [],
+                    },
+                )
+                middle_node['children'].append(
+                    {
+                        'id': category.id,
+                        'name': category.child_name,
+                    }
+                )
+            else:
+                parent_node['direct_children'].append(
+                    {
+                        'id': category.id,
+                        'name': category.child_name,
+                    }
+                )
+
+        browser = []
+        for parent in parent_map.values():
+            parent['middles'] = list(parent['middles'].values())
+            browser.append(parent)
+        return browser
 
     def form_valid(self, form):
         category = form.save()
@@ -1741,7 +2005,9 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
         context['form_title'] = 'カテゴリ修正'
         context['submit_label'] = '更新'
         context['category'] = self.category
-        context['categories'] = FAQCategory.objects.all()
+        context['categories'] = FAQCategoryCreateView.categories_with_parent_visibility()
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
         return context
 
     def form_valid(self, form):
@@ -1765,6 +2031,17 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
             if updated_categories != categories:
                 article.category = ','.join(updated_categories)
                 article.save(update_fields=['category', 'updated_at'])
+
+        tips_articles = TipsArticle.objects.filter(category__icontains=old_full_name)
+        for tip in tips_articles:
+            categories = TipsListView.split_categories(tip.category)
+            updated_categories = [
+                new_full_name if category == old_full_name else category
+                for category in categories
+            ]
+            if updated_categories != categories:
+                tip.category = ','.join(updated_categories)
+                tip.save(update_fields=['category', 'updated_at'])
 
 
 class UserCreateView(StaffRequiredMixin, FormView):

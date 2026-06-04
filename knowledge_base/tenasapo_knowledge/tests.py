@@ -17,6 +17,7 @@ from .models import (
     ArticleAttachment,
     Customer,
     FAQCategory,
+    FAQParentCategorySetting,
     KnowledgeArticle,
     LoginHistory,
     TipsArticle,
@@ -99,6 +100,31 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, 'すべて')
         self.assertContains(response, parent_category)
         self.assertContains(response, 'faq-group-title')
+
+    def test_article_list_shows_all_parent_categories_even_without_articles(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, 'Microsoft 365')
+        self.assertContains(response, '運用・保守')
+
+    def test_customer_user_cannot_see_hidden_parent_category_articles(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        FAQParentCategorySetting.objects.create(name='PC', visible_to_customer=False)
+        hidden_parent_article = KnowledgeArticle.objects.create(
+            title='PC向けFAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertNotContains(response, hidden_parent_article.title)
+        self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
 
     def test_staff_can_see_all_articles(self):
         self.user.is_staff = True
@@ -523,6 +549,7 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, 'カテゴリ修正')
         self.assertContains(response, '電源')
         self.assertContains(response, 'キャンセル')
+        self.assertContains(response, '大カテゴリをカスタマーユーザーに表示する')
 
     def test_staff_can_update_category_and_article_category_names(self):
         self.user.is_staff = True
@@ -548,6 +575,24 @@ class KnowledgeArticleListTests(TestCase):
         article.refresh_from_db()
         self.assertEqual(category.child_name, '電源トラブル')
         self.assertEqual(article.category, 'PC/電源トラブル,ネットワーク/AWS')
+
+    def test_staff_can_update_parent_customer_visibility(self):
+        self.user.is_staff = True
+        self.user.save()
+        category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        FAQParentCategorySetting.objects.create(name='PC', visible_to_customer=True)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('category_edit', args=[category.id]),
+            {
+                'parent_name': 'PC',
+                'child_name': '電源',
+            },
+        )
+
+        self.assertRedirects(response, reverse('category_create'))
+        self.assertFalse(FAQParentCategorySetting.objects.get(name='PC').visible_to_customer)
 
     def test_non_staff_cannot_view_category_edit_page(self):
         category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
@@ -931,6 +976,22 @@ class TipsListTests(TestCase):
         response = self.client.get(reverse('tip_list'))
 
         self.assertNotContains(response, '全員非表示Tips')
+
+    def test_customer_user_cannot_see_hidden_parent_category_tips(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        FAQParentCategorySetting.objects.create(name='PC', visible_to_customer=False)
+        hidden_parent_tip = TipsArticle.objects.create(
+            title='PC向けTips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertNotContains(response, hidden_parent_tip.title)
+        self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
 
 
 class TipsFormTests(TestCase):
