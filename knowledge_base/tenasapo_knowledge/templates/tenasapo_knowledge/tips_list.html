@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load article_extras %}
 
 {% block title %}Tips | Tenasapo Knowledge{% endblock %}
 
@@ -165,7 +166,19 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <div>{{ tip.body|linebreaksbr }}</div>
+                                            <div>{{ tip.body|render_rich_text }}</div>
+                                            {% if tip.reference_links %}
+                                                <div class="border-top pt-3 mt-3">
+                                                    <div class="fw-semibold small mb-2">参考リンク</div>
+                                                    <div class="d-flex flex-wrap gap-2">
+                                                        {% for link in tip.reference_links %}
+                                                            <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
+                                                                🔗 {{ link }}
+                                                            </a>
+                                                        {% endfor %}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </article>

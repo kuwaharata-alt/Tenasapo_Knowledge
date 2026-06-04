@@ -7,6 +7,14 @@ from django.utils.safestring import mark_safe
 
 register = template.Library()
 IMAGE_TOKEN_PATTERN = re.compile(r'<image(?:(\d+)|:([^>]+))?>', flags=re.IGNORECASE)
+RICH_TEXT_BOLD_PATTERN = re.compile(r'\[b\](.*?)\[/b\]', flags=re.IGNORECASE | re.DOTALL)
+RICH_TEXT_UNDERLINE_PATTERN = re.compile(r'\[u\](.*?)\[/u\]', flags=re.IGNORECASE | re.DOTALL)
+RICH_TEXT_STRIKE_PATTERN = re.compile(r'\[s\](.*?)\[/s\]', flags=re.IGNORECASE | re.DOTALL)
+RICH_TEXT_SIZE_PATTERN = re.compile(r'\[size=(\d{1,3})\](.*?)\[/size\]', flags=re.IGNORECASE | re.DOTALL)
+RICH_TEXT_COLOR_PATTERN = re.compile(
+    r'\[color=(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,20})\](.*?)\[/color\]',
+    flags=re.IGNORECASE | re.DOTALL,
+)
 
 
 @register.filter
@@ -27,7 +35,7 @@ def render_inline_images(value, images):
         has_explicit_marker = has_explicit_marker or line_has_explicit_marker
 
         if rendered_line.strip():
-            parts.append(format_html('<p>{}</p>', mark_safe(rendered_line)))
+            parts.append(format_html('<p>{}</p>', mark_safe(_apply_rich_text_markup(rendered_line))))
         else:
             parts.append('<br>')
 
@@ -38,6 +46,18 @@ def render_inline_images(value, images):
         for image in image_list[next_image_index:]:
             parts.append(_image_html(image))
 
+    return mark_safe(''.join(str(part) for part in parts))
+
+
+@register.filter
+def render_rich_text(value):
+    parts = []
+    for line in str(value or '').splitlines():
+        escaped_line = conditional_escape(line)
+        if escaped_line.strip():
+            parts.append(format_html('<p>{}</p>', mark_safe(_apply_rich_text_markup(str(escaped_line)))))
+        else:
+            parts.append('<br>')
     return mark_safe(''.join(str(part) for part in parts))
 
 
@@ -64,6 +84,62 @@ def _replace_image_tokens(text, image_list, next_image_index):
 
     parts.append(conditional_escape(text[cursor:]))
     return ''.join(str(part) for part in parts), found_marker, has_explicit_marker, next_image_index
+
+
+def _apply_rich_text_markup(escaped_text):
+    rendered_text = escaped_text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_BOLD_PATTERN.sub(r'<strong>\1</strong>', rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_UNDERLINE_PATTERN.sub(r'<u>\1</u>', rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_STRIKE_PATTERN.sub(r'<s>\1</s>', rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_SIZE_PATTERN.sub(_replace_size_tag, rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_COLOR_PATTERN.sub(_replace_color_tag, rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
+
+    return rendered_text
+
+
+def _replace_size_tag(match):
+    size_text = match.group(1)
+    content = match.group(2)
+    try:
+        size = int(size_text)
+    except ValueError:
+        return match.group(0)
+
+    if size < 8 or size > 20 or size % 2 != 0:
+        return match.group(0)
+
+    return f'<span style="font-size:{size}pt;">{content}</span>'
+
+
+def _replace_color_tag(match):
+    color = match.group(1)
+    content = match.group(2)
+    return f'<span style="color:{color};">{content}</span>'
 
 
 def _resolve_image(match, image_list, next_image_index):

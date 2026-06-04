@@ -8,6 +8,7 @@ from django.contrib.auth.models import Group
 from django.core import mail
 from django.core.management import call_command
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template import Context, Template
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
@@ -1173,3 +1174,34 @@ class UnpublishExpiredArticlesCommandTests(TestCase):
 
         article.refresh_from_db()
         self.assertTrue(article.is_published)
+
+
+class RichTextTemplateFilterTests(TestCase):
+    def test_render_inline_images_supports_bold_size_and_color_markup(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context(
+                {
+                    'text': '[b]太字[/b]\n[u]下線[/u]\n[s]取り消し[/s]\n[size=18]大きい[/size]\n[color=#ff0000]赤文字[/color]',
+                    'images': [],
+                }
+            )
+        )
+
+        self.assertIn('<strong>太字</strong>', rendered)
+        self.assertIn('<u>下線</u>', rendered)
+        self.assertIn('<s>取り消し</s>', rendered)
+        self.assertIn('font-size:18pt;', rendered)
+        self.assertIn('color:#ff0000;', rendered)
+
+    def test_render_rich_text_escapes_html(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '<script>alert(1)</script>[b]ok[/b]'})
+        )
+
+        self.assertNotIn('<script>', rendered)
+        self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', rendered)
+        self.assertIn('<strong>ok</strong>', rendered)

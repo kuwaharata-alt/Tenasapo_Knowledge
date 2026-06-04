@@ -744,6 +744,13 @@ class TipsCreateView(FormView):
         return context
 
     def form_valid(self, form):
+        reference_links = []
+        try:
+            reference_links_json = self.request.POST.get('reference_links', '[]')
+            reference_links = json.loads(reference_links_json)
+        except (json.JSONDecodeError, TypeError):
+            reference_links = []
+
         tip = TipsArticle.objects.create(
             title=form.cleaned_data['title'],
             target_os=form.cleaned_data['target_os'],
@@ -756,6 +763,7 @@ class TipsCreateView(FormView):
             visible_to_systena=form.cleaned_data['visible_to_systena'],
             created_by=self.request.user,
             created_by_name=self.request.user.get_username(),
+            reference_links=reference_links,
         )
         pdf_file = form.cleaned_data.get('pdf_file')
         if pdf_file:
@@ -816,6 +824,7 @@ class TipsUpdateView(FormView):
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
+        context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
         return context
 
     def form_valid(self, form):
@@ -834,6 +843,13 @@ class TipsUpdateView(FormView):
             form.add_error('visible_to_systena', error_message)
             return self.form_invalid(form)
 
+        reference_links = []
+        try:
+            reference_links_json = self.request.POST.get('reference_links', '[]')
+            reference_links = json.loads(reference_links_json)
+        except (json.JSONDecodeError, TypeError):
+            reference_links = []
+
         self.tip.title = form.cleaned_data['title']
         self.tip.target_os = form.cleaned_data['target_os']
         self.tip.category = form.cleaned_data['category']
@@ -842,9 +858,10 @@ class TipsUpdateView(FormView):
         self.tip.expires_on = form.cleaned_data['expires_on']
         self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
+        self.tip.reference_links = reference_links
         update_fields = [
             'title', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
-            'visible_to_customer', 'visible_to_systena', 'updated_at',
+            'visible_to_customer', 'visible_to_systena', 'reference_links', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
             self.tip.pdf_file.delete(save=False)
@@ -1503,6 +1520,13 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         return groups
 
     def form_valid(self, form):
+        reference_links = []
+        try:
+            reference_links_json = self.request.POST.get('reference_links', '[]')
+            reference_links = json.loads(reference_links_json)
+        except (json.JSONDecodeError, TypeError):
+            reference_links = []
+        
         article = KnowledgeArticle.objects.create(
             category=form.cleaned_data['category'],
             title=form.cleaned_data['question'],
@@ -1514,6 +1538,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             expires_on=form.cleaned_data['expires_on'],
             created_by=self.request.user,
             created_by_name=self.request.user.get_username(),
+            reference_links=reference_links,
         )
         self.save_inline_images(article, form)
         messages.success(self.request, f'FAQ「{article.title}」を登録しました。')
@@ -1585,6 +1610,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['answer_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_ANSWER
         ).order_by('uploaded_at', 'id')
+        context['reference_links_json'] = json.dumps(self.article.reference_links or [])
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         return context
 
@@ -1604,6 +1630,13 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             form.add_error('visible_to_systena', error_message)
             return self.form_invalid(form)
 
+        reference_links = []
+        try:
+            reference_links_json = self.request.POST.get('reference_links', '[]')
+            reference_links = json.loads(reference_links_json)
+        except (json.JSONDecodeError, TypeError):
+            reference_links = []
+
         self.article.category = form.cleaned_data['category']
         self.article.title = form.cleaned_data['question']
         self.article.body = form.cleaned_data['answer']
@@ -1611,6 +1644,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
         self.article.source_published_at = form.cleaned_data['source_published_at']
         self.article.expires_on = form.cleaned_data['expires_on']
+        self.article.reference_links = reference_links
         self.article.save(
             update_fields=[
                 'category',
@@ -1620,6 +1654,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'visible_to_systena',
                 'source_published_at',
                 'expires_on',
+                'reference_links',
                 'updated_at',
             ]
         )

@@ -102,7 +102,45 @@
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問</label>
                         {% if form.question.help_text %}<div class="form-text mb-2">{{ form.question.help_text }}</div>{% endif %}
-                        <textarea class="form-control{% if form.question.errors %} is-invalid{% endif %}" name="{{ form.question.html_name }}" id="{{ form.question.id_for_label }}" rows="8" required>{{ form.question.value|default_if_none:'' }}</textarea>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 p-2 border rounded bg-light-subtle">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-bold" data-rich-target="{{ form.question.id_for_label }}"><strong>B</strong></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-underline" data-rich-target="{{ form.question.id_for_label }}"><span style="text-decoration:underline;">U</span></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-strike" data-rich-target="{{ form.question.id_for_label }}"><span style="text-decoration:line-through;">S</span></button>
+                            <label class="small text-muted mb-0" for="{{ form.question.id_for_label }}_font_size">サイズ</label>
+                            <select class="form-select form-select-sm w-auto" id="{{ form.question.id_for_label }}_font_size">
+                                <option value="8">8pt</option>
+                                <option value="10" selected>10pt</option>
+                                <option value="12">12pt</option>
+                                <option value="14">14pt</option>
+                                <option value="16">16pt</option>
+                                <option value="18">18pt</option>
+                                <option value="20">20pt</option>
+                            </select>
+                            <label class="small text-muted mb-0" for="{{ form.question.id_for_label }}_font_color">カラー</label>
+                            <select class="form-select form-select-sm w-auto" id="{{ form.question.id_for_label }}_font_color">
+                                <option value="black" selected>⬛ 黒</option>
+                                <option value="red">🟥 赤</option>
+                                <option value="blue">🟦 青</option>
+                                <option value="orange">🟧 橙</option>
+                                <option value="purple">🟪 紫</option>
+                                <option value="custom">🎨 その他</option>
+                            </select>
+                            <input type="color" class="form-control form-control-color d-none" id="{{ form.question.id_for_label }}_font_color_custom" value="#0d6efd" title="任意の文字色">
+                            <div class="w-100"></div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading1" data-rich-target="{{ form.question.id_for_label }}" style="color:#0066cc; border-color:#0066cc; text-decoration:underline;">見出し1</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading2" data-rich-target="{{ form.question.id_for_label }}" style="color:#0066cc; border-color:#0066cc;">見出し2</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-preset" data-rich-preset="body" data-rich-target="{{ form.question.id_for_label }}">本文</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-rich-action="apply-preset" data-rich-preset="caution" data-rich-target="{{ form.question.id_for_label }}" style="color:#dc3545; border-color:#dc3545;">注意</button>
+                            <button type="button" class="btn btn-outline-warning btn-sm" data-rich-action="apply-preset" data-rich-preset="point" data-rich-target="{{ form.question.id_for_label }}" style="color:#ffc107; border-color:#ffc107;">ポイント</button>
+                        </div>
+                        <textarea class="d-none{% if form.question.errors %} is-invalid{% endif %}" name="{{ form.question.html_name }}" id="{{ form.question.id_for_label }}" rows="8" required>{{ form.question.value|default_if_none:'' }}</textarea>
+                        <div class="small text-muted mb-1">プレビュー編集</div>
+                        <div
+                            class="form-control bg-white"
+                            data-rich-editor-for="{{ form.question.id_for_label }}"
+                            contenteditable="true"
+                            style="min-height:12rem; max-height:24rem; overflow:auto;"
+                        ></div>
                         {% for error in form.question.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
@@ -132,7 +170,45 @@
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答</label>
                         {% if form.answer.help_text %}<div class="form-text mb-2">{{ form.answer.help_text }}</div>{% endif %}
-                        <textarea class="form-control{% if form.answer.errors %} is-invalid{% endif %}" name="{{ form.answer.html_name }}" id="{{ form.answer.id_for_label }}" rows="8" required>{{ form.answer.value|default_if_none:'' }}</textarea>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 p-2 border rounded bg-light-subtle">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-bold" data-rich-target="{{ form.answer.id_for_label }}"><strong>B</strong></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-underline" data-rich-target="{{ form.answer.id_for_label }}"><span style="text-decoration:underline;">U</span></button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-strike" data-rich-target="{{ form.answer.id_for_label }}"><span style="text-decoration:line-through;">S</span></button>
+                            <label class="small text-muted mb-0" for="{{ form.answer.id_for_label }}_font_size">サイズ</label>
+                            <select class="form-select form-select-sm w-auto" id="{{ form.answer.id_for_label }}_font_size">
+                                <option value="8">8pt</option>
+                                <option value="10" selected>10pt</option>
+                                <option value="12">12pt</option>
+                                <option value="14">14pt</option>
+                                <option value="16">16pt</option>
+                                <option value="18">18pt</option>
+                                <option value="20">20pt</option>
+                            </select>
+                            <label class="small text-muted mb-0" for="{{ form.answer.id_for_label }}_font_color">カラー</label>
+                            <select class="form-select form-select-sm w-auto" id="{{ form.answer.id_for_label }}_font_color">
+                                <option value="black" selected>⬛ 黒</option>
+                                <option value="red">🟥 赤</option>
+                                <option value="blue">🟦 青</option>
+                                <option value="orange">🟧 橙</option>
+                                <option value="purple">🟪 紫</option>
+                                <option value="custom">🎨 その他</option>
+                            </select>
+                            <input type="color" class="form-control form-control-color d-none" id="{{ form.answer.id_for_label }}_font_color_custom" value="#0d6efd" title="任意の文字色">
+                            <div class="w-100"></div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading1" data-rich-target="{{ form.answer.id_for_label }}" style="color:#0066cc; border-color:#0066cc; text-decoration:underline;">見出し1</button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading2" data-rich-target="{{ form.answer.id_for_label }}" style="color:#0066cc; border-color:#0066cc;">見出し2</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-preset" data-rich-preset="body" data-rich-target="{{ form.answer.id_for_label }}">本文</button>
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-rich-action="apply-preset" data-rich-preset="caution" data-rich-target="{{ form.answer.id_for_label }}" style="color:#dc3545; border-color:#dc3545;">注意</button>
+                            <button type="button" class="btn btn-outline-warning btn-sm" data-rich-action="apply-preset" data-rich-preset="point" data-rich-target="{{ form.answer.id_for_label }}" style="color:#ffc107; border-color:#ffc107;">ポイント</button>
+                        </div>
+                        <textarea class="d-none{% if form.answer.errors %} is-invalid{% endif %}" name="{{ form.answer.html_name }}" id="{{ form.answer.id_for_label }}" rows="8" required>{{ form.answer.value|default_if_none:'' }}</textarea>
+                        <div class="small text-muted mb-1">プレビュー編集</div>
+                        <div
+                            class="form-control bg-white"
+                            data-rich-editor-for="{{ form.answer.id_for_label }}"
+                            contenteditable="true"
+                            style="min-height:12rem; max-height:24rem; overflow:auto;"
+                        ></div>
                         {% for error in form.answer.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
@@ -158,6 +234,14 @@
                                 {% endfor %}
                             </div>
                         {% endif %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label">参考リンク</label>
+                        <div class="mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="add_reference_link_button">追加</button>
+                        </div>
+                        <div id="reference_links_container"></div>
+                        <input type="hidden" name="reference_links" id="reference_links_hidden" value="{{ reference_links_json|default:'[]' }}">
                     </div>
                 </div>
             </div>
@@ -209,4 +293,520 @@
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const savedSelections = new Map();
+
+    function rememberSelection(targetId) {
+        const editor = getEditor(targetId);
+        if (!editor) {
+            return;
+        }
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            return;
+        }
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.commonAncestorContainer)) {
+            return;
+        }
+        savedSelections.set(targetId, range.cloneRange());
+    }
+
+    function restoreSelection(targetId) {
+        const range = savedSelections.get(targetId);
+        if (!range) {
+            return;
+        }
+        const selection = window.getSelection();
+        if (!selection) {
+            return;
+        }
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function applyRichMarkup(escapedText) {
+        let rendered = escapedText;
+        for (let i = 0; i < 10; i++) {
+            const next = rendered.replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>');
+            if (next === rendered) {
+                break;
+            }
+            rendered = next;
+        }
+        for (let i = 0; i < 10; i++) {
+            const next = rendered.replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>');
+            if (next === rendered) {
+                break;
+            }
+            rendered = next;
+        }
+        for (let i = 0; i < 10; i++) {
+            const next = rendered.replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>');
+            if (next === rendered) {
+                break;
+            }
+            rendered = next;
+        }
+        for (let i = 0; i < 10; i++) {
+            const next = rendered.replace(/\[size=(\d{1,3})\]([\s\S]*?)\[\/size\]/gi, function(_, size, content) {
+                const n = Number(size);
+                    if (!Number.isFinite(n) || n < 8 || n > 20 || n % 2 !== 0) {
+                    return '[size=' + size + ']' + content + '[/size]';
+                }
+                    return '<span style="font-size:' + n + 'pt;">' + content + '</span>';
+            });
+            if (next === rendered) {
+                break;
+            }
+            rendered = next;
+        }
+        for (let i = 0; i < 10; i++) {
+            const next = rendered.replace(/\[color=(#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1;">$2</span>');
+            if (next === rendered) {
+                break;
+            }
+            rendered = next;
+        }
+        return rendered;
+    }
+
+    function markupToEditorHtml(value) {
+        const lines = (value || '').split(/\r?\n/);
+        return lines.map(function(line) {
+            if (!line.trim()) {
+                return '<div><br></div>';
+            }
+            return '<div>' + applyRichMarkup(escapeHtml(line)) + '</div>';
+        }).join('');
+    }
+
+    function normalizeColor(value) {
+        if (!value) {
+            return '';
+        }
+        const color = value.toLowerCase().replace(/\s+/g, '');
+        const map = {
+            'rgb(0,0,0)': 'black',
+            'rgb(255,0,0)': 'red',
+            'rgb(0,0,255)': 'blue',
+            'rgb(255,165,0)': 'orange',
+            'rgb(128,0,128)': 'purple',
+        };
+        return map[color] || color;
+    }
+
+    function nodeToMarkup(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            return node.nodeValue || '';
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) {
+            return '';
+        }
+
+        const element = node;
+        const tagName = element.tagName.toLowerCase();
+        const childText = Array.from(element.childNodes).map(nodeToMarkup).join('');
+
+        if (tagName === 'br') {
+            return '\n';
+        }
+
+        if (tagName === 'div' || tagName === 'p') {
+            return childText + '\n';
+        }
+
+        if (tagName === 'strong' || tagName === 'b') {
+            return '[b]' + childText + '[/b]';
+        }
+
+        if (tagName === 'u') {
+            return '[u]' + childText + '[/u]';
+        }
+
+        if (tagName === 's' || tagName === 'strike' || tagName === 'del') {
+            return '[s]' + childText + '[/s]';
+        }
+
+        if (tagName === 'span') {
+            let wrapped = childText;
+            const sizeMatch = (element.style.fontSize || '').match(/(\d{1,3})pt/i);
+            const color = normalizeColor(element.style.color || '');
+            const decoration = ((element.style.textDecorationLine || element.style.textDecoration || '') + '').toLowerCase();
+            
+            // Check if this span has no style attributes - if so, just return childText
+            const hasOwnStyle = sizeMatch || color || decoration || (element.style.fontWeight && Number(element.style.fontWeight) >= 600);
+            if (!hasOwnStyle) {
+                return childText;
+            }
+
+            if (sizeMatch) {
+                const size = Number(sizeMatch[1]);
+                if (size >= 8 && size <= 20 && size % 2 === 0) {
+                    wrapped = '[size=' + size + ']' + wrapped + '[/size]';
+                }
+            }
+            if (color) {
+                wrapped = '[color=' + color + ']' + wrapped + '[/color]';
+            }
+            if (decoration.includes('line-through')) {
+                wrapped = '[s]' + wrapped + '[/s]';
+            }
+            if (decoration.includes('underline')) {
+                wrapped = '[u]' + wrapped + '[/u]';
+            }
+            if (element.style.fontWeight && Number(element.style.fontWeight) >= 600) {
+                wrapped = '[b]' + wrapped + '[/b]';
+            }
+            return wrapped;
+        }
+
+        return childText;
+    }
+
+    function editorToMarkup(editor) {
+        const text = Array.from(editor.childNodes).map(nodeToMarkup).join('');
+        return text.replace(/\n{3,}/g, '\n\n').replace(/\n+$/g, '');
+    }
+
+    function syncHiddenTextarea(targetId) {
+        const textarea = document.getElementById(targetId);
+        const editor = document.querySelector('[data-rich-editor-for="' + targetId + '"]');
+        if (!textarea || !editor) {
+            return;
+        }
+        textarea.value = editorToMarkup(editor);
+    }
+
+    function getEditor(targetId) {
+        return document.querySelector('[data-rich-editor-for="' + targetId + '"]');
+    }
+
+    function applyStyleToSelection(editor, styleSpec) {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            return false;
+        }
+        const range = selection.getRangeAt(0);
+        if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
+            return false;
+        }
+
+        const onlyBold = styleSpec.bold && !styleSpec.underline && !styleSpec.strike && !styleSpec.size && !styleSpec.color;
+        const wrapper = document.createElement(onlyBold ? 'strong' : 'span');
+        if (wrapper.tagName.toLowerCase() === 'span') {
+            if (styleSpec.weight) {
+                wrapper.style.fontWeight = styleSpec.weight;
+            }
+            if (styleSpec.bold) {
+                wrapper.style.fontWeight = '700';
+            }
+            if (styleSpec.underline || styleSpec.strike) {
+                const decorations = [];
+                if (styleSpec.underline) {
+                    decorations.push('underline');
+                }
+                if (styleSpec.strike) {
+                    decorations.push('line-through');
+                }
+                wrapper.style.textDecorationLine = decorations.join(' ');
+            }
+            if (styleSpec.size) {
+                wrapper.style.fontSize = styleSpec.size + 'pt';
+            }
+            if (styleSpec.color) {
+                wrapper.style.color = styleSpec.color;
+            }
+        }
+
+        const fragment = range.extractContents();
+        wrapper.appendChild(fragment);
+        range.insertNode(wrapper);
+
+        selection.removeAllRanges();
+        const keepRange = document.createRange();
+        keepRange.selectNodeContents(wrapper);
+        selection.addRange(keepRange);
+        return true;
+    }
+
+    function toggleCommandOnSelection(editor, commandName) {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+            return false;
+        }
+        const range = selection.getRangeAt(0);
+        if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
+            return false;
+        }
+        document.execCommand(commandName, false, null);
+        return true;
+    }
+
+    function buildControlStyleSpec(targetId) {
+        const size = document.getElementById(targetId + '_font_size')?.value;
+        const colorSelect = document.getElementById(targetId + '_font_color');
+        const customColorInput = document.getElementById(targetId + '_font_color_custom');
+        const selectedColor = colorSelect?.value;
+        const color = selectedColor === 'custom' ? (customColorInput?.value || null) : (selectedColor || null);
+        return {
+            bold: false,
+            underline: false,
+            strike: false,
+            weight: null,
+            size: size ? Number(size) : null,
+            color: color || null,
+        };
+    }
+
+    function getPresetStyleSpec(presetName) {
+        const presets = {
+            heading1: { bold: true, underline: true, strike: false, weight: null, size: 16, color: 'blue' },
+            heading2: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'black' },
+            body: { bold: false, underline: false, strike: false, weight: '400', size: 10, color: 'black' },
+            caution: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'red' },
+            point: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'orange' },
+        };
+        return presets[presetName] || null;
+    }
+
+    function initColorSelector(targetId) {
+        const colorSelect = document.getElementById(targetId + '_font_color');
+        const customColorInput = document.getElementById(targetId + '_font_color_custom');
+        if (!colorSelect || !customColorInput) {
+            return;
+        }
+        const refresh = function() {
+            customColorInput.classList.toggle('d-none', colorSelect.value !== 'custom');
+        };
+        colorSelect.addEventListener('change', refresh);
+        refresh();
+    }
+
+    function applyStyleToTarget(targetId, styleSpec, showAlert) {
+        const editor = getEditor(targetId);
+        if (!editor) {
+            return;
+        }
+        if (!styleSpec.bold && !styleSpec.underline && !styleSpec.strike && !styleSpec.size && !styleSpec.color) {
+            return;
+        }
+        editor.focus();
+        restoreSelection(targetId);
+        const styleFlagCount = Number(Boolean(styleSpec.bold)) + Number(Boolean(styleSpec.underline)) + Number(Boolean(styleSpec.strike));
+        const isSingleToggleStyle = styleFlagCount === 1 && !styleSpec.size && !styleSpec.color && !styleSpec.weight;
+        let applied = false;
+        if (isSingleToggleStyle) {
+            const commandName = styleSpec.bold ? 'bold' : (styleSpec.underline ? 'underline' : 'strikeThrough');
+            applied = toggleCommandOnSelection(editor, commandName);
+        } else {
+            applied = applyStyleToSelection(editor, styleSpec);
+        }
+        if (!applied) {
+            if (showAlert) {
+                alert('文字列を選択してから装飾を適用してください。');
+            }
+            return;
+        }
+        rememberSelection(targetId);
+        syncHiddenTextarea(targetId);
+    }
+
+    document.querySelectorAll('[data-rich-action="apply-bold"]').forEach(function(button) {
+        button.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            rememberSelection(this.dataset.richTarget);
+        });
+        button.addEventListener('click', function() {
+            applyStyleToTarget(
+                this.dataset.richTarget,
+                { bold: true, underline: false, strike: false, size: null, color: null },
+                true,
+            );
+        });
+    });
+
+    document.querySelectorAll('[data-rich-action="apply-underline"]').forEach(function(button) {
+        button.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            rememberSelection(this.dataset.richTarget);
+        });
+        button.addEventListener('click', function() {
+            applyStyleToTarget(
+                this.dataset.richTarget,
+                { bold: false, underline: true, strike: false, size: null, color: null },
+                true,
+            );
+        });
+    });
+
+    document.querySelectorAll('[data-rich-action="apply-strike"]').forEach(function(button) {
+        button.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            rememberSelection(this.dataset.richTarget);
+        });
+        button.addEventListener('click', function() {
+            applyStyleToTarget(
+                this.dataset.richTarget,
+                { bold: false, underline: false, strike: true, size: null, color: null },
+                true,
+            );
+        });
+    });
+
+    document.querySelectorAll('[data-rich-action="apply-preset"]').forEach(function(button) {
+        button.addEventListener('mousedown', function(event) {
+            event.preventDefault();
+            rememberSelection(this.dataset.richTarget);
+        });
+        button.addEventListener('click', function() {
+            const preset = getPresetStyleSpec(this.dataset.richPreset || '');
+            if (!preset) {
+                return;
+            }
+            applyStyleToTarget(this.dataset.richTarget, preset, true);
+        });
+    });
+
+    document.querySelectorAll('textarea[id]').forEach(function(textarea) {
+        const editor = getEditor(textarea.id);
+        if (!editor) {
+            return;
+        }
+        editor.innerHTML = markupToEditorHtml(textarea.value || '');
+        ['mouseup', 'keyup', 'touchend'].forEach(function(eventName) {
+            editor.addEventListener(eventName, function() {
+                rememberSelection(textarea.id);
+            });
+        });
+        editor.addEventListener('input', function() {
+            syncHiddenTextarea(textarea.id);
+            rememberSelection(textarea.id);
+        });
+        syncHiddenTextarea(textarea.id);
+    });
+
+    document.querySelectorAll('[data-rich-action="apply-bold"], [data-rich-action="apply-underline"], [data-rich-action="apply-strike"]').forEach(function(button) {
+        const targetId = button.dataset.richTarget;
+        initColorSelector(targetId);
+
+        const sizeControl = document.getElementById(targetId + '_font_size');
+        const colorControl = document.getElementById(targetId + '_font_color');
+        const customColorControl = document.getElementById(targetId + '_font_color_custom');
+
+        if (sizeControl) {
+            sizeControl.addEventListener('mousedown', function() {
+                rememberSelection(targetId);
+            });
+            sizeControl.addEventListener('change', function() {
+                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: Number(sizeControl.value || 0) || null, color: null }, false);
+            });
+        }
+
+        if (colorControl) {
+            colorControl.addEventListener('mousedown', function() {
+                rememberSelection(targetId);
+            });
+            colorControl.addEventListener('change', function() {
+                const colorSpec = buildControlStyleSpec(targetId);
+                if (colorControl.value === 'custom') {
+                    return;
+                }
+                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: null, color: colorSpec.color }, false);
+            });
+        }
+
+        if (customColorControl) {
+            customColorControl.addEventListener('mousedown', function() {
+                rememberSelection(targetId);
+            });
+            customColorControl.addEventListener('input', function() {
+                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: null, color: customColorControl.value || null }, false);
+            });
+        }
+    });
+
+    // 参考リンク管理
+    const referenceLinksContainer = document.getElementById('reference_links_container');
+    const referenceLinksHidden = document.getElementById('reference_links_hidden');
+    const addRefLinkBtn = document.getElementById('add_reference_link_button');
+
+    function updateReferenceLinksHidden() {
+        const inputs = referenceLinksContainer.querySelectorAll('input[type="url"]');
+        const links = Array.from(inputs)
+            .map(input => input.value.trim())
+            .filter(url => url);
+        referenceLinksHidden.value = JSON.stringify(links);
+    }
+
+    function addReferenceInputField(value = '') {
+        const container = document.createElement('div');
+        container.className = 'd-flex gap-2 mb-2';
+        
+        const input = document.createElement('input');
+        input.type = 'url';
+        input.className = 'form-control form-control-sm';
+        input.placeholder = 'https://example.com';
+        input.value = value;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn btn-outline-danger btn-sm';
+        removeBtn.textContent = '削除';
+        
+        removeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            container.remove();
+            updateReferenceLinksHidden();
+        });
+        
+        input.addEventListener('input', updateReferenceLinksHidden);
+        
+        container.appendChild(input);
+        container.appendChild(removeBtn);
+        referenceLinksContainer.appendChild(container);
+    }
+
+    addRefLinkBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        addReferenceInputField();
+    });
+
+    // 既存の参考リンクを読み込み（編集時）
+    try {
+        const existing = JSON.parse(referenceLinksHidden.value || '[]');
+        if (Array.isArray(existing)) {
+            existing.forEach(function(url) {
+                addReferenceInputField(url);
+            });
+        }
+    } catch (e) {
+        // JSON パースエラーは無視
+    }
+
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function() {
+            updateReferenceLinksHidden();
+            document.querySelectorAll('[data-rich-editor-for]').forEach(function(editor) {
+                const targetId = editor.dataset.richEditorFor;
+                syncHiddenTextarea(targetId);
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

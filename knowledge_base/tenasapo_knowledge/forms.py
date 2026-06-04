@@ -89,12 +89,12 @@ class KnowledgeArticleCreateForm(forms.Form):
         label='質問',
         max_length=200,
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image> と記載した場所に画像を挿入できます。',
+        help_text='本文内で <image> と記載した場所に画像を挿入できます。太字・文字サイズ・文字色は下の装飾ボタンで設定できます。',
     )
     answer = forms.CharField(
         label='回答',
         widget=forms.Textarea(attrs={'rows': 8}),
-        help_text='本文内で <image> と記載した場所に画像を挿入できます。',
+        help_text='本文内で <image> と記載した場所に画像を挿入できます。太字・文字サイズ・文字色は下の装飾ボタンで設定できます。',
     )
     question_images = MultipleImageField(
         label='質問画像',
@@ -189,6 +189,7 @@ class TipsCreateForm(forms.Form):
     body = forms.CharField(
         label='内容',
         widget=forms.Textarea(attrs={'rows': 10}),
+        help_text='太字・文字サイズ・文字色は下の装飾ボタンで設定できます。',
     )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',
