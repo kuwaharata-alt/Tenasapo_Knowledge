@@ -1,4 +1,5 @@
 import tempfile
+import json
 from datetime import timedelta
 from datetime import date
 from unittest.mock import patch
@@ -1092,6 +1093,31 @@ class TipsFormTests(TestCase):
         tip.refresh_from_db()
         self.assertFalse(tip.visible_to_customer)
         self.assertFalse(tip.visible_to_systena)
+
+    def test_staff_can_create_tip_with_multiple_target_os_entries(self):
+        response = self.client.post(
+            reverse('tip_create'),
+            {
+                'category': 'PC/設定',
+                'title': '複数OS Tips',
+                'target_os_name': 'Windows PC',
+                'target_os_version': '10',
+                'target_os_condition': '以降',
+                'target_os_entries': json.dumps(
+                    [
+                        {'name': 'Windows PC', 'version': '10', 'condition': '以降'},
+                        {'name': 'VMware', 'version': '7.0', 'condition': ''},
+                    ],
+                    ensure_ascii=False,
+                ),
+                'body': '本文',
+                'expires_on': '2026-12-10',
+            },
+        )
+
+        self.assertRedirects(response, reverse('tip_list'))
+        tip = TipsArticle.objects.get(title='複数OS Tips')
+        self.assertEqual(tip.target_os, 'Windows PC 10 以降, VMware 7.0')
 
 
 @override_settings(

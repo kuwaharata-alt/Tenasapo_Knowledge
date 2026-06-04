@@ -182,8 +182,10 @@
                                                 {% if tip.expires_on %}
                                                     <span class="badge faq-meta-badge">掲載期限 {{ tip.expires_on|date:"Y/m/d" }}</span>
                                                 {% endif %}
-                                                {% if tip.target_os %}
-                                                    <span class="badge faq-meta-badge">対象OS {{ tip.target_os }}</span>
+                                                {% if tip.target_os_chips %}
+                                                    {% for target_os in tip.target_os_chips %}
+                                                        <span class="badge faq-meta-badge">対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}</span>
+                                                    {% endfor %}
                                                 {% endif %}
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">投稿者 {{ tip.creator_display_name|default:"-" }}</span>

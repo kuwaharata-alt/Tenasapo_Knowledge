@@ -66,6 +66,53 @@
                         {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
+                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <div class="form-section-label">対象OS</div>
+                    </div>
+                    <div class="col-12">
+                        <div id="articleTargetOsRows" class="d-flex flex-column gap-3">
+                            <div class="row g-3 align-items-end" data-target-os-row="primary">
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label form-subsection-label" for="{{ form.target_os_name.id_for_label }}">{{ form.target_os_name.label }}</label>
+                                    <select class="form-select{% if form.target_os_name.errors %} is-invalid{% endif %}" name="{{ form.target_os_name.html_name }}" id="{{ form.target_os_name.id_for_label }}" data-target-os-field="name">
+                                        {% for value, label in form.target_os_name.field.choices %}
+                                            <option value="{{ value }}" {% if form.target_os_name.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% for error in form.target_os_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label form-subsection-label" for="{{ form.target_os_version.id_for_label }}">{{ form.target_os_version.label }}</label>
+                                    <select class="form-select{% if form.target_os_version.errors %} is-invalid{% endif %}" name="{{ form.target_os_version.html_name }}" id="{{ form.target_os_version.id_for_label }}" data-target-os-field="version">
+                                        {% for value, label in form.target_os_version.field.choices %}
+                                            <option value="{{ value }}" {% if form.target_os_version.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% for error in form.target_os_version.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label form-subsection-label" for="{{ form.target_os_condition.id_for_label }}">{{ form.target_os_condition.label }}</label>
+                                    <select class="form-select{% if form.target_os_condition.errors %} is-invalid{% endif %}" name="{{ form.target_os_condition.html_name }}" id="{{ form.target_os_condition.id_for_label }}" data-target-os-field="condition">
+                                        {% for value, label in form.target_os_condition.field.choices %}
+                                            <option value="{{ value }}" {% if form.target_os_condition.value == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% for error in form.target_os_condition.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center gap-2 mt-2">
+                            <div class="form-text mb-0">複数ある場合は行を追加してください。</div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="addArticleTargetOsRow">対象OSを追加</button>
+                        </div>
+                        <input type="hidden" name="{{ form.target_os_entries.html_name }}" id="{{ form.target_os_entries.id_for_label }}" value="{{ form.target_os_entries.value|default_if_none:'' }}">
+                        {% for error in form.target_os_entries.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
                         <div class="form-section-label">表示対象</div>
                     </div>
                     <div class="col-12 col-md-6">
@@ -298,6 +345,152 @@
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    (function setupTargetOsVersionOptions() {
+        const versionMap = JSON.parse('{{ target_os_version_map_json|escapejs }}');
+        const initialEntries = JSON.parse('{{ target_os_entries_json|escapejs }}');
+        const rowContainer = document.getElementById('articleTargetOsRows');
+        const addButton = document.getElementById('addArticleTargetOsRow');
+        const hiddenInput = document.getElementById('{{ form.target_os_entries.id_for_label }}');
+        const primaryRow = rowContainer ? rowContainer.querySelector('[data-target-os-row="primary"]') : null;
+        const primaryNameSelect = primaryRow ? primaryRow.querySelector('[data-target-os-field="name"]') : null;
+        const primaryConditionSelect = primaryRow ? primaryRow.querySelector('[data-target-os-field="condition"]') : null;
+
+        if (!rowContainer || !addButton || !hiddenInput || !primaryRow || !primaryNameSelect || !primaryConditionSelect || !versionMap) {
+            return;
+        }
+
+        const osChoices = Array.from(primaryNameSelect.options).map(function(option) {
+            return { value: option.value, label: option.textContent };
+        });
+        const conditionChoices = Array.from(primaryConditionSelect.options).map(function(option) {
+            return { value: option.value, label: option.textContent };
+        });
+
+        function renderVersionOptions(versionSelect, selectedName, preferredValue) {
+            const versions = Array.isArray(versionMap[selectedName]) ? versionMap[selectedName] : [];
+            const currentValue = preferredValue !== undefined ? preferredValue : versionSelect.value;
+            versionSelect.innerHTML = '';
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = '選択してください';
+            versionSelect.appendChild(placeholder);
+
+            versions.forEach(function(version) {
+                const option = document.createElement('option');
+                option.value = version;
+                option.textContent = version;
+                if (version === currentValue) {
+                    option.selected = true;
+                }
+                versionSelect.appendChild(option);
+            });
+        }
+
+        function createSelect(choices, field, value) {
+            const select = document.createElement('select');
+            select.className = 'form-select';
+            select.dataset.targetOsField = field;
+            choices.forEach(function(choice) {
+                const option = document.createElement('option');
+                option.value = choice.value;
+                option.textContent = choice.label;
+                if (choice.value === (value || '')) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+            return select;
+        }
+
+        function syncHiddenInput() {
+            const entries = Array.from(rowContainer.querySelectorAll('[data-target-os-row]')).map(function(row) {
+                return {
+                    name: row.querySelector('[data-target-os-field="name"]').value.trim(),
+                    version: row.querySelector('[data-target-os-field="version"]').value.trim(),
+                    condition: row.querySelector('[data-target-os-field="condition"]').value.trim(),
+                };
+            }).filter(function(entry) {
+                return entry.name || entry.version || entry.condition;
+            });
+            hiddenInput.value = JSON.stringify(entries);
+        }
+
+        function bindRow(row) {
+            const nameSelect = row.querySelector('[data-target-os-field="name"]');
+            const versionSelect = row.querySelector('[data-target-os-field="version"]');
+            const conditionSelect = row.querySelector('[data-target-os-field="condition"]');
+            if (!nameSelect || !versionSelect || !conditionSelect) {
+                return;
+            }
+
+            nameSelect.addEventListener('change', function() {
+                renderVersionOptions(versionSelect, nameSelect.value, '');
+                syncHiddenInput();
+            });
+            versionSelect.addEventListener('change', syncHiddenInput);
+            conditionSelect.addEventListener('change', syncHiddenInput);
+            renderVersionOptions(versionSelect, nameSelect.value, versionSelect.value);
+        }
+
+        function buildExtraRow(entry) {
+            const row = document.createElement('div');
+            row.className = 'row g-3 align-items-end';
+            row.dataset.targetOsRow = 'extra';
+            row.innerHTML = `
+                <div class="col-12 col-md-4">
+                    <label class="form-label form-subsection-label">{{ form.target_os_name.label|escapejs }}</label>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label form-subsection-label">{{ form.target_os_version.label|escapejs }}</label>
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label form-subsection-label">{{ form.target_os_condition.label|escapejs }}</label>
+                </div>
+                <div class="col-12 col-md-1 d-flex justify-content-md-end">
+                    <button type="button" class="btn btn-outline-danger btn-sm" data-target-os-remove>削除</button>
+                </div>
+            `;
+
+            const cols = row.querySelectorAll('.col-12');
+            cols[0].appendChild(createSelect(osChoices, 'name', entry.name || ''));
+            cols[1].appendChild(createSelect([{ value: '', label: '選択してください' }], 'version', entry.version || ''));
+            cols[2].appendChild(createSelect(conditionChoices, 'condition', entry.condition || ''));
+            row.querySelector('[data-target-os-remove]').addEventListener('click', function() {
+                row.remove();
+                syncHiddenInput();
+            });
+            rowContainer.appendChild(row);
+            bindRow(row);
+            renderVersionOptions(row.querySelector('[data-target-os-field="version"]'), entry.name || '', entry.version || '');
+        }
+
+        bindRow(primaryRow);
+
+        const primaryName = primaryNameSelect;
+        const primaryVersion = primaryRow.querySelector('[data-target-os-field="version"]');
+        const primaryCondition = primaryConditionSelect;
+
+        if (Array.isArray(initialEntries) && initialEntries.length > 0) {
+            primaryName.value = initialEntries[0].name || '';
+            primaryCondition.value = initialEntries[0].condition || '';
+            renderVersionOptions(primaryVersion, primaryName.value, initialEntries[0].version || '');
+
+            initialEntries.slice(1).forEach(function(entry) {
+                buildExtraRow(entry);
+            });
+        } else {
+            renderVersionOptions(primaryVersion, primaryName.value, primaryVersion.value);
+        }
+
+        addButton.addEventListener('click', function() {
+            buildExtraRow({ name: '', version: '', condition: '' });
+            syncHiddenInput();
+        });
+
+        syncHiddenInput();
+    })();
+
     (function setupCategoryBrowser() {
         const data = JSON.parse('{{ category_browser_json|escapejs }}');
         const selectedValues = new Set(JSON.parse('{{ registered_category_values_json|escapejs }}'));

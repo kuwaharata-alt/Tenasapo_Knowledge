@@ -1,3 +1,5 @@
+import json
+
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -5,6 +7,129 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
 from .models import FAQCategory, FAQParentCategorySetting, Manual, default_expires_on
+
+
+TARGET_OS_VERSION_MAP = {
+    'Windows PC': ['11', '10', '8.1', '8', '7'],
+    'Windows Server': ['2025', '2022', '2019', '2016', '2012 R2', '2012'],
+    'VMware': ['8.0', '7.0', '6.7'],
+    'macOS': ['15 Sequoia', '14 Sonoma', '13 Ventura', '12 Monterey'],
+    'Ubuntu': ['24.04', '22.04', '20.04', '18.04', '16.04'],
+    'iOS': ['18', '17', '16'],
+    'Android': ['15', '14', '13', '12', '11', '10'],
+    'その他': ['指定なし'],
+}
+TARGET_OS_NAME_CHOICES = [('', '選択してください')] + [
+    (name, name) for name in TARGET_OS_VERSION_MAP.keys()
+]
+TARGET_OS_CONDITION_CHOICES = (
+    ('', '指定なし'),
+    ('以降', '以降'),
+    ('以前', '以前'),
+)
+
+
+def target_os_version_choices():
+    seen = set()
+    choices = [('', '選択してください')]
+    for versions in TARGET_OS_VERSION_MAP.values():
+        for version in versions:
+            if version in seen:
+                continue
+            seen.add(version)
+            choices.append((version, version))
+    return choices
+
+
+def build_target_os_value(name, version, condition):
+    name = (name or '').strip()
+    version = (version or '').strip()
+    condition = (condition or '').strip()
+    if name == 'その他' and version == '指定なし':
+        version = ''
+    if not name and not version:
+        return ''
+    parts = [part for part in [name, version, condition] if part]
+    return ' '.join(parts)
+
+
+def build_target_os_values(entries):
+    values = []
+    seen = set()
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        value = build_target_os_value(
+            entry.get('name'),
+            entry.get('version'),
+            entry.get('condition'),
+        )
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        values.append(value)
+    return ', '.join(values)
+
+
+def parse_target_os_value(value):
+    raw = (value or '').strip()
+    if not raw:
+        return {'name': '', 'version': '', 'condition': ''}
+
+    condition = ''
+    for suffix in ('以降', '以前'):
+        if raw.endswith(' ' + suffix):
+            raw = raw[:-(len(suffix) + 1)].strip()
+            condition = suffix
+            break
+        if raw.endswith(suffix):
+            raw = raw[:-len(suffix)].strip()
+            condition = suffix
+            break
+
+    for name, versions in TARGET_OS_VERSION_MAP.items():
+        if raw == name:
+            return {'name': name, 'version': '', 'condition': condition}
+        if raw.startswith(name + ' '):
+            version = raw[len(name):].strip()
+            if version in versions:
+                return {'name': name, 'version': version, 'condition': condition}
+            return {'name': name, 'version': version, 'condition': condition}
+
+    return {'name': '', 'version': raw, 'condition': condition}
+
+
+def parse_target_os_values(value):
+    values = []
+    for item in (value or '').split(','):
+        raw = item.strip()
+        if not raw:
+            continue
+        values.append(parse_target_os_value(raw))
+    return values
+
+
+def parse_target_os_entries_json(raw_value):
+    try:
+        payload = json.loads(raw_value or '[]')
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+    if not isinstance(payload, list):
+        return []
+
+    entries = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        entries.append(
+            {
+                'name': (item.get('name') or '').strip(),
+                'version': (item.get('version') or '').strip(),
+                'condition': (item.get('condition') or '').strip(),
+            }
+        )
+    return entries
 
 
 class MultipleFileInput(forms.ClearableFileInput):
@@ -138,6 +263,29 @@ class KnowledgeArticleCreateForm(forms.Form):
         required=False,
         help_text='未登録カテゴリを使う場合は「大カテゴリ/中カテゴリ/小カテゴリ」で入力してください。',
     )
+    title = forms.CharField(
+        label='タイトル',
+        max_length=200,
+    )
+    target_os_name = forms.ChoiceField(
+        label='OS',
+        choices=TARGET_OS_NAME_CHOICES,
+        required=False,
+    )
+    target_os_version = forms.ChoiceField(
+        label='バージョン',
+        choices=(),
+        required=False,
+    )
+    target_os_condition = forms.ChoiceField(
+        label='条件',
+        choices=TARGET_OS_CONDITION_CHOICES,
+        required=False,
+    )
+    target_os_entries = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
+    )
     question = forms.CharField(
         label='質問',
         max_length=200,
@@ -190,6 +338,7 @@ class KnowledgeArticleCreateForm(forms.Form):
             'middle_name',
             'child_name',
         )
+        self.fields['target_os_version'].choices = target_os_version_choices()
 
     def clean_category(self):
         return self.cleaned_data.get('category', '').strip()
@@ -214,6 +363,20 @@ class KnowledgeArticleCreateForm(forms.Form):
             cleaned_data['category'] = ','.join(dict.fromkeys(categories))
         else:
             self.add_error('category', 'カテゴリを選択するか入力してください。')
+
+        target_os_entries = parse_target_os_entries_json(cleaned_data.get('target_os_entries'))
+        if target_os_entries:
+            cleaned_data['target_os'] = build_target_os_values(target_os_entries)
+        else:
+            cleaned_data['target_os'] = build_target_os_value(
+                cleaned_data.get('target_os_name'),
+                cleaned_data.get('target_os_version'),
+                cleaned_data.get('target_os_condition'),
+            )
+
+        legacy_target_os = (self.data.get(self.add_prefix('target_os')) or '').strip()
+        if not cleaned_data['target_os'] and legacy_target_os:
+            cleaned_data['target_os'] = build_target_os_values(parse_target_os_values(legacy_target_os))
         return cleaned_data
 
 
@@ -235,10 +398,24 @@ class TipsCreateForm(forms.Form):
         label='タイトル',
         max_length=200,
     )
-    target_os = forms.CharField(
-        label='対象OS',
-        max_length=200,
-        help_text='例: Windows 11, macOS 15, Ubuntu 24.04',
+    target_os_name = forms.ChoiceField(
+        label='OS',
+        choices=TARGET_OS_NAME_CHOICES,
+        required=False,
+    )
+    target_os_version = forms.ChoiceField(
+        label='バージョン',
+        choices=(),
+        required=False,
+    )
+    target_os_condition = forms.ChoiceField(
+        label='条件',
+        choices=TARGET_OS_CONDITION_CHOICES,
+        required=False,
+    )
+    target_os_entries = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(),
     )
     body = forms.CharField(
         label='内容',
@@ -289,6 +466,7 @@ class TipsCreateForm(forms.Form):
             'middle_name',
             'child_name',
         )
+        self.fields['target_os_version'].choices = target_os_version_choices()
 
     def clean_category(self):
         return self.cleaned_data.get('category', '').strip()
@@ -313,6 +491,20 @@ class TipsCreateForm(forms.Form):
             cleaned_data['category'] = ','.join(dict.fromkeys(categories))
         else:
             self.add_error('category', 'カテゴリを選択するか入力してください。')
+
+        target_os_entries = parse_target_os_entries_json(cleaned_data.get('target_os_entries'))
+        if target_os_entries:
+            cleaned_data['target_os'] = build_target_os_values(target_os_entries)
+        else:
+            cleaned_data['target_os'] = build_target_os_value(
+                cleaned_data.get('target_os_name'),
+                cleaned_data.get('target_os_version'),
+                cleaned_data.get('target_os_condition'),
+            )
+
+        legacy_target_os = (self.data.get(self.add_prefix('target_os')) or '').strip()
+        if not cleaned_data['target_os'] and legacy_target_os:
+            cleaned_data['target_os'] = build_target_os_values(parse_target_os_values(legacy_target_os))
         return cleaned_data
 
 

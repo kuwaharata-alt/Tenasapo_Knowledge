@@ -129,6 +129,7 @@ class FAQParentCategorySetting(models.Model):
 
 class KnowledgeArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
+    target_os = models.CharField('対象OS', max_length=120, blank=True)
     category = models.CharField('カテゴリ', max_length=180, blank=True)
     customer = models.ForeignKey(
         Customer,

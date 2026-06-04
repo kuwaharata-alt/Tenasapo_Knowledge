@@ -122,9 +122,9 @@
                                 <article class="accordion-item faq-item">
                                     <h3 class="accordion-header" id="faqHeading{{ forloop.parentloop.counter }}{{ article.id }}">
                                         <div class="faq-question d-flex align-items-center gap-3 p-3">
-                                            <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                                            <span class="badge text-bg-primary flex-shrink-0">FAQ</span>
                                             <div class="flex-grow-1">
-                                                <div class="faq-question-title fw-semibold">{{ article.title|render_inline_images:article.question_images }}</div>
+                                                <div class="faq-question-title fw-semibold">{{ article.title }}</div>
                                                 {% if article.category_chips %}
                                                     <div class="d-flex flex-wrap gap-2 mt-2">
                                                         {% for category in article.category_chips %}
@@ -180,6 +180,13 @@
                                                         ソース公開日 {{ article.source_published_at|date:"Y/m/d" }}
                                                     </span>
                                                 {% endif %}
+                                                {% if article.target_os_chips %}
+                                                    {% for target_os in article.target_os_chips %}
+                                                        <span class="badge faq-meta-badge">
+                                                            対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}
+                                                        </span>
+                                                    {% endfor %}
+                                                {% endif %}
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">
                                                         投稿者 {{ article.creator_display_name|default:"-" }}
@@ -200,8 +207,17 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <div>
-                                                {{ article.body|render_inline_images:article.images }}
+                                            <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
+                                                <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                                                <div class="flex-grow-1">
+                                                    {{ article.summary|default:article.title|render_inline_images:article.question_images }}
+                                                </div>
+                                            </div>
+                                            <div class="faq-question d-flex align-items-start gap-3 p-3 rounded">
+                                                <span class="badge text-bg-secondary flex-shrink-0">A</span>
+                                                <div class="flex-grow-1">
+                                                    {{ article.body|render_inline_images:article.images }}
+                                                </div>
                                             </div>
                                             {% if article.reference_links %}
                                                 <div class="border-top pt-3 mt-3">

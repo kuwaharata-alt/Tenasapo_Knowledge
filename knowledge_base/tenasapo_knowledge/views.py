@@ -25,6 +25,10 @@ from .forms import (
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
+    parse_target_os_entries_json,
+    parse_target_os_value,
+    parse_target_os_values,
+    TARGET_OS_VERSION_MAP,
     TipsCreateForm,
     UserCreateForm,
     UserUpdateForm,
@@ -77,6 +81,30 @@ class HomeRedirectLoginView(LoginView):
 
 def in_group(user, group_name):
     return user.is_authenticated and user.groups.filter(name=group_name).exists()
+
+
+def target_os_entries_for_form(form):
+    raw_entries = form['target_os_entries'].value() if 'target_os_entries' in form.fields else ''
+    entries = parse_target_os_entries_json(raw_entries)
+    if entries:
+        return entries
+
+    legacy_value = ''
+    if form.is_bound:
+        legacy_value = (form.data.get(form.add_prefix('target_os')) or '').strip()
+    else:
+        legacy_value = (form.initial.get('target_os') or '').strip()
+    if legacy_value:
+        return parse_target_os_values(legacy_value)
+
+    entry = {
+        'name': (form['target_os_name'].value() or '').strip() if 'target_os_name' in form.fields else '',
+        'version': (form['target_os_version'].value() or '').strip() if 'target_os_version' in form.fields else '',
+        'condition': (form['target_os_condition'].value() or '').strip() if 'target_os_condition' in form.fields else '',
+    }
+    if entry['name'] or entry['version'] or entry['condition']:
+        return [entry]
+    return []
 
 
 def visible_to_any_account_filter():
@@ -584,7 +612,11 @@ class ArticleListView(ListView):
 
         query = self.request.GET.get('q')
         if query:
-            queryset = queryset.filter(title__icontains=query)
+            queryset = queryset.filter(
+                Q(title__icontains=query)
+                | Q(summary__icontains=query)
+                | Q(target_os__icontains=query)
+            )
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
@@ -642,6 +674,7 @@ class ArticleListView(ListView):
                 article.approved_by.get_username() if article.approved_by else ''
             )
             article.category_chips = self.split_categories(article.category)
+            article.target_os_chips = parse_target_os_values(article.target_os)
             ordered_attachments = sorted(
                 article.attachments.all(),
                 key=lambda attachment: (attachment.uploaded_at, attachment.id),
@@ -860,6 +893,7 @@ class TipsListView(ListView):
                 tip.approved_by.get_username() if tip.approved_by else ''
             )
             tip.category_chips = self.split_categories(tip.category)
+            tip.target_os_chips = parse_target_os_values(tip.target_os)
             tip.inline_images = sorted(
                 tip.images.all(),
                 key=lambda image: (image.uploaded_at, image.id),
@@ -981,6 +1015,8 @@ class TipsCreateView(FormView):
             KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
             ensure_ascii=False,
         )
+        context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
+        context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
         return context
 
     def form_valid(self, form):
@@ -1039,11 +1075,15 @@ class TipsUpdateView(FormView):
         registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
             self.tip.category
         )
+        parsed_target_os = parse_target_os_value(self.tip.target_os)
         return {
             'registered_category': registered_category_ids,
             'category': unregistered_category_text,
             'title': self.tip.title,
-            'target_os': self.tip.target_os,
+            'target_os_entries': json.dumps(parse_target_os_values(self.tip.target_os), ensure_ascii=False),
+            'target_os_name': parsed_target_os['name'],
+            'target_os_version': parsed_target_os['version'],
+            'target_os_condition': parsed_target_os['condition'],
             'body': self.tip.body,
             'source_published_at': self.tip.source_published_at,
             'expires_on': self.tip.expires_on,
@@ -1069,6 +1109,8 @@ class TipsUpdateView(FormView):
             KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
             ensure_ascii=False,
         )
+        context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
+        context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
         context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
         context['tip_images'] = self.tip.images.all().order_by('uploaded_at', 'id')
@@ -1768,6 +1810,8 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             self.selected_registered_category_values(context['form']),
             ensure_ascii=False,
         )
+        context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
+        context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
         return context
 
     @staticmethod
@@ -1804,7 +1848,9 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         
         article = KnowledgeArticle.objects.create(
             category=form.cleaned_data['category'],
-            title=form.cleaned_data['question'],
+            title=form.cleaned_data['title'],
+            target_os=form.cleaned_data['target_os'],
+            summary=form.cleaned_data['question'],
             body=form.cleaned_data['answer'],
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
@@ -1853,10 +1899,16 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
             self.article.category
         )
+        parsed_target_os = parse_target_os_value(self.article.target_os)
         return {
             'registered_category': registered_category_ids,
             'category': unregistered_category_text,
-            'question': self.article.title,
+            'title': self.article.title,
+            'target_os_entries': json.dumps(parse_target_os_values(self.article.target_os), ensure_ascii=False),
+            'target_os_name': parsed_target_os['name'],
+            'target_os_version': parsed_target_os['version'],
+            'target_os_condition': parsed_target_os['condition'],
+            'question': self.article.summary or self.article.title,
             'answer': self.article.body,
             'visible_to_customer': self.article.visible_to_customer,
             'visible_to_systena': self.article.visible_to_systena,
@@ -1887,6 +1939,8 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
             ensure_ascii=False,
         )
+        context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
+        context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
         return context
 
     def form_valid(self, form):
@@ -1913,7 +1967,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             reference_links = []
 
         self.article.category = form.cleaned_data['category']
-        self.article.title = form.cleaned_data['question']
+        self.article.title = form.cleaned_data['title']
+        self.article.target_os = form.cleaned_data['target_os']
+        self.article.summary = form.cleaned_data['question']
         self.article.body = form.cleaned_data['answer']
         self.article.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
@@ -1924,6 +1980,8 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             update_fields=[
                 'category',
                 'title',
+                'target_os',
+                'summary',
                 'body',
                 'visible_to_customer',
                 'visible_to_systena',
