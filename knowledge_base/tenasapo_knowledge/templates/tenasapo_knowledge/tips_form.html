@@ -271,6 +271,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const parentPane = document.getElementById('tipsCategoryParentPane');
         const sub1Pane = document.getElementById('tipsCategorySub1Pane');
         const sub2Pane = document.getElementById('tipsCategorySub2Pane');
+        let activeParentName = '';
+        let activeSub1Name = '';
 
         if (!parentPane || !sub1Pane || !sub2Pane || !Array.isArray(data)) {
             return;
@@ -302,13 +304,52 @@ document.addEventListener('DOMContentLoaded', function() {
             sub2Pane.innerHTML = middle.children.map(item => categoryCheckboxHTML(item, 'tips-sub2-')).join('');
         }
 
-        function renderSub1(parentName) {
+        function setActiveParent(parentName) {
+            parentPane.querySelectorAll('[data-parent-name]').forEach(button => {
+                const isActive = button.getAttribute('data-parent-name') === parentName;
+                button.classList.toggle('active', isActive);
+            });
+        }
+
+        function setActiveSub1(sub1Name) {
+            sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
+                const isActive = button.getAttribute('data-sub1') === sub1Name;
+                button.classList.toggle('active', isActive);
+            });
+        }
+
+        function findInitialSelection() {
+            for (const parent of data) {
+                for (const item of (parent.direct_children || [])) {
+                    if (selectedValues.has(String(item.id))) {
+                        return { parentName: parent.name, sub1Name: '' };
+                    }
+                }
+                for (const middle of (parent.middles || [])) {
+                    for (const item of (middle.children || [])) {
+                        if (selectedValues.has(String(item.id))) {
+                            return { parentName: parent.name, sub1Name: middle.name };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function renderSub1(parentName, preferredSub1Name) {
             const parent = data.find(item => item.name === parentName);
             if (!parent) {
                 sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
                 sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+                activeParentName = '';
+                activeSub1Name = '';
+                setActiveParent('');
                 return;
             }
+
+            activeParentName = parentName;
+            setActiveParent(activeParentName);
+            activeSub1Name = preferredSub1Name || '';
 
             const rows = [];
             (parent.middles || []).forEach(middle => {
@@ -328,16 +369,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
             sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
                 button.addEventListener('click', function() {
-                    renderSub2(parentName, button.getAttribute('data-sub1'));
+                    activeSub1Name = button.getAttribute('data-sub1') || '';
+                    setActiveSub1(activeSub1Name);
+                    renderSub2(parentName, activeSub1Name);
                 });
             });
+
+            setActiveSub1(activeSub1Name);
+            if (activeSub1Name) {
+                renderSub2(parentName, activeSub1Name);
+            }
         }
 
         parentPane.querySelectorAll('[data-parent-name]').forEach(button => {
             button.addEventListener('click', function() {
-                renderSub1(button.getAttribute('data-parent-name'));
+                renderSub1(button.getAttribute('data-parent-name'), '');
             });
         });
+
+        const initialSelection = findInitialSelection();
+        if (initialSelection) {
+            renderSub1(initialSelection.parentName, initialSelection.sub1Name);
+        }
     })();
 
     function legacyMarkupToHtml(text) {

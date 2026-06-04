@@ -427,6 +427,32 @@ def resolve_category_browser_state(
     }
 
 
+def split_registered_and_unregistered_categories(category_text):
+    category_names = ArticleListView.split_categories(category_text)
+    registered_category_ids = []
+    unregistered_categories = []
+
+    for category_name in category_names:
+        parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
+        category = None
+        if parent_name and child_name:
+            category = FAQCategory.objects.filter(
+                parent_name=parent_name,
+                middle_name=middle_name,
+                child_name=child_name,
+            ).first()
+
+        if category:
+            registered_category_ids.append(category.id)
+        else:
+            unregistered_categories.append(category_name)
+
+    return (
+        list(dict.fromkeys(registered_category_ids)),
+        ','.join(dict.fromkeys(unregistered_categories)),
+    )
+
+
 class HomeView(TemplateView):
     template_name = 'tenasapo_knowledge/home.html'
 
@@ -1010,22 +1036,12 @@ class TipsUpdateView(FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
-        category_names = ArticleListView.split_categories(self.tip.category)
-        registered_category_ids = []
-        for category_name in category_names:
-            parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
-            if not parent_name or not child_name:
-                continue
-            category = FAQCategory.objects.filter(
-                parent_name=parent_name,
-                middle_name=middle_name,
-                child_name=child_name,
-            ).first()
-            if category:
-                registered_category_ids.append(category.id)
+        registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
+            self.tip.category
+        )
         return {
             'registered_category': registered_category_ids,
-            'category': self.tip.category,
+            'category': unregistered_category_text,
             'title': self.tip.title,
             'target_os': self.tip.target_os,
             'body': self.tip.body,
@@ -1834,22 +1850,12 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
-        category_names = ArticleListView.split_categories(self.article.category)
-        registered_category_ids = []
-        for category_name in category_names:
-            parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
-            if not parent_name or not child_name:
-                continue
-            category = FAQCategory.objects.filter(
-                parent_name=parent_name,
-                middle_name=middle_name,
-                child_name=child_name,
-            ).first()
-            if category:
-                registered_category_ids.append(category.id)
+        registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
+            self.article.category
+        )
         return {
             'registered_category': registered_category_ids,
-            'category': self.article.category,
+            'category': unregistered_category_text,
             'question': self.article.title,
             'answer': self.article.body,
             'visible_to_customer': self.article.visible_to_customer,
