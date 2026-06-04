@@ -30,39 +30,32 @@
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>
                         <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
-                        <div class="category-group-list{% if form.registered_category.errors %} is-invalid{% endif %}">
-                            {% for group in category_groups %}
-                                <div class="category-group">
-                                    <button
-                                        class="category-group-toggle"
-                                        type="button"
-                                        data-bs-toggle="collapse"
-                                        data-bs-target="#categoryGroup{{ forloop.counter }}"
-                                        aria-expanded="true"
-                                        aria-controls="categoryGroup{{ forloop.counter }}"
-                                    >
-                                        {{ group.parent_name }}
-                                    </button>
-                                    <div class="collapse show" id="categoryGroup{{ forloop.counter }}">
-                                        <div class="category-checkboxes">
-                                            {% for category in group.categories %}
-                                                <label class="category-checkbox">
-                                                    <input
-                                                        class="form-check-input"
-                                                        type="checkbox"
-                                                        name="{{ form.registered_category.html_name }}"
-                                                        value="{{ category.id }}"
-                                                        {% if category.id|stringformat:"s" in group.selected_values %}checked{% endif %}
-                                                    >
-                                                    <span>{% if category.middle_name %}{{ category.middle_name }}/{{ category.child_name }}{% else %}{{ category.child_name }}{% endif %}</span>
-                                                </label>
-                                            {% endfor %}
-                                        </div>
+                        <div class="category-sidebar category-browser{% if form.registered_category.errors %} is-invalid{% endif %}">
+                            <div class="category-browser-header">カテゴリブラウザ</div>
+                            <div class="category-browser-grid">
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">大カテゴリ</div>
+                                    <div class="list-group list-group-flush" id="tipsCategoryParentPane">
+                                        {% for parent in category_browser %}
+                                            <button type="button" class="list-group-item list-group-item-action category-sidebar-link" data-parent-name="{{ parent.name }}">{{ parent.name }}</button>
+                                        {% empty %}
+                                            <div class="list-group-item text-muted">登録済みカテゴリがありません。</div>
+                                        {% endfor %}
                                     </div>
                                 </div>
-                            {% empty %}
-                                <div class="text-secondary small">登録済みカテゴリがありません。</div>
-                            {% endfor %}
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">サブカテゴリ1</div>
+                                    <div class="category-browser-list" id="tipsCategorySub1Pane">
+                                        <div class="category-browser-empty">大カテゴリを選択してください。</div>
+                                    </div>
+                                </div>
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">サブカテゴリ2</div>
+                                    <div class="category-browser-list" id="tipsCategorySub2Pane">
+                                        <div class="category-browser-empty">サブカテゴリ1を選択してください。</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
@@ -243,6 +236,82 @@
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    (function setupCategoryBrowser() {
+        const data = JSON.parse('{{ category_browser_json|escapejs }}');
+        const selectedValues = new Set(JSON.parse('{{ registered_category_values_json|escapejs }}'));
+        const fieldName = '{{ form.registered_category.html_name|escapejs }}';
+        const parentPane = document.getElementById('tipsCategoryParentPane');
+        const sub1Pane = document.getElementById('tipsCategorySub1Pane');
+        const sub2Pane = document.getElementById('tipsCategorySub2Pane');
+
+        if (!parentPane || !sub1Pane || !sub2Pane || !Array.isArray(data)) {
+            return;
+        }
+
+        function categoryCheckboxHTML(category, prefix) {
+            const categoryId = String(category.id);
+            const checked = selectedValues.has(categoryId) ? ' checked' : '';
+            const inputId = prefix + categoryId;
+            return (
+                '<label class="category-checkbox d-flex align-items-center gap-2 mb-2">'
+                + '<input class="form-check-input" type="checkbox" id="' + inputId + '" name="' + fieldName + '" value="' + categoryId + '"' + checked + '>'
+                + '<span>' + category.name + '</span>'
+                + '</label>'
+            );
+        }
+
+        function renderSub2(parentName, sub1Name) {
+            const parent = data.find(item => item.name === parentName);
+            if (!parent) {
+                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+                return;
+            }
+            const middle = (parent.middles || []).find(item => item.name === sub1Name);
+            if (!middle || !Array.isArray(middle.children) || middle.children.length === 0) {
+                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ2はありません。</div>';
+                return;
+            }
+            sub2Pane.innerHTML = middle.children.map(item => categoryCheckboxHTML(item, 'tips-sub2-')).join('');
+        }
+
+        function renderSub1(parentName) {
+            const parent = data.find(item => item.name === parentName);
+            if (!parent) {
+                sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
+                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+                return;
+            }
+
+            const rows = [];
+            (parent.middles || []).forEach(middle => {
+                const hasSub2 = Array.isArray(middle.children) && middle.children.length > 0;
+                rows.push(
+                    '<button type="button" class="category-browser-link w-100 text-start border-0 bg-transparent" data-sub1="'
+                    + middle.name + '">' + middle.name + (hasSub2 ? ' ＞' : '') + '</button>'
+                );
+            });
+
+            (parent.direct_children || []).forEach(item => {
+                rows.push(categoryCheckboxHTML(item, 'tips-sub1-'));
+            });
+
+            sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+
+            sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
+                button.addEventListener('click', function() {
+                    renderSub2(parentName, button.getAttribute('data-sub1'));
+                });
+            });
+        }
+
+        parentPane.querySelectorAll('[data-parent-name]').forEach(button => {
+            button.addEventListener('click', function() {
+                renderSub1(button.getAttribute('data-parent-name'));
+            });
+        });
+    })();
+
     function legacyMarkupToHtml(text) {
         if (!text) {
             return '';

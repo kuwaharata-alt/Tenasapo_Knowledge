@@ -6,3 +6,4 @@ knowledge_base/db.sqlite3
 __pycache__/
 *.py[cod]
 logs/
+knowledge_base/faq_categories.json

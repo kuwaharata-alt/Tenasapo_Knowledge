@@ -943,6 +943,12 @@ class TipsCreateView(FormView):
         context['submit_label'] = '登録'
         context['can_csv_import'] = can_edit_article(self.request.user)
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['registered_category_values_json'] = json.dumps(
+            KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
+            ensure_ascii=False,
+        )
         return context
 
     def form_valid(self, form):
@@ -1025,6 +1031,12 @@ class TipsUpdateView(FormView):
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_tip'] = can_approve_article(self.request.user)
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['registered_category_values_json'] = json.dumps(
+            KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
+            ensure_ascii=False,
+        )
         context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
         context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
@@ -1700,6 +1712,12 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         context['submit_label'] = '登録'
         context['can_csv_import'] = can_edit_article(self.request.user)
         context['category_groups'] = self.category_groups(context['form'])
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['registered_category_values_json'] = json.dumps(
+            self.selected_registered_category_values(context['form']),
+            ensure_ascii=False,
+        )
         return context
 
     @staticmethod
@@ -1721,6 +1739,10 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
                     }
                 )
         return groups
+
+    @staticmethod
+    def selected_registered_category_values(form):
+        return [str(value) for value in (form['registered_category'].value() or [])]
 
     def form_valid(self, form):
         reference_links = []
@@ -1816,6 +1838,12 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         ).order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.article.reference_links or [])
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['registered_category_values_json'] = json.dumps(
+            KnowledgeArticleCreateView.selected_registered_category_values(context['form']),
+            ensure_ascii=False,
+        )
         return context
 
     def form_valid(self, form):
