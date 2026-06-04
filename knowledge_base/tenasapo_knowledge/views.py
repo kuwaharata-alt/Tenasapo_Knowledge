@@ -673,7 +673,7 @@ class ArticleListView(ListView):
             article.approver_display_name = article.approved_by_name or (
                 article.approved_by.get_username() if article.approved_by else ''
             )
-            article.category_chips = self.split_categories(article.category)
+            article.category_chips = list(dict.fromkeys(self.split_categories(article.category)))
             article.target_os_chips = parse_target_os_values(article.target_os)
             ordered_attachments = sorted(
                 article.attachments.all(),
@@ -768,6 +768,9 @@ class ArticleListView(ListView):
 
     @classmethod
     def group_articles(cls, articles, selected_parent='', parent_categories=None):
+        if not selected_parent:
+            return [{'parent_name': '', 'articles': list(articles)}] if articles else []
+
         grouped_articles = []
         parent_categories = [selected_parent] if selected_parent else (parent_categories or [])
 
@@ -892,7 +895,7 @@ class TipsListView(ListView):
             tip.approver_display_name = tip.approved_by_name or (
                 tip.approved_by.get_username() if tip.approved_by else ''
             )
-            tip.category_chips = self.split_categories(tip.category)
+            tip.category_chips = list(dict.fromkeys(self.split_categories(tip.category)))
             tip.target_os_chips = parse_target_os_values(tip.target_os)
             tip.inline_images = sorted(
                 tip.images.all(),
@@ -973,6 +976,9 @@ class TipsListView(ListView):
 
     @classmethod
     def group_tips(cls, tips, selected_parent='', parent_categories=None):
+        if not selected_parent:
+            return [{'parent_name': '', 'articles': list(tips)}] if tips else []
+
         grouped_tips = []
         parent_categories = [selected_parent] if selected_parent else (parent_categories or [])
 

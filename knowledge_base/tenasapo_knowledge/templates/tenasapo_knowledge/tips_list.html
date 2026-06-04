@@ -116,7 +116,9 @@
             <div class="faq-group-list">
                 {% for group in grouped_tips %}
                     <section class="faq-group">
-                        <h2 class="faq-group-title">{{ group.parent_name }}</h2>
+                        {% if group.parent_name %}
+                            <h2 class="faq-group-title">{{ group.parent_name }}</h2>
+                        {% endif %}
                         <div class="accordion shadow-sm" id="tipsAccordion{{ forloop.counter }}">
                             {% for tip in group.articles %}
                                 <article class="accordion-item faq-item">

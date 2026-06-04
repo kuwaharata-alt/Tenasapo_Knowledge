@@ -58,6 +58,7 @@
                             </div>
                         </div>
                         {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <div id="tipsCategoryHiddenContainer" style="display:none;"></div>
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.category.id_for_label }}">未登録カテゴリ</label>
@@ -145,36 +146,12 @@
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.body.id_for_label }}">{{ form.body.label }}</label>
                         {% if form.body.help_text %}<div class="form-text mb-2">{{ form.body.help_text }}</div>{% endif %}
-                        <div class="d-none d-flex flex-wrap align-items-center gap-2 mb-2 p-2 border rounded bg-light-subtle">
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-bold" data-rich-target="{{ form.body.id_for_label }}"><strong>B</strong></button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-underline" data-rich-target="{{ form.body.id_for_label }}"><span style="text-decoration:underline;">U</span></button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-strike" data-rich-target="{{ form.body.id_for_label }}"><span style="text-decoration:line-through;">S</span></button>
-                            <label class="small text-muted mb-0" for="{{ form.body.id_for_label }}_font_size">サイズ</label>
-                            <select class="form-select form-select-sm w-auto" id="{{ form.body.id_for_label }}_font_size">
-                                <option value="8">8pt</option>
-                                <option value="10" selected>10pt</option>
-                                <option value="12">12pt</option>
-                                <option value="14">14pt</option>
-                                <option value="16">16pt</option>
-                                <option value="18">18pt</option>
-                                <option value="20">20pt</option>
-                            </select>
-                            <label class="small text-muted mb-0" for="{{ form.body.id_for_label }}_font_color">カラー</label>
-                            <select class="form-select form-select-sm w-auto" id="{{ form.body.id_for_label }}_font_color">
-                                <option value="black" selected>⬛ 黒</option>
-                                <option value="red">🟥 赤</option>
-                                <option value="blue">🟦 青</option>
-                                <option value="orange">🟧 橙</option>
-                                <option value="purple">🟪 紫</option>
-                                <option value="custom">🎨 その他</option>
-                            </select>
-                            <input type="color" class="form-control form-control-color d-none" id="{{ form.body.id_for_label }}_font_color_custom" value="#0d6efd" title="任意の文字色">
-                            <div class="w-100"></div>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading1" data-rich-target="{{ form.body.id_for_label }}" style="color:#0066cc; border-color:#0066cc; text-decoration:underline;">見出し1</button>
-                            <button type="button" class="btn btn-outline-primary btn-sm" data-rich-action="apply-preset" data-rich-preset="heading2" data-rich-target="{{ form.body.id_for_label }}" style="color:#0066cc; border-color:#0066cc;">見出し2</button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-rich-action="apply-preset" data-rich-preset="body" data-rich-target="{{ form.body.id_for_label }}">本文</button>
-                            <button type="button" class="btn btn-outline-danger btn-sm" data-rich-action="apply-preset" data-rich-preset="caution" data-rich-target="{{ form.body.id_for_label }}" style="color:#dc3545; border-color:#dc3545;">注意</button>
-                            <button type="button" class="btn btn-outline-warning btn-sm" data-rich-action="apply-preset" data-rich-preset="point" data-rich-target="{{ form.body.id_for_label }}" style="color:#ffc107; border-color:#ffc107;">ポイント</button>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <span class="small text-muted me-1">スタイル</span>
+                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-dark bg-white text-dark fw-bold" style="text-decoration:underline;" data-format-target="{{ form.body.id_for_label }}" data-format-name="tk_heading1">■ 見出し1</button>
+                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-secondary bg-white text-dark" data-format-target="{{ form.body.id_for_label }}" data-format-name="tk_body">本文</button>
+                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-danger bg-white text-danger fw-bold" data-format-target="{{ form.body.id_for_label }}" data-format-name="tk_caution">注意</button>
+                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-primary bg-white text-primary fw-bold" data-format-target="{{ form.body.id_for_label }}" data-format-name="tk_point">ポイント</button>
                         </div>
                         <textarea class="rich-text-source{% if form.body.errors %} is-invalid{% endif %}" name="{{ form.body.html_name }}" id="{{ form.body.id_for_label }}" rows="10" data-wysiwyg="true">{{ form.body.value|default_if_none:'' }}</textarea>
                         <div class="small text-muted mb-1 d-none">プレビュー編集</div>
@@ -453,11 +430,37 @@ document.addEventListener('DOMContentLoaded', function() {
         const parentPane = document.getElementById('tipsCategoryParentPane');
         const sub1Pane = document.getElementById('tipsCategorySub1Pane');
         const sub2Pane = document.getElementById('tipsCategorySub2Pane');
+        const hiddenContainer = document.getElementById('tipsCategoryHiddenContainer');
         let activeParentName = '';
         let activeSub1Name = '';
 
         if (!parentPane || !sub1Pane || !sub2Pane || !Array.isArray(data)) {
             return;
+        }
+
+        // 選択済みIDをhidden inputで保持（ペイン再描画でDOMから消えても残る）
+        function initHiddenInputs() {
+            hiddenContainer.innerHTML = '';
+            selectedValues.forEach(function(id) {
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = fieldName;
+                inp.value = id;
+                hiddenContainer.appendChild(inp);
+            });
+        }
+
+        function setHiddenValue(categoryId, checked) {
+            const existing = hiddenContainer.querySelector('input[value="' + categoryId + '"]');
+            if (checked && !existing) {
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = fieldName;
+                inp.value = categoryId;
+                hiddenContainer.appendChild(inp);
+            } else if (!checked && existing) {
+                existing.remove();
+            }
         }
 
         function categoryCheckboxHTML(category, prefix) {
@@ -466,11 +469,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const inputId = prefix + categoryId;
             return (
                 '<label class="category-checkbox d-flex align-items-center gap-2 mb-2">'
-                + '<input class="form-check-input" type="checkbox" id="' + inputId + '" name="' + fieldName + '" value="' + categoryId + '"' + checked + '>'
+                + '<input class="form-check-input" type="checkbox" id="' + inputId + '" data-category-id="' + categoryId + '"' + checked + '>'
                 + '<span>' + category.name + '</span>'
                 + '</label>'
             );
         }
+
+        function syncSelectedFromPane(pane) {
+            pane.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    const categoryId = cb.getAttribute('data-category-id');
+                    if (cb.checked) {
+                        selectedValues.add(categoryId);
+                    } else {
+                        selectedValues.delete(categoryId);
+                    }
+                    setHiddenValue(categoryId, cb.checked);
+                });
+            });
+        }
+
+        initHiddenInputs();
 
         function renderSub2(parentName, sub1Name) {
             const parent = data.find(item => item.name === parentName);
@@ -484,6 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             sub2Pane.innerHTML = middle.children.map(item => categoryCheckboxHTML(item, 'tips-sub2-')).join('');
+            syncSelectedFromPane(sub2Pane);
         }
 
         function setActiveParent(parentName) {
@@ -547,6 +567,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
+            syncSelectedFromPane(sub1Pane);
             sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
 
             sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
@@ -602,31 +623,45 @@ document.addEventListener('DOMContentLoaded', function() {
             branding: false,
             height: 380,
             plugins: 'lists link code',
-            toolbar: 'undo redo | styles | bold underline strikethrough | forecolor | fontsize | bullist numlist | link | removeformat | code',
+            toolbar: 'undo redo | bold underline strikethrough | forecolor | fontsize | bullist numlist | link | removeformat | code',
             fontsize_formats: '8pt 9pt 10pt 11pt 12pt 13pt 14pt 15pt 16pt 17pt 18pt',
-            style_formats: [
-                {
-                    title: '見出し1（太字 14pt 下線 青）',
+            formats: {
+                tk_heading1: {
                     inline: 'span',
-                    styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#0000ff' }
+                    styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#000000' }
                 },
-                {
-                    title: '本文（10pt 黒）',
+                tk_body: {
                     inline: 'span',
                     styles: { fontWeight: '400', fontSize: '10pt', textDecoration: 'none', color: '#000000' }
                 },
-                {
-                    title: '注意（太字 12pt 赤）',
+                tk_caution: {
                     inline: 'span',
                     styles: { fontWeight: '700', fontSize: '12pt', color: '#ff0000' }
                 },
-                {
-                    title: 'ポイント（太字 12pt 緑）',
+                tk_point: {
                     inline: 'span',
-                    styles: { fontWeight: '700', fontSize: '12pt', color: '#008000' }
+                    styles: { fontWeight: '700', fontSize: '12pt', color: '#0d6efd' }
+                }
+            },
+            style_formats: [
+                {
+                    title: '見出し1（太字 14pt 下線 黒 / 先頭に■）',
+                    format: 'tk_heading1'
+                },
+                {
+                    title: '本文（10pt 黒）',
+                    format: 'tk_body'
+                },
+                {
+                    title: '注意（太字 12pt 赤）',
+                    format: 'tk_caution'
+                },
+                {
+                    title: 'ポイント（太字 12pt 青字）',
+                    format: 'tk_point'
                 }
             ],
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; }',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; } ul, ol { margin-left: 0.5rem; padding-left: 1.6rem; } li { padding-left: 0.15rem; }',
             valid_elements: 'p,br,strong/b,em/i,u,s,span[style],ul,ol,li,a[href|target|rel],h1,h2,h3,h4,blockquote,pre,code',
             valid_styles: {
                 '*': 'color,font-size,text-decoration,font-weight'
@@ -666,6 +701,39 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             }, false);
+        });
+
+        function applyHeading1WithMarker(editor) {
+            const selectedText = editor.selection.getContent({ format: 'text' }).trim();
+            const selectedHtml = editor.selection.getContent({ format: 'html' });
+
+            if (!selectedText) {
+                editor.insertContent('<span style="font-weight:700;font-size:14pt;text-decoration:underline;color:#000000;">■ </span>');
+                return;
+            }
+
+            const prefixedHtml = selectedText.startsWith('■') ? selectedHtml : ('■ ' + selectedHtml);
+            editor.selection.setContent(
+                '<span style="font-weight:700;font-size:14pt;text-decoration:underline;color:#000000;">' + prefixedHtml + '</span>'
+            );
+        }
+
+        document.querySelectorAll('[data-format-target][data-format-name]').forEach(function(button) {
+            button.addEventListener('click', function() {
+                const targetId = this.dataset.formatTarget;
+                const formatName = this.dataset.formatName;
+                const editor = window.tinymce ? window.tinymce.get(targetId) : null;
+                if (!editor || !formatName) {
+                    return;
+                }
+                editor.focus();
+                if (formatName === 'tk_heading1') {
+                    applyHeading1WithMarker(editor);
+                } else {
+                    editor.formatter.apply(formatName);
+                }
+                editor.save();
+            });
         });
     }
 
@@ -905,57 +973,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return true;
     }
 
-    function toggleCommandOnSelection(editor, commandName) {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-            return false;
-        }
-        const range = selection.getRangeAt(0);
-        if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
-            return false;
-        }
-        document.execCommand(commandName, false, null);
-        return true;
-    }
-
-    function buildControlStyleSpec(targetId) {
-        const size = document.getElementById(targetId + '_font_size')?.value;
-        const colorSelect = document.getElementById(targetId + '_font_color');
-        const customColorInput = document.getElementById(targetId + '_font_color_custom');
-        const selectedColor = colorSelect?.value;
-        const color = selectedColor === 'custom' ? (customColorInput?.value || null) : (selectedColor || null);
-        return {
-            bold: false,
-            underline: false,
-            strike: false,
-            weight: null,
-            size: size ? Number(size) : null,
-            color: color || null,
-        };
-    }
-
     function getPresetStyleSpec(presetName) {
         const presets = {
             heading1: { bold: true, underline: true, strike: false, weight: null, size: 16, color: 'blue' },
-            heading2: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'black' },
             body: { bold: false, underline: false, strike: false, weight: '400', size: 10, color: 'black' },
             caution: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'red' },
             point: { bold: true, underline: false, strike: false, weight: null, size: 14, color: 'orange' },
         };
         return presets[presetName] || null;
-    }
-
-    function initColorSelector(targetId) {
-        const colorSelect = document.getElementById(targetId + '_font_color');
-        const customColorInput = document.getElementById(targetId + '_font_color_custom');
-        if (!colorSelect || !customColorInput) {
-            return;
-        }
-        const refresh = function() {
-            customColorInput.classList.toggle('d-none', colorSelect.value !== 'custom');
-        };
-        colorSelect.addEventListener('change', refresh);
-        refresh();
     }
 
     function applyStyleToTarget(targetId, styleSpec, showAlert) {
@@ -968,15 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         editor.focus();
         restoreSelection(targetId);
-        const styleFlagCount = Number(Boolean(styleSpec.bold)) + Number(Boolean(styleSpec.underline)) + Number(Boolean(styleSpec.strike));
-        const isSingleToggleStyle = styleFlagCount === 1 && !styleSpec.size && !styleSpec.color && !styleSpec.weight;
-        let applied = false;
-        if (isSingleToggleStyle) {
-            const commandName = styleSpec.bold ? 'bold' : (styleSpec.underline ? 'underline' : 'strikeThrough');
-            applied = toggleCommandOnSelection(editor, commandName);
-        } else {
-            applied = applyStyleToSelection(editor, styleSpec);
-        }
+        const applied = applyStyleToSelection(editor, styleSpec);
         if (!applied) {
             if (showAlert) {
                 alert('文字列を選択してから装飾を適用してください。');
@@ -986,62 +1003,6 @@ document.addEventListener('DOMContentLoaded', function() {
         rememberSelection(targetId);
         syncHiddenTextarea(targetId);
     }
-
-    document.querySelectorAll('[data-rich-action="apply-bold"]').forEach(function(button) {
-        button.addEventListener('mousedown', function(event) {
-            event.preventDefault();
-            rememberSelection(this.dataset.richTarget);
-        });
-        button.addEventListener('click', function() {
-            applyStyleToTarget(
-                this.dataset.richTarget,
-                { bold: true, underline: false, strike: false, size: null, color: null },
-                true,
-            );
-        });
-    });
-
-    document.querySelectorAll('[data-rich-action="apply-underline"]').forEach(function(button) {
-        button.addEventListener('mousedown', function(event) {
-            event.preventDefault();
-            rememberSelection(this.dataset.richTarget);
-        });
-        button.addEventListener('click', function() {
-            applyStyleToTarget(
-                this.dataset.richTarget,
-                { bold: false, underline: true, strike: false, size: null, color: null },
-                true,
-            );
-        });
-    });
-
-    document.querySelectorAll('[data-rich-action="apply-strike"]').forEach(function(button) {
-        button.addEventListener('mousedown', function(event) {
-            event.preventDefault();
-            rememberSelection(this.dataset.richTarget);
-        });
-        button.addEventListener('click', function() {
-            applyStyleToTarget(
-                this.dataset.richTarget,
-                { bold: false, underline: false, strike: true, size: null, color: null },
-                true,
-            );
-        });
-    });
-
-    document.querySelectorAll('[data-rich-action="apply-preset"]').forEach(function(button) {
-        button.addEventListener('mousedown', function(event) {
-            event.preventDefault();
-            rememberSelection(this.dataset.richTarget);
-        });
-        button.addEventListener('click', function() {
-            const preset = getPresetStyleSpec(this.dataset.richPreset || '');
-            if (!preset) {
-                return;
-            }
-            applyStyleToTarget(this.dataset.richTarget, preset, true);
-        });
-    });
 
     document.querySelectorAll('textarea[id]').forEach(function(textarea) {
         const editor = getEditor(textarea.id);
@@ -1059,46 +1020,6 @@ document.addEventListener('DOMContentLoaded', function() {
             rememberSelection(textarea.id);
         });
         syncHiddenTextarea(textarea.id);
-    });
-
-    document.querySelectorAll('[data-rich-action="apply-bold"], [data-rich-action="apply-underline"], [data-rich-action="apply-strike"]').forEach(function(button) {
-        const targetId = button.dataset.richTarget;
-        initColorSelector(targetId);
-
-        const sizeControl = document.getElementById(targetId + '_font_size');
-        const colorControl = document.getElementById(targetId + '_font_color');
-        const customColorControl = document.getElementById(targetId + '_font_color_custom');
-
-        if (sizeControl) {
-            sizeControl.addEventListener('mousedown', function() {
-                rememberSelection(targetId);
-            });
-            sizeControl.addEventListener('change', function() {
-                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: Number(sizeControl.value || 0) || null, color: null }, false);
-            });
-        }
-
-        if (colorControl) {
-            colorControl.addEventListener('mousedown', function() {
-                rememberSelection(targetId);
-            });
-            colorControl.addEventListener('change', function() {
-                const colorSpec = buildControlStyleSpec(targetId);
-                if (colorControl.value === 'custom') {
-                    return;
-                }
-                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: null, color: colorSpec.color }, false);
-            });
-        }
-
-        if (customColorControl) {
-            customColorControl.addEventListener('mousedown', function() {
-                rememberSelection(targetId);
-            });
-            customColorControl.addEventListener('input', function() {
-                applyStyleToTarget(targetId, { bold: false, underline: false, strike: false, size: null, color: customColorControl.value || null }, false);
-            });
-        }
     });
 
     const tipImagesInput = document.getElementById('{{ form.tips_images.id_for_label }}');
