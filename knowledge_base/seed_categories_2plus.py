@@ -37,11 +37,17 @@ CATEGORY_DATA = {
             'Azure Monitor', 'Azure Arc', 'Azure移行'
         ]
     },
+    'クラウドインフラ': {
+        '': ['Azure', 'AWS', 'Google Cloud', 'OCI']
+    },
     'Microsoft 365': {
         '': [
             'Exchange Online', 'SharePoint Online', 'OneDrive', 'Teams', 'Entra ID', 'Entra Connect',
             'Intune', 'Defender for Business', 'Defender for Endpoint', 'MFA', 'Microsoft 365移行'
         ]
+    },
+    'グループウェア': {
+        '': ['Google Workspace', 'M365', 'LINE WORKS', 'サイボウズ', "desknet's NEO"]
     },
     'ソフトウェア': {
         '': [
