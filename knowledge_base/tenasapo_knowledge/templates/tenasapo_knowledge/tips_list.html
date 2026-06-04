@@ -176,6 +176,9 @@
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
                                                 <span class="badge faq-meta-badge">登録日 {{ tip.published_at|date:"Y/m/d" }}</span>
+                                                {% if tip.source_published_at %}
+                                                    <span class="badge faq-meta-badge">ソース公開日 {{ tip.source_published_at|date:"Y/m/d" }}</span>
+                                                {% endif %}
                                                 {% if tip.expires_on %}
                                                     <span class="badge faq-meta-badge">掲載期限 {{ tip.expires_on|date:"Y/m/d" }}</span>
                                                 {% endif %}
