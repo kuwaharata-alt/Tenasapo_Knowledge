@@ -198,7 +198,7 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <div>{{ tip.body|render_rich_text }}</div>
+                                            <div>{{ tip.body|render_inline_images:tip.inline_images }}</div>
                                             {% if tip.reference_links %}
                                                 <div class="border-top pt-3 mt-3">
                                                     <div class="fw-semibold small mb-2">参考リンク</div>

@@ -40,6 +40,7 @@ from .models import (
     Manual,
     TipsGood,
     TipsArticle,
+    TipsImageAttachment,
     UserProfile,
     ViewHistory,
 )
@@ -743,7 +744,7 @@ class TipsListView(ListView):
 
     def get_queryset(self):
         queryset = (
-            TipsArticle.objects.filter(is_published=True)
+            TipsArticle.objects.prefetch_related('images').filter(is_published=True)
             .filter(active_until_filter())
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
@@ -832,6 +833,10 @@ class TipsListView(ListView):
                 tip.approved_by.get_username() if tip.approved_by else ''
             )
             tip.category_chips = self.split_categories(tip.category)
+            tip.inline_images = sorted(
+                tip.images.all(),
+                key=lambda image: (image.uploaded_at, image.id),
+            )
 
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
@@ -977,8 +982,18 @@ class TipsCreateView(FormView):
         if pdf_file:
             tip.pdf_file = pdf_file
             tip.save(update_fields=['pdf_file'])
+        self.save_inline_images(tip, form)
         messages.success(self.request, f'Tips「{tip.title}」を登録しました。')
         return super().form_valid(form)
+
+    @staticmethod
+    def save_inline_images(tip, form):
+        for uploaded_file in form.cleaned_data.get('tips_images', []):
+            TipsImageAttachment.objects.create(
+                tip=tip,
+                file=uploaded_file,
+                display_name=uploaded_file.name,
+            )
 
 
 class TipsUpdateView(FormView):
@@ -1039,6 +1054,7 @@ class TipsUpdateView(FormView):
         )
         context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
+        context['tip_images'] = self.tip.images.all().order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
         return context
 
@@ -1088,6 +1104,7 @@ class TipsUpdateView(FormView):
             self.tip.pdf_file = form.cleaned_data['pdf_file']
             update_fields.append('pdf_file')
         self.tip.save(update_fields=update_fields)
+        TipsCreateView.save_inline_images(self.tip, form)
         messages.success(self.request, f'Tips「{self.tip.title}」を更新しました。')
         return super().form_valid(form)
 
@@ -1123,9 +1140,25 @@ class TipsDeleteView(View):
         title = tip.title
         if tip.pdf_file:
             tip.pdf_file.delete(save=False)
+        for image in tip.images.all():
+            image.file.delete(save=False)
         tip.delete()
         messages.success(request, f'Tips「{title}」を削除しました。')
         return redirect('tip_list')
+
+
+class TipsImageAttachmentDeleteView(View):
+    def post(self, request, pk):
+        if not can_edit_article(request.user):
+            messages.error(request, 'この操作を実行する権限がありません。')
+            return redirect('tip_list')
+
+        image = get_object_or_404(TipsImageAttachment, pk=pk)
+        tip_id = image.tip_id
+        image.file.delete(save=False)
+        image.delete()
+        messages.success(request, 'Tips画像を削除しました。')
+        return redirect('tip_edit', pk=tip_id)
 
 
 class FAQAnswerViewTrackView(View):

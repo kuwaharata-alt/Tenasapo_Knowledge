@@ -10,6 +10,7 @@ from .models import (
     Manual,
     TipsGood,
     TipsArticle,
+    TipsImageAttachment,
     UserProfile,
     ViewHistory,
 )
@@ -17,6 +18,13 @@ from .models import (
 
 class ArticleAttachmentInline(admin.TabularInline):
     model = ArticleAttachment
+    extra = 1
+    fields = ('file', 'display_name', 'uploaded_at')
+    readonly_fields = ('uploaded_at',)
+
+
+class TipsImageAttachmentInline(admin.TabularInline):
+    model = TipsImageAttachment
     extra = 1
     fields = ('file', 'display_name', 'uploaded_at')
     readonly_fields = ('uploaded_at',)
@@ -133,6 +141,7 @@ class TipsArticleAdmin(admin.ModelAdmin):
     search_fields = ('title', 'target_os', 'category', 'body')
     autocomplete_fields = ('created_by', 'approved_by')
     date_hierarchy = 'published_at'
+    inlines = (TipsImageAttachmentInline,)
 
     def save_model(self, request, obj, form, change):
         if not obj.created_by:
@@ -201,3 +210,10 @@ class TipsGoodAdmin(admin.ModelAdmin):
     list_display = ('created_at', 'tip', 'user')
     list_filter = ('created_at',)
     search_fields = ('tip__title', 'user__username')
+
+
+@admin.register(TipsImageAttachment)
+class TipsImageAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'tip', 'uploaded_at')
+    list_filter = ('uploaded_at',)
+    search_fields = ('display_name', 'file', 'tip__title')

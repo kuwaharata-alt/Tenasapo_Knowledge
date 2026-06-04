@@ -9,6 +9,7 @@ from django.utils.safestring import mark_safe
 
 register = template.Library()
 IMAGE_TOKEN_PATTERN = re.compile(r'<image(?:(\d+)|:([^>]+))?>', flags=re.IGNORECASE)
+IMAGE_NAME_TOKEN_PATTERN = re.compile(r'【画像:([^】]+)】')
 RICH_TEXT_BOLD_PATTERN = re.compile(r'\[b\](.*?)\[/b\]', flags=re.IGNORECASE | re.DOTALL)
 RICH_TEXT_UNDERLINE_PATTERN = re.compile(r'\[u\](.*?)\[/u\]', flags=re.IGNORECASE | re.DOTALL)
 RICH_TEXT_STRIKE_PATTERN = re.compile(r'\[s\](.*?)\[/s\]', flags=re.IGNORECASE | re.DOTALL)
@@ -16,6 +17,10 @@ RICH_TEXT_SIZE_PATTERN = re.compile(r'\[size=(\d{1,3})\](.*?)\[/size\]', flags=r
 RICH_TEXT_COLOR_PATTERN = re.compile(
     r'\[color=(#[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|[a-zA-Z]{3,20})\](.*?)\[/color\]',
     flags=re.IGNORECASE | re.DOTALL,
+)
+RICH_TEXT_IMAGE_URL_PATTERN = re.compile(
+    r'\[img\](https?://[^\s\]]+)\[/img\]',
+    flags=re.IGNORECASE,
 )
 BLOCK_HTML_PATTERN = re.compile(r'</?(p|div|ul|ol|li|h[1-6]|blockquote|pre|br|img)\b', flags=re.IGNORECASE)
 ALLOWED_TAGS = [
@@ -83,10 +88,19 @@ def render_rich_text(value):
 
 
 def _replace_image_tokens(text, image_list, next_image_index):
+    found_name_marker = False
+
+    def replace_name_marker(match):
+        nonlocal found_name_marker
+        found_name_marker = True
+        return _named_image_html_or_fallback(match, image_list)
+
+    text = IMAGE_NAME_TOKEN_PATTERN.sub(replace_name_marker, text)
+
     cursor = 0
     parts = []
-    found_marker = False
-    has_explicit_marker = False
+    found_marker = found_name_marker
+    has_explicit_marker = found_name_marker
 
     for match in IMAGE_TOKEN_PATTERN.finditer(text):
         token_start, token_end = match.span()
@@ -109,6 +123,12 @@ def _replace_image_tokens(text, image_list, next_image_index):
 
 def _apply_rich_text_markup(text):
     rendered_text = text
+
+    for _ in range(10):
+        updated_text = RICH_TEXT_IMAGE_URL_PATTERN.sub(_replace_image_url_tag, rendered_text)
+        if updated_text == rendered_text:
+            break
+        rendered_text = updated_text
 
     for _ in range(10):
         updated_text = RICH_TEXT_BOLD_PATTERN.sub(_replace_bold_tag, rendered_text)
@@ -184,6 +204,19 @@ def _replace_color_tag(match):
     return f'<span style="color:{color};">{content}</span>'
 
 
+def _replace_image_url_tag(match):
+    image_url = match.group(1)
+    return format_html(
+        '<div class="inline-image-list my-2">'
+        '<a href="{}" target="_blank" rel="noopener">'
+        '<img class="inline-faq-image" src="{}" alt="URL画像">'
+        '</a>'
+        '</div>',
+        image_url,
+        image_url,
+    )
+
+
 def _resolve_image(match, image_list, next_image_index):
     number_part = match.group(1)
     filename_part = match.group(2)
@@ -206,6 +239,16 @@ def _resolve_image(match, image_list, next_image_index):
     if 0 <= next_image_index < len(image_list):
         return image_list[next_image_index]
     return None
+
+
+def _named_image_html_or_fallback(match, image_list):
+    target = (match.group(1) or '').strip()
+    for image in image_list:
+        display_name = (getattr(image, 'display_name', '') or '').strip()
+        file_name = os.path.basename(getattr(image.file, 'name', '') or '')
+        if target in {display_name, file_name}:
+            return _image_html(image)
+    return conditional_escape(match.group(0))
 
 
 def _image_html(image):

@@ -223,6 +223,26 @@ class TipsArticle(models.Model):
         return self.title
 
 
+class TipsImageAttachment(models.Model):
+    tip = models.ForeignKey(
+        TipsArticle,
+        on_delete=models.CASCADE,
+        related_name='images',
+        verbose_name='Tips',
+    )
+    file = models.FileField('画像ファイル', upload_to='tips_attachments/%Y/%m/')
+    display_name = models.CharField('表示名', max_length=200, blank=True)
+    uploaded_at = models.DateTimeField('アップロード日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tips画像'
+        verbose_name_plural = 'Tips画像'
+        ordering = ['uploaded_at', 'id']
+
+    def __str__(self):
+        return self.display_name or self.file.name
+
+
 class ArticleAttachment(models.Model):
     PLACEMENT_ATTACHMENT = 'attachment'
     PLACEMENT_QUESTION = 'question'

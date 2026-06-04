@@ -246,7 +246,13 @@ class TipsCreateForm(forms.Form):
         label='内容',
         required=False,
         widget=forms.Textarea(attrs={'rows': 10}),
-        help_text='太字・文字サイズ・文字色はエディタから設定できます。',
+        help_text='太字・文字サイズ・文字色はエディタから設定できます。本文画像はファイル選択後に「本文へ挿入」ボタンで差し込めます。',
+    )
+    tips_images = MultipleImageField(
+        label='本文画像',
+        required=False,
+        widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
+        help_text='本文に差し込む画像を選択し、「本文へ挿入」ボタンで挿入位置を指定してください。',
     )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',

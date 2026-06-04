@@ -152,6 +152,34 @@
                     </div>
 
                     <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.tips_images.id_for_label }}">{{ form.tips_images.label }}</label>
+                        {% if form.tips_images.help_text %}<div class="form-text mb-2">{{ form.tips_images.help_text }}</div>{% endif %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <input class="form-control{% if form.tips_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.tips_images.html_name }}" id="{{ form.tips_images.id_for_label }}" accept="image/*" multiple>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="insert_tip_images_button">本文へ挿入</button>
+                        </div>
+                        <div class="form-text">選択した画像ごとに「【画像:ファイル名】」を本文カーソル位置へ自動挿入します。</div>
+                        {% for error in form.tips_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% if tip_images %}
+                            <div class="mt-2 d-flex flex-column gap-2">
+                                {% for image in tip_images %}
+                                    <div class="d-flex align-items-center gap-2 p-2 border rounded">
+                                        <span class="small text-muted">{{ image.display_name }}</span>
+                                        <a class="btn btn-outline-secondary btn-sm" href="{{ image.file.url }}" target="_blank" rel="noopener">表示</a>
+                                        <button
+                                            class="btn btn-outline-danger btn-sm"
+                                            type="submit"
+                                            formaction="{% url 'tip_image_delete' image.id %}"
+                                            formmethod="post"
+                                            onclick="return confirm('この画像を削除しますか？');"
+                                        >削除</button>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="col-12">
                         <div class="form-section-label">PDFファイル</div>
                     </div>
                     {% if tip_pdf_url %}
@@ -837,6 +865,53 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
+
+    const tipImagesInput = document.getElementById('{{ form.tips_images.id_for_label }}');
+    const insertTipImagesButton = document.getElementById('insert_tip_images_button');
+    const bodyFieldId = '{{ form.body.id_for_label|escapejs }}';
+
+    function imageMarkersFromFiles(fileList) {
+        return Array.from(fileList || [])
+            .map(file => '【画像:' + (file.name || '').trim() + '】')
+            .filter(marker => marker !== '【画像:】')
+            .join('\n');
+    }
+
+    if (tipImagesInput && insertTipImagesButton) {
+        insertTipImagesButton.addEventListener('click', function() {
+            const markerText = imageMarkersFromFiles(tipImagesInput.files);
+            if (!markerText) {
+                alert('先に本文画像ファイルを選択してください。');
+                return;
+            }
+
+            const editor = window.tinymce ? window.tinymce.get(bodyFieldId) : null;
+            if (editor) {
+                const escaped = markerText
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\n/g, '<br>');
+                editor.focus();
+                editor.insertContent(escaped);
+                editor.save();
+                return;
+            }
+
+            const textarea = document.getElementById(bodyFieldId);
+            if (!textarea) {
+                return;
+            }
+            const start = textarea.selectionStart || 0;
+            const end = textarea.selectionEnd || 0;
+            const before = textarea.value.slice(0, start);
+            const after = textarea.value.slice(end);
+            textarea.value = before + markerText + after;
+            const nextPos = before.length + markerText.length;
+            textarea.setSelectionRange(nextPos, nextPos);
+            textarea.focus();
+        });
+    }
 
     // 参考リンク管理
     const referenceLinksContainer = document.getElementById('reference_links_container');

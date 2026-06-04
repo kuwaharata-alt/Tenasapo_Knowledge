@@ -2,6 +2,7 @@ import tempfile
 from datetime import timedelta
 from datetime import date
 from unittest.mock import patch
+from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -126,6 +127,17 @@ class KnowledgeArticleListTests(TestCase):
         self.assertNotContains(response, hidden_parent_article.title)
         self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
 
+    def test_render_inline_images_with_japanese_marker_does_not_append_remaining_images(self):
+        text = '本文\n【画像:first.png】\n終わり'
+        images = [
+            SimpleNamespace(display_name='first.png', file=SimpleNamespace(url='/media/first.png')),
+            SimpleNamespace(display_name='second.png', file=SimpleNamespace(url='/media/second.png')),
+        ]
+
+        rendered = render_inline_images(text, images)
+
+        self.assertIn('/media/first.png', rendered)
+        self.assertNotIn('/media/second.png', rendered)
     def test_staff_can_see_all_articles(self):
         self.user.is_staff = True
         self.user.save()
@@ -1275,3 +1287,27 @@ class RichTextTemplateFilterTests(TestCase):
         )
 
         self.assertIn('<p><strong>見出し</strong><span style="color:#ff0000;">赤</span></p>', rendered)
+
+    def test_render_rich_text_supports_image_url_markup(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '[img]https://example.com/manual.png[/img]'})
+        )
+
+        self.assertIn('class="inline-faq-image"', rendered)
+        self.assertIn('src="https://example.com/manual.png"', rendered)
+
+    def test_render_inline_images_supports_japanese_filename_marker(self):
+        image = SimpleNamespace(
+            display_name='guide.png',
+            file=SimpleNamespace(name='tips_attachments/2026/guide.png', url='/media/tips_attachments/2026/guide.png'),
+        )
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({'text': 'こちらを参照【画像:guide.png】', 'images': [image]})
+        )
+
+        self.assertIn('class="inline-faq-image"', rendered)
+        self.assertIn('src="/media/tips_attachments/2026/guide.png"', rendered)
