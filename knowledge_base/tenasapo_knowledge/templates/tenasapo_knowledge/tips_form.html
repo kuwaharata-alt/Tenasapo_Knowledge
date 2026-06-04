@@ -329,12 +329,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function markupToEditorHtml(value) {
-        const lines = (value || '').split(/\r?\n/);
+        // Apply markup processing to entire text first, then split into lines
+        let rendered = applyRichMarkup(escapeHtml(value || ''));
+        const lines = rendered.split(/\r?\n/);
         return lines.map(function(line) {
             if (!line.trim()) {
                 return '<div><br></div>';
             }
-            return '<div>' + applyRichMarkup(escapeHtml(line)) + '</div>';
+            return '<div>' + line + '</div>';
         }).join('');
     }
 
