@@ -134,10 +134,15 @@ class KnowledgeArticleListTests(TestCase):
             SimpleNamespace(display_name='second.png', file=SimpleNamespace(url='/media/second.png')),
         ]
 
-        rendered = render_inline_images(text, images)
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({'text': text, 'images': images})
+        )
 
         self.assertIn('/media/first.png', rendered)
         self.assertNotIn('/media/second.png', rendered)
+
     def test_staff_can_see_all_articles(self):
         self.user.is_staff = True
         self.user.save()

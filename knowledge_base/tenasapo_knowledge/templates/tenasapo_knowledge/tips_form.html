@@ -156,9 +156,9 @@
                         {% if form.tips_images.help_text %}<div class="form-text mb-2">{{ form.tips_images.help_text }}</div>{% endif %}
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                             <input class="form-control{% if form.tips_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.tips_images.html_name }}" id="{{ form.tips_images.id_for_label }}" accept="image/*" multiple>
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="insert_tip_images_button">本文へ挿入</button>
                         </div>
-                        <div class="form-text">選択した画像ごとに「【画像:ファイル名】」を本文カーソル位置へ自動挿入します。</div>
+                        <div class="form-text">選択後、下の一覧から画像を1枚ずつ本文に挿入できます。</div>
+                        <div id="tip_image_insert_list" class="mt-2 d-flex flex-column gap-2"></div>
                         {% for error in form.tips_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         {% if tip_images %}
                             <div class="mt-2 d-flex flex-column gap-2">
@@ -867,50 +867,89 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const tipImagesInput = document.getElementById('{{ form.tips_images.id_for_label }}');
-    const insertTipImagesButton = document.getElementById('insert_tip_images_button');
+    const tipImageInsertList = document.getElementById('tip_image_insert_list');
     const bodyFieldId = '{{ form.body.id_for_label|escapejs }}';
 
-    function imageMarkersFromFiles(fileList) {
-        return Array.from(fileList || [])
-            .map(file => '【画像:' + (file.name || '').trim() + '】')
-            .filter(marker => marker !== '【画像:】')
-            .join('\n');
+    function markerFromFileName(fileName) {
+        const normalized = (fileName || '').trim();
+        if (!normalized) {
+            return '';
+        }
+        return '【画像:' + normalized + '】';
     }
 
-    if (tipImagesInput && insertTipImagesButton) {
-        insertTipImagesButton.addEventListener('click', function() {
-            const markerText = imageMarkersFromFiles(tipImagesInput.files);
+    function insertMarkerToBody(markerText) {
+        if (!markerText) {
+            return;
+        }
+
+        const editor = window.tinymce ? window.tinymce.get(bodyFieldId) : null;
+        if (editor) {
+            const escaped = markerText
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            editor.focus();
+            editor.insertContent(escaped);
+            editor.save();
+            return;
+        }
+
+        const textarea = document.getElementById(bodyFieldId);
+        if (!textarea) {
+            return;
+        }
+        const start = textarea.selectionStart || 0;
+        const end = textarea.selectionEnd || 0;
+        const before = textarea.value.slice(0, start);
+        const after = textarea.value.slice(end);
+        textarea.value = before + markerText + after;
+        const nextPos = before.length + markerText.length;
+        textarea.setSelectionRange(nextPos, nextPos);
+        textarea.focus();
+    }
+
+    function renderTipImageInsertList() {
+        if (!tipImageInsertList || !tipImagesInput) {
+            return;
+        }
+        tipImageInsertList.innerHTML = '';
+
+        const files = Array.from(tipImagesInput.files || []);
+        if (!files.length) {
+            return;
+        }
+
+        files.forEach(function(file) {
+            const markerText = markerFromFileName(file.name);
             if (!markerText) {
-                alert('先に本文画像ファイルを選択してください。');
                 return;
             }
 
-            const editor = window.tinymce ? window.tinymce.get(bodyFieldId) : null;
-            if (editor) {
-                const escaped = markerText
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/\n/g, '<br>');
-                editor.focus();
-                editor.insertContent(escaped);
-                editor.save();
-                return;
-            }
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 p-2 border rounded';
 
-            const textarea = document.getElementById(bodyFieldId);
-            if (!textarea) {
-                return;
-            }
-            const start = textarea.selectionStart || 0;
-            const end = textarea.selectionEnd || 0;
-            const before = textarea.value.slice(0, start);
-            const after = textarea.value.slice(end);
-            textarea.value = before + markerText + after;
-            const nextPos = before.length + markerText.length;
-            textarea.setSelectionRange(nextPos, nextPos);
-            textarea.focus();
+            const name = document.createElement('span');
+            name.className = 'small text-muted';
+            name.textContent = file.name;
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.textContent = '本文へ挿入';
+            button.addEventListener('click', function() {
+                insertMarkerToBody(markerText);
+            });
+
+            row.appendChild(name);
+            row.appendChild(button);
+            tipImageInsertList.appendChild(row);
         });
+    }
+
+    if (tipImagesInput) {
+        tipImagesInput.addEventListener('change', renderTipImageInsertList);
+        renderTipImageInsertList();
     }
 
     // 参考リンク管理
