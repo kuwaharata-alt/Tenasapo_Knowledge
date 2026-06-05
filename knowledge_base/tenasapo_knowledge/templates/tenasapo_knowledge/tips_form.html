@@ -746,24 +746,26 @@ document.addEventListener('DOMContentLoaded', function() {
             }, false);
         });
 
-        function applyHeading1WithMarker(editor) {
+        window.applyHeading1WithMarker = function(editor) {
             const node = editor.selection.getNode();
             const block = editor.dom.getParent(node, 'p,div,li,h1,h2,h3,h4') || node;
-            const plainText = (editor.dom.get(block, 'innerText') || '').trim().replace(/^■\s*/, '');
-            editor.selection.select(block, true);
-            editor.execCommand('RemoveFormat');
-            editor.dom.setHTML(block, '■ ' + escapeHtml(plainText));
-            editor.dom.setStyles(block, {
-                fontWeight: '700',
-                fontSize: '14pt',
-                textDecoration: 'underline',
-                color: '#000000',
-                marginLeft: '0',
-                paddingLeft: '0',
-                lineHeight: '2'
-            });
-            editor.selection.collapse(false);
-        }
+            if (!block) return;
+            
+            let text = block.innerText || block.textContent;
+            text = text.trim().replace(/^■\s*/, '');
+            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            block.innerHTML = '■ ' + text;
+            
+            editor.dom.setStyle(block, 'fontWeight', '700');
+            editor.dom.setStyle(block, 'fontSize', '14pt');
+            editor.dom.setStyle(block, 'textDecoration', 'underline');
+            editor.dom.setStyle(block, 'color', '#000000');
+            editor.dom.setStyle(block, 'marginLeft', '0');
+            editor.dom.setStyle(block, 'paddingLeft', '0');
+            editor.dom.setStyle(block, 'lineHeight', '2');
+            
+            editor.nodeChanged();
+        };
 
         document.querySelectorAll('[data-format-target][data-format-name]').forEach(function(button) {
             button.addEventListener('click', function() {
