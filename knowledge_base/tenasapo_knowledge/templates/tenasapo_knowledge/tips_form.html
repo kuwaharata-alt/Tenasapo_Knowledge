@@ -10,9 +10,6 @@
                 <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                     <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"Tips登録" }}
                 </h1>
-                {% if can_csv_import %}
-                    <a class="btn btn-outline-primary" href="{% url 'tip_csv_import' %}">Tips CSV一括登録</a>
-                {% endif %}
             </div>
         </div>
 

@@ -153,20 +153,6 @@ class MultipleImageField(forms.FileField):
         return cleaned_files
 
 
-class CSVImportForm(forms.Form):
-    csv_file = forms.FileField(
-        label='CSVファイル',
-        help_text='ヘッダー行付きのCSVを選択してください。',
-    )
-
-    def clean_csv_file(self):
-        uploaded_file = self.cleaned_data['csv_file']
-        filename = (uploaded_file.name or '').lower()
-        if not filename.endswith('.csv'):
-            raise forms.ValidationError('CSVファイル（.csv）を選択してください。')
-        return uploaded_file
-
-
 class FAQCategoryCreateForm(forms.ModelForm):
     PARENT_CATEGORY_CHOICES = (
         ('サーバー', 'サーバー'),
