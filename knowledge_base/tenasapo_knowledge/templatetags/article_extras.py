@@ -36,7 +36,7 @@ ALLOWED_ATTRIBUTES = {
     'img': ['src', 'alt', 'class'],
 }
 CSS_SANITIZER = CSSSanitizer(
-    allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'line-height']
+    allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'line-height']
 )
 
 
@@ -56,8 +56,13 @@ def render_inline_images(value, images):
             raw, image_list, 0
         )
         result = _apply_rich_text_markup(processed)
-        # 空の<p>タグを<br>に変換（改行のみの行をブラウザに表示させる）
-        result = re.sub(r'<p>\s*</p>', '<br>', result)
+        # 空の<p>タグを<br>に変換
+        # <p></p>, <p style="..."></p>, <p><span style="..."></span></p>, <p>&nbsp;</p> 全パターン対応
+        result = re.sub(
+            r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br\s*/?>)*</p>',
+            '<br>',
+            result
+        )
         extra = []
         if not found_marker:
             for image in image_list:

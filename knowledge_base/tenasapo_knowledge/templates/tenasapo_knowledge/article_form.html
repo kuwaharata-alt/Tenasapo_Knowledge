@@ -22,7 +22,7 @@
 
                 <div class="row g-3">
                     <div class="col-12">
-                        <div class="form-section-label">カテゴリ</div>
+                        <div class="form-section-label">カテゴリ <span class="text-danger">*</span></div>
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>
@@ -64,19 +64,19 @@
                         {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+                        <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
                         <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
                         {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <div class="form-section-label">対象OS</div>
+                        <div class="form-section-label">対象OS <span class="text-danger">*</span></div>
                     </div>
                     <div class="col-12">
                         <div id="articleTargetOsRows" class="d-flex flex-column gap-3">
                             <div class="row g-3 align-items-end" data-target-os-row="primary">
                                 <div class="col-12 col-md-4">
                                     <label class="form-label form-subsection-label" for="{{ form.target_os_name.id_for_label }}">{{ form.target_os_name.label }}</label>
-                                    <select class="form-select{% if form.target_os_name.errors %} is-invalid{% endif %}" name="{{ form.target_os_name.html_name }}" id="{{ form.target_os_name.id_for_label }}" data-target-os-field="name">
+                                    <select class="form-select{% if form.target_os_name.errors %} is-invalid{% endif %}" name="{{ form.target_os_name.html_name }}" id="{{ form.target_os_name.id_for_label }}" data-target-os-field="name" required>
                                         {% for value, label in form.target_os_name.field.choices %}
                                             <option value="{{ value }}" {% if form.target_os_name.value == value %}selected{% endif %}>{{ label }}</option>
                                         {% endfor %}
@@ -128,8 +128,8 @@
                         </div>
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label form-subsection-label" for="{{ form.source_published_at.id_for_label }}">{{ form.source_published_at.label }}</label>
-                        <input class="form-control{% if form.source_published_at.errors %} is-invalid{% endif %}" type="date" name="{{ form.source_published_at.html_name }}" id="{{ form.source_published_at.id_for_label }}" value="{{ form.source_published_at.value|date:'Y-m-d'|default_if_none:'' }}">
+                        <label class="form-label form-subsection-label" for="{{ form.source_published_at.id_for_label }}">{{ form.source_published_at.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.source_published_at.errors %} is-invalid{% endif %}" type="date" name="{{ form.source_published_at.html_name }}" id="{{ form.source_published_at.id_for_label }}" value="{{ form.source_published_at.value|date:'Y-m-d'|default_if_none:'' }}" required>
                         {% for error in form.source_published_at.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
@@ -138,7 +138,7 @@
                         {% for error in form.expires_on.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問</label>
+                        <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問 <span class="text-danger">*</span></label>
                         {% if form.question.help_text %}<div class="form-text mb-2">{{ form.question.help_text }}</div>{% endif %}
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                             <span class="small text-muted me-1">スタイル</span>
@@ -185,7 +185,7 @@
                         {% endif %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答</label>
+                        <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答 <span class="text-danger">*</span></label>
                         {% if form.answer.help_text %}<div class="form-text mb-2">{{ form.answer.help_text }}</div>{% endif %}
                         <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                             <span class="small text-muted me-1">スタイル</span>
@@ -680,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             ],
             content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } h1, h2, h3, h4 { line-height: 2; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0; padding-left: 0; } ul, ol { margin: 0.25rem 0; padding-left: 2.75rem; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
-            valid_elements: 'p,br,strong/b,em/i,u,s,span[style],div[style],ul,ol[start],li,a[href|target|rel],h1,h2,h3,h4,blockquote,pre,code',
+            valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[style],ul,ol[start],li,a[href|target|rel],h1[style],h2[style],h3[style],h4[style],blockquote,pre,code',
             valid_styles: {
                 '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,line-height'
             },
@@ -689,6 +689,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const raw = editor.getContent({ format: 'raw' });
                     if (raw && raw.indexOf('[') !== -1) {
                         editor.setContent(legacyMarkupToHtml(raw));
+                    }
+                });
+
+                // Enterキー後の新しい段落のスタイルをリセット
+                editor.on('newBlock', function(e) {
+                    const newBlock = e.newBlock;
+                    if (!newBlock) return;
+                    const style = newBlock.getAttribute('style') || '';
+                    // 前の段落が見出し1スタイル（font-weight:700 + underline）だった場合リセット
+                    if (style.indexOf('font-weight: 700') !== -1 || style.indexOf('font-weight:700') !== -1) {
+                        newBlock.removeAttribute('style');
+                        newBlock.innerHTML = '<br data-mce-bogus="1">';
                     }
                 });
 
@@ -747,9 +759,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // Validate required editor fields
                     let errors = [];
+                    const requiredEditorIds = new Set([
+                        '{{ form.question.id_for_label }}',
+                        '{{ form.answer.id_for_label }}'
+                    ]);
                     tinymce.editors.forEach(function(editor) {
                         const textarea = document.getElementById(editor.id);
-                        if (textarea && textarea.classList.contains('rich-text-source')) {
+                        if (textarea && textarea.classList.contains('rich-text-source') && requiredEditorIds.has(editor.id)) {
                             const content = editor.getContent({ format: 'text' }).trim();
                             if (!content) {
                                 const label = document.querySelector('label[for="' + editor.id + '"]');

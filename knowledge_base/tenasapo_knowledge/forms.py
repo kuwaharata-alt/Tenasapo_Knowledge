@@ -258,7 +258,7 @@ class KnowledgeArticleCreateForm(forms.Form):
     target_os_name = forms.ChoiceField(
         label='OS',
         choices=TARGET_OS_NAME_CHOICES,
-        required=False,
+        required=True,
     )
     target_os_version = forms.ChoiceField(
         label='バージョン',
@@ -277,12 +277,12 @@ class KnowledgeArticleCreateForm(forms.Form):
     question = forms.CharField(
         label='質問',
         max_length=200,
-        required=False,
+        required=True,
         widget=forms.Textarea(attrs={'rows': 8}),
     )
     answer = forms.CharField(
         label='回答',
-        required=False,
+        required=True,
         widget=forms.Textarea(attrs={'rows': 8}),
     )
     question_images = MultipleImageField(
@@ -309,7 +309,7 @@ class KnowledgeArticleCreateForm(forms.Form):
     )
     source_published_at = forms.DateField(
         label='ソース公開日',
-        required=False,
+        required=True,
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
     expires_on = forms.DateField(
@@ -389,7 +389,7 @@ class TipsCreateForm(forms.Form):
     target_os_name = forms.ChoiceField(
         label='OS',
         choices=TARGET_OS_NAME_CHOICES,
-        required=False,
+        required=True,
     )
     target_os_version = forms.ChoiceField(
         label='バージョン',
@@ -407,7 +407,7 @@ class TipsCreateForm(forms.Form):
     )
     body = forms.CharField(
         label='内容',
-        required=False,
+        required=True,
         widget=forms.Textarea(attrs={'rows': 10}),
     )
     tips_images = MultipleImageField(
@@ -428,7 +428,7 @@ class TipsCreateForm(forms.Form):
     )
     source_published_at = forms.DateField(
         label='ソース公開日',
-        required=False,
+        required=True,
         widget=forms.DateInput(attrs={'type': 'date'}),
     )
     pdf_file = forms.FileField(
