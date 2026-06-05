@@ -44,12 +44,32 @@ def render_inline_images(value, images):
     if image_source is not None and hasattr(image_source, 'all'):
         image_source = image_source.all()
     image_list = list(image_source or [])
+
+    raw = str(value or '')
+
+    # TinyMCE が出力したブロック HTML（<p>, <ul>, <li> 等）を含む場合は
+    # 行ごとの <p> 追加をせず、そのまま sanitize して返す
+    if BLOCK_HTML_PATTERN.search(raw):
+        processed, found_marker, has_explicit_marker, next_image_index = _replace_image_tokens(
+            raw, image_list, 0
+        )
+        result = _apply_rich_text_markup(processed)
+        extra = []
+        if not found_marker:
+            for image in image_list:
+                extra.append(_image_html(image))
+        elif not has_explicit_marker and next_image_index < len(image_list):
+            for image in image_list[next_image_index:]:
+                extra.append(_image_html(image))
+        return mark_safe(result + ''.join(str(p) for p in extra))
+
+    # 旧形式（プレーンテキスト / BBCode）: 行単位で <p> 追加
     next_image_index = 0
     parts = []
     has_marker = False
     has_explicit_marker = False
 
-    for line in str(value or '').splitlines():
+    for line in raw.splitlines():
         rendered_line, found_marker, line_has_explicit_marker, next_image_index = _replace_image_tokens(
             line,
             image_list,
