@@ -125,7 +125,7 @@
         .accordion-body ul,
         .accordion-body ol {
             margin: 0.25rem 0 0.25rem 0;
-            padding-left: 2rem;
+            padding-left: 2.75rem;
         }
         .faq-question li,
         .accordion-body li {
@@ -140,6 +140,11 @@
             margin-top: 0;
             margin-bottom: 0.35em;
         }
+        .faq-question div[style*="font-weight: 700"],
+        .accordion-body div[style*="font-weight: 700"] {
+            margin-left: 0;
+            padding-left: 0;
+        }
         .faq-question blockquote,
         .accordion-body blockquote {
             margin: 0.5rem 0 0.5rem 0;
@@ -152,6 +157,15 @@
         .faq-question blockquote p,
         .accordion-body blockquote p {
             margin: 0;
+        }
+        .faq-question span[style*="border"],
+        .accordion-body span[style*="border"] {
+            display: inline-block;
+            max-width: 100%;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            line-height: 1.9;
+            box-sizing: border-box;
         }
         .faq-meta-badge {
             background: var(--tk-primary-soft);

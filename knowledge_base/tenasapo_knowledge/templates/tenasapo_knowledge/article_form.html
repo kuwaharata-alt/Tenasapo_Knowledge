@@ -641,12 +641,12 @@ document.addEventListener('DOMContentLoaded', function() {
             branding: false,
             height: 340,
             plugins: 'lists link code',
-            toolbar: 'undo redo | bold underline strikethrough | forecolor | fontsize | bullist numlist | blockquote | link | removeformat | code',
+            toolbar: 'undo redo | bold underline strikethrough | forecolor | fontsize | bullist numlist numlist_start | blockquote | link | removeformat | code | tk_heading1 tk_border | styles',
             fontsize_formats: '8pt 9pt 10pt 11pt 12pt 13pt 14pt 15pt 16pt 17pt 18pt',
             formats: {
                 tk_heading1: {
-                    inline: 'span',
-                    styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#000000' }
+                    block: 'div',
+                    styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#000000', marginLeft: '0', paddingLeft: '0' }
                 },
                 tk_body: {
                     inline: 'span',
@@ -659,13 +659,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 tk_point: {
                     inline: 'span',
                     styles: { fontWeight: '700', fontSize: '12pt', color: '#0d6efd' }
+                },
+                tk_border: {
+                    inline: 'span',
+                    styles: { border: '1px solid #000000', padding: '0.25em 0.4em', lineHeight: '1.9' }
                 }
             },
             style_formats: [
-                {
-                    title: '見出し1（太字 14pt 下線 黒 / 先頭に■）',
-                    format: 'tk_heading1'
-                },
                 {
                     title: '本文（10pt 黒）',
                     format: 'tk_body'
@@ -679,16 +679,62 @@ document.addEventListener('DOMContentLoaded', function() {
                     format: 'tk_point'
                 }
             ],
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } h1, h2, h3, h4 { line-height: 2; } p { margin: 0 0 0.35em; } ul, ol { margin: 0.25rem 0; padding-left: 2rem; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
-            valid_elements: 'p,br,strong/b,em/i,u,s,span[style],ul,ol,li,a[href|target|rel],h1,h2,h3,h4,blockquote,pre,code',
+            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } h1, h2, h3, h4 { line-height: 2; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0; padding-left: 0; } ul, ol { margin: 0.25rem 0; padding-left: 2.75rem; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
+            valid_elements: 'p,br,strong/b,em/i,u,s,span[style],div[style],ul,ol[start],li,a[href|target|rel],h1,h2,h3,h4,blockquote,pre,code',
             valid_styles: {
-                '*': 'color,font-size,text-decoration,font-weight'
+                '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,line-height'
             },
             setup: function(editor) {
                 editor.on('init', function() {
                     const raw = editor.getContent({ format: 'raw' });
                     if (raw && raw.indexOf('[') !== -1) {
                         editor.setContent(legacyMarkupToHtml(raw));
+                    }
+                });
+
+                // 見出し1ボタン
+                editor.ui.registry.addButton('tk_heading1', {
+                    text: '見出し1',
+                    tooltip: '見出し1（太字 14pt 下線 黒）を適用',
+                    onAction: function() {
+                        applyHeading1WithMarker(editor);
+                    }
+                });
+
+                // 枠線ボタン
+                editor.ui.registry.addButton('tk_border', {
+                    text: '枠線',
+                    tooltip: 'テキストに枠線を適用',
+                    onAction: function() {
+                        editor.formatter.toggle('tk_border');
+                    }
+                });
+                
+                // ナンバリング途中開始ボタン
+                editor.ui.registry.addButton('numlist_start', {
+                    text: 'リスト番号指定',
+                    tooltip: 'リストの開始番号を指定',
+                    onAction: function() {
+                        const num = prompt('リストの開始番号を入力してください (例: 1, 3, 10):', '1');
+                        if (num !== null && num.trim() !== '') {
+                            const startNum = parseInt(num, 10);
+                            if (!isNaN(startNum) && startNum > 0) {
+                                const selected = editor.selection.getNode();
+                                if (selected && (selected.tagName === 'OL' || selected.tagName === 'UL')) {
+                                    selected.setAttribute('start', startNum);
+                                } else {
+                                    const ol = document.createElement('ol');
+                                    ol.setAttribute('start', startNum);
+                                    const li = document.createElement('li');
+                                    li.textContent = 'リスト項目';
+                                    ol.appendChild(li);
+                                    editor.selection.setNode(ol);
+                                    editor.nodeChanged();
+                                }
+                            } else {
+                                alert('正の整数を入力してください。');
+                            }
+                        }
                     }
                 });
             }
@@ -722,18 +768,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         function applyHeading1WithMarker(editor) {
-            const selectedText = editor.selection.getContent({ format: 'text' }).trim();
-            const selectedHtml = editor.selection.getContent({ format: 'html' });
-
-            if (!selectedText) {
-                editor.insertContent('<span style="font-weight:700;font-size:14pt;text-decoration:underline;color:#000000;">■ </span>');
-                return;
-            }
-
-            const prefixedHtml = selectedText.startsWith('■') ? selectedHtml : ('■ ' + selectedHtml);
-            editor.selection.setContent(
-                '<span style="font-weight:700;font-size:14pt;text-decoration:underline;color:#000000;">' + prefixedHtml + '</span>'
-            );
+            const node = editor.selection.getNode();
+            const block = editor.dom.getParent(node, 'p,div,li,h1,h2,h3,h4') || node;
+            const plainText = (editor.dom.get(block, 'innerText') || '').trim().replace(/^■\s*/, '');
+            editor.selection.select(block, true);
+            editor.execCommand('RemoveFormat');
+            editor.dom.setHTML(block, '■ ' + escapeHtml(plainText));
+            editor.dom.setStyles(block, {
+                fontWeight: '700',
+                fontSize: '14pt',
+                textDecoration: 'underline',
+                color: '#000000',
+                marginLeft: '0',
+                paddingLeft: '0',
+                lineHeight: '2'
+            });
+            editor.selection.collapse(false);
         }
 
         document.querySelectorAll('[data-format-target][data-format-name]').forEach(function(button) {
