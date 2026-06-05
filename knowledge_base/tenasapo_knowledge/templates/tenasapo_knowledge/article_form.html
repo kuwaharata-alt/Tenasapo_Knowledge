@@ -1235,37 +1235,52 @@ document.addEventListener('DOMContentLoaded', function() {
     const addRefLinkBtn = document.getElementById('add_reference_link_button');
 
     function updateReferenceLinksHidden() {
-        const inputs = referenceLinksContainer.querySelectorAll('input[type="url"]');
-        const links = Array.from(inputs)
-            .map(input => input.value.trim())
-            .filter(url => url);
+        const rows = referenceLinksContainer.querySelectorAll('[data-ref-row]');
+        const links = Array.from(rows).map(row => ({
+            url: row.querySelector('input[type="url"]').value.trim(),
+            label: row.querySelector('input[type="text"]').value.trim(),
+        })).filter(item => item.url);
         referenceLinksHidden.value = JSON.stringify(links);
     }
 
     function addReferenceInputField(value = '') {
+        // value は旧形式(string)か新形式({url, label})のどちらも受け付ける
+        const url = (typeof value === 'object' && value !== null) ? (value.url || '') : value;
+        const label = (typeof value === 'object' && value !== null) ? (value.label || '') : '';
+
         const container = document.createElement('div');
-        container.className = 'd-flex gap-2 mb-2';
-        
+        container.className = 'd-flex gap-2 mb-2 align-items-center';
+        container.setAttribute('data-ref-row', '');
+
         const input = document.createElement('input');
         input.type = 'url';
-        input.className = 'form-control form-control-sm';
+        input.className = 'form-control form-control-sm flex-grow-1';
         input.placeholder = 'https://example.com';
-        input.value = value;
-        
+        input.value = url;
+
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'form-control form-control-sm';
+        labelInput.style.maxWidth = '14rem';
+        labelInput.placeholder = '表示文字（省略可）';
+        labelInput.value = label;
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.className = 'btn btn-outline-danger btn-sm';
         removeBtn.textContent = '削除';
-        
+
         removeBtn.addEventListener('click', function(e) {
             e.preventDefault();
             container.remove();
             updateReferenceLinksHidden();
         });
-        
+
         input.addEventListener('input', updateReferenceLinksHidden);
-        
+        labelInput.addEventListener('input', updateReferenceLinksHidden);
+
         container.appendChild(input);
+        container.appendChild(labelInput);
         container.appendChild(removeBtn);
         referenceLinksContainer.appendChild(container);
     }

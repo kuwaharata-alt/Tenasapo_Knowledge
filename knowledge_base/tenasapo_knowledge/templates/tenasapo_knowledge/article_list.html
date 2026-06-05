@@ -226,9 +226,15 @@
                                                     <div class="fw-semibold small mb-2">参考リンク</div>
                                                     <div class="d-flex flex-wrap gap-2">
                                                         {% for link in article.reference_links %}
-                                                            <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
-                                                                🔗 {{ link }}
-                                                            </a>
+                                                            {% if link.url %}
+                                                                <a class="btn btn-outline-info btn-sm" href="{{ link.url }}" target="_blank" rel="noopener">
+                                                                    🔗 {{ link.label|default:link.url }}
+                                                                </a>
+                                                            {% else %}
+                                                                <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
+                                                                    🔗 {{ link }}
+                                                                </a>
+                                                            {% endif %}
                                                         {% endfor %}
                                                     </div>
                                                 </div>
