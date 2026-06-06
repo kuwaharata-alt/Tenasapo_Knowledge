@@ -40,6 +40,11 @@ CSS_SANITIZER = CSSSanitizer(
 )
 
 
+def _split_lines_preserving_trailing(text):
+    normalized = str(text or '').replace('\r\n', '\n').replace('\r', '\n')
+    return normalized.split('\n')
+
+
 @register.filter
 def render_inline_images(value, images):
     image_source = images
@@ -56,11 +61,11 @@ def render_inline_images(value, images):
             raw, image_list, 0
         )
         result = _apply_rich_text_markup(processed)
-        # 空の<p>タグを<br>に変換
+        # 空の<p>タグを空白段落として保持
         # <p></p>, <p style="..."></p>, <p><span style="..."></span></p>, <p>&nbsp;</p> 全パターン対応
         result = re.sub(
-            r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br\s*/?>)*</p>',
-            '<br>',
+            r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br(?:\s[^>]*)?\s*/?>)*</p>',
+            '<p>&nbsp;</p>',
             result
         )
         extra = []
@@ -78,7 +83,7 @@ def render_inline_images(value, images):
     has_marker = False
     has_explicit_marker = False
 
-    for line in raw.splitlines():
+    for line in _split_lines_preserving_trailing(raw):
         rendered_line, found_marker, line_has_explicit_marker, next_image_index = _replace_image_tokens(
             line,
             image_list,
@@ -90,7 +95,7 @@ def render_inline_images(value, images):
         if rendered_line.strip():
             parts.append(format_html('<p>{}</p>', mark_safe(_apply_rich_text_markup(rendered_line))))
         else:
-            parts.append('<br>')
+            parts.append('<p>&nbsp;</p>')
 
     if not has_marker:
         for image in image_list:
@@ -111,11 +116,11 @@ def render_rich_text(value):
         return mark_safe(rendered_text)
 
     parts = []
-    for line in rendered_text.splitlines():
+    for line in _split_lines_preserving_trailing(rendered_text):
         if line.strip():
             parts.append(format_html('<p>{}</p>', mark_safe(line)))
         else:
-            parts.append('<br>')
+            parts.append('<p>&nbsp;</p>')
     return mark_safe(''.join(str(part) for part in parts))
 
 

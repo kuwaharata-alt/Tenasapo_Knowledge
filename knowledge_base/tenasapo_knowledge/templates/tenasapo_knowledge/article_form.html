@@ -13,7 +13,7 @@
             </div>
         </div>
 
-        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data" id="articleMainForm">
             <div class="card-body p-4">
                 {% csrf_token %}
                 {% if form.non_field_errors %}
@@ -246,6 +246,59 @@
                 <button class="btn btn-primary" type="submit">{{ submit_label|default:"登録" }}</button>
             </div>
         </form>
+
+        {# ===== FAQプレビューモーダル ===== #}
+        <div class="modal fade" id="faqPreviewModal" tabindex="-1" aria-labelledby="faqPreviewModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="faqPreviewModalLabel">
+                            <i class="bi bi-eye"></i> 一覧プレビュー
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+                    </div>
+                    <div class="modal-body p-3">
+                        <p class="text-muted small mb-3">
+                            ※ これは入力中の内容を一覧での表示イメージとして確認するためのプレビューです。画像マーカーはプレビューに反映されません。
+                        </p>
+                        <div class="accordion shadow-sm" id="faqPreviewAccordion">
+                            <article class="accordion-item faq-item">
+                                <h3 class="accordion-header">
+                                    <div class="faq-question d-flex align-items-center gap-3 p-3">
+                                        <span class="badge text-bg-primary flex-shrink-0">FAQ</span>
+                                        <div class="flex-grow-1">
+                                            <div class="faq-question-title fw-semibold" id="previewFaqTitle">（タイトル未入力）</div>
+                                            <div id="previewFaqCategoryChips" class="d-flex flex-wrap gap-2 mt-2"></div>
+                                        </div>
+                                    </div>
+                                </h3>
+                                <div class="accordion-collapse">
+                                    <div class="accordion-body">
+                                        <div id="previewFaqMetaBadges" class="d-flex flex-wrap gap-2 mb-3"></div>
+                                        <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
+                                            <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                                            <div class="flex-grow-1" id="previewFaqQuestion">（質問未入力）</div>
+                                        </div>
+                                        <div class="faq-question d-flex align-items-start gap-3 p-3 rounded">
+                                            <span class="badge text-bg-secondary flex-shrink-0">A</span>
+                                            <div class="flex-grow-1" id="previewFaqAnswer">（回答未入力）</div>
+                                        </div>
+                                        <div id="previewFaqRefLinks" class="border-top pt-3 mt-3" style="display:none;">
+                                            <div class="fw-semibold small mb-2">参考リンク</div>
+                                            <div id="previewFaqRefLinksList" class="d-flex flex-wrap gap-2"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-primary" id="faqPreviewConfirmBtn">この内容で{{ submit_label|default:"登録" }}</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         {% if article and approval_enabled %}
             <section class="card shadow-sm mt-4">
@@ -649,8 +702,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#000000', marginLeft: '0', paddingLeft: '0' }
                 },
                 tk_body: {
-                    inline: 'span',
-                    styles: { fontWeight: '400', fontSize: '10pt', textDecoration: 'none', color: '#000000' }
+                    block: 'div',
+                    styles: { fontWeight: '400', fontSize: '1rem', textDecoration: 'none', color: '#000000' }
                 },
                 tk_caution: {
                     inline: 'span',
@@ -667,7 +720,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             style_formats: [
                 {
-                    title: '本文（10pt 黒）',
+                    title: '本文（標準サイズ 黒）',
                     format: 'tk_body'
                 },
                 {
@@ -679,7 +732,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     format: 'tk_point'
                 }
             ],
-            content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } h1, h2, h3, h4 { line-height: 2; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0; padding-left: 0; } ul, ol { margin: 0.25rem 0; padding-left: 2.75rem; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
+            content_style: 'body { font-family: "Yu Gothic", "Hiragino Maru Gothic ProN", "Meiryo", system-ui, sans-serif; font-size: 1rem; color: #000000; line-height: 1.5; } h1, h2, h3, h4 { line-height: 2; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0; padding-left: 0; } ul, ol { margin: 0.25rem 0; padding-left: 2.75rem; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
             valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[style],ul,ol[start],li,a[href|target|rel],h1[style],h2[style],h3[style],h4[style],blockquote,pre,code',
             valid_styles: {
                 '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,line-height'
@@ -1007,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function editorToMarkup(editor) {
         const text = Array.from(editor.childNodes).map(nodeToMarkup).join('');
-        return text.replace(/\n{3,}/g, '\n\n').replace(/\n+$/g, '');
+        return text;
     }
 
     function syncHiddenTextarea(targetId) {
@@ -1367,15 +1420,260 @@ document.addEventListener('DOMContentLoaded', function() {
         // JSON パースエラーは無視
     }
 
-    document.querySelectorAll('form').forEach(function(form) {
-        form.addEventListener('submit', function() {
-            updateReferenceLinksHidden();
-            document.querySelectorAll('[data-rich-editor-for]').forEach(function(editor) {
-                const targetId = editor.dataset.richEditorFor;
-                syncHiddenTextarea(targetId);
-            });
+    const articleMainForm = document.getElementById('articleMainForm');
+    let isFaqPreviewConfirmed = false;
+    let renderFaqPreviewRequest = null;
+    const previewRenderUrl = "{% url 'preview_render' %}";
+
+    function getCookie(name) {
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith(name + '='));
+        return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+    }
+
+    function syncArticleFormBeforeSubmit() {
+        updateReferenceLinksHidden();
+        document.querySelectorAll('[data-rich-editor-for]').forEach(function(editor) {
+            const targetId = editor.dataset.richEditorFor;
+            syncHiddenTextarea(targetId);
         });
-    });
+    }
+
+    if (articleMainForm) {
+        articleMainForm.addEventListener('submit', function(e) {
+            syncArticleFormBeforeSubmit();
+            if (isFaqPreviewConfirmed) {
+                return;
+            }
+            e.preventDefault();
+            if (typeof window.renderFaqPreview === 'function') {
+                const renderResult = window.renderFaqPreview();
+                if (renderResult && typeof renderResult.then === 'function') {
+                    renderResult.then(function() {
+                        if (renderFaqPreviewRequest !== renderResult) {
+                            return;
+                        }
+                        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
+                        modal.show();
+                    }).catch(function() {});
+                    return;
+                }
+            }
+            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
+            modal.show();
+        });
+    }
+
+    // ===== FAQプレビュー =====
+    (function setupFaqPreview() {
+        if (!articleMainForm) {
+            return;
+        }
+
+        const confirmBtn = document.getElementById('faqPreviewConfirmBtn');
+        const previewModalEl = document.getElementById('faqPreviewModal');
+        if (!confirmBtn || !previewModalEl) {
+            return;
+        }
+
+        function getRichTextContent(fieldId) {
+            if (window.tinymce) {
+                const editor = window.tinymce.get(fieldId);
+                if (editor) {
+                    return editor.getContent();
+                }
+            }
+            const textarea = document.getElementById(fieldId);
+            return textarea ? textarea.value : '';
+        }
+
+        function getTargetOsChips() {
+            const rowContainer = document.getElementById('articleTargetOsRows');
+            if (!rowContainer) {
+                return [];
+            }
+            return Array.from(rowContainer.querySelectorAll('[data-target-os-row]')).map(function(row) {
+                const name = (row.querySelector('[data-target-os-field="name"]') || {}).value || '';
+                const version = (row.querySelector('[data-target-os-field="version"]') || {}).value || '';
+                const condition = (row.querySelector('[data-target-os-field="condition"]') || {}).value || '';
+                return { name, version, condition };
+            }).filter(function(e) { return e.name; });
+        }
+
+        function getSelectedCategoryLabels() {
+            const labels = [];
+            // 登録済みカテゴリ: チェックされているチェックボックスのラベルを収集
+            const hiddenContainer = document.getElementById('faqCategoryHiddenContainer');
+            if (hiddenContainer) {
+                document.querySelectorAll('.category-browser input[type="checkbox"]:checked').forEach(function(cb) {
+                    const lbl = cb.closest('label');
+                    if (lbl) {
+                        labels.push(lbl.textContent.trim());
+                    }
+                });
+            }
+            // 未登録カテゴリ (自由入力)
+            const freeCategory = (document.getElementById('{{ form.category.id_for_label }}') || {}).value || '';
+            if (freeCategory.trim()) {
+                labels.push(freeCategory.trim());
+            }
+            return labels;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) {
+                return '';
+            }
+            const d = new Date(dateStr);
+            if (isNaN(d)) {
+                return dateStr;
+            }
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return y + '/' + m + '/' + day;
+        }
+
+        function renderFaqPreview() {
+            const title = (document.getElementById('{{ form.title.id_for_label }}') || {}).value || '';
+            const sourcePublishedAt = (document.getElementById('{{ form.source_published_at.id_for_label }}') || {}).value || '';
+            const expiresOn = (document.getElementById('{{ form.expires_on.id_for_label }}') || {}).value || '';
+            const categoryLabels = getSelectedCategoryLabels();
+            const targetOsChips = getTargetOsChips();
+            const questionHtml = getRichTextContent('{{ form.question.id_for_label }}');
+            const answerHtml = getRichTextContent('{{ form.answer.id_for_label }}');
+
+            let refLinks = [];
+            try {
+                const refRaw = JSON.parse((document.getElementById('reference_links_hidden') || {}).value || '[]');
+                if (Array.isArray(refRaw)) {
+                    refLinks = refRaw.filter(function(r) {
+                        return r && (r.url || typeof r === 'string');
+                    });
+                }
+            } catch(e) {}
+
+            // --- タイトル ---
+            document.getElementById('previewFaqTitle').textContent = title || '（タイトル未入力）';
+
+            // --- カテゴリチップ ---
+            const chipsEl = document.getElementById('previewFaqCategoryChips');
+            chipsEl.innerHTML = '';
+            categoryLabels.forEach(function(label) {
+                const span = document.createElement('span');
+                span.className = 'badge faq-category-chip';
+                span.textContent = label;
+                chipsEl.appendChild(span);
+            });
+
+            // --- メタバッジ ---
+            const metaEl = document.getElementById('previewFaqMetaBadges');
+            metaEl.innerHTML = '';
+            const today = new Date();
+            const ty = today.getFullYear();
+            const tm = String(today.getMonth() + 1).padStart(2, '0');
+            const td = String(today.getDate()).padStart(2, '0');
+            const todayStr = ty + '/' + tm + '/' + td;
+
+            function addBadge(text) {
+                const span = document.createElement('span');
+                span.className = 'badge faq-meta-badge';
+                span.textContent = text;
+                metaEl.appendChild(span);
+            }
+            addBadge('登録日 ' + todayStr);
+            if (expiresOn) {
+                addBadge('掲載期限 ' + formatDate(expiresOn));
+            }
+            if (sourcePublishedAt) {
+                addBadge('ソース公開日 ' + formatDate(sourcePublishedAt));
+            }
+            targetOsChips.forEach(function(os) {
+                let text = '対象OS ' + os.name;
+                if (os.version) {
+                    text += ' ' + os.version;
+                }
+                if (os.condition) {
+                    text += ' ' + os.condition;
+                }
+                addBadge(text);
+            });
+
+            // --- 質問・回答（一覧と同じサーバー描画） ---
+            const questionEl = document.getElementById('previewFaqQuestion');
+            const answerEl = document.getElementById('previewFaqAnswer');
+            questionEl.innerHTML = '<span class="text-muted">読み込み中...</span>';
+            answerEl.innerHTML = '<span class="text-muted">読み込み中...</span>';
+
+            // --- 参考リンク ---
+            const refSection = document.getElementById('previewFaqRefLinks');
+            const refList = document.getElementById('previewFaqRefLinksList');
+            refList.innerHTML = '';
+            if (refLinks.length > 0) {
+                refLinks.forEach(function(r) {
+                    const url = (typeof r === 'object' && r !== null) ? (r.url || '') : r;
+                    const label = (typeof r === 'object' && r !== null) ? (r.label || url) : url;
+                    if (!url) {
+                        return;
+                    }
+                    const a = document.createElement('a');
+                    a.className = 'btn btn-outline-info btn-sm';
+                    a.href = url;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.textContent = '🔗 ' + label;
+                    refList.appendChild(a);
+                });
+                refSection.style.display = '';
+            } else {
+                refSection.style.display = 'none';
+            }
+
+            const request = fetch(previewRenderUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    type: 'faq',
+                    question: questionHtml,
+                    answer: answerHtml,
+                }),
+            })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (!data || !data.ok) {
+                        questionEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';
+                        answerEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';
+                        return;
+                    }
+                    questionEl.innerHTML = data.question_html || '<span class="text-muted">（質問未入力）</span>';
+                    answerEl.innerHTML = data.answer_html || '<span class="text-muted">（回答未入力）</span>';
+                })
+                .catch(function() {
+                    questionEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';
+                    answerEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';
+                });
+
+            renderFaqPreviewRequest = request;
+            return request;
+        }
+
+        confirmBtn.addEventListener('click', function() {
+            isFaqPreviewConfirmed = true;
+            const modal = bootstrap.Modal.getOrCreateInstance(previewModalEl);
+            modal.hide();
+            articleMainForm.requestSubmit();
+        });
+
+        previewModalEl.addEventListener('hidden.bs.modal', function() {
+            isFaqPreviewConfirmed = false;
+        });
+
+        window.renderFaqPreview = renderFaqPreview;
+    })();
 });
 </script>
 {% endblock %}

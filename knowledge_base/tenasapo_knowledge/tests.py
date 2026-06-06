@@ -1362,3 +1362,32 @@ class RichTextTemplateFilterTests(TestCase):
         )
 
         self.assertIn('src="/media/tips_attachments/2026/first.png"', rendered)
+
+    def test_render_rich_text_preserves_trailing_blank_lines(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '1行目\n\n\n'})
+        )
+
+        self.assertIn('<p>1行目</p>', rendered)
+        self.assertEqual(rendered.count('<p>&nbsp;</p>'), 3)
+
+    def test_render_inline_images_preserves_trailing_blank_lines(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({'text': '先頭\n\n\n', 'images': []})
+        )
+
+        self.assertIn('<p>先頭</p>', rendered)
+        self.assertEqual(rendered.count('<p>&nbsp;</p>'), 3)
+
+    def test_render_inline_images_converts_empty_tinymce_paragraph_with_data_attr_br(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({'text': '<p><br data-mce-bogus="1"></p>', 'images': []})
+        )
+
+        self.assertIn('<p>&nbsp;</p>', rendered)

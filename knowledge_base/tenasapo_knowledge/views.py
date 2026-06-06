@@ -11,6 +11,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, F, Q
 from django.http import JsonResponse
+from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
@@ -197,6 +198,45 @@ def record_view_history(
         ip_address=client_ip_from_request(request),
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
     )
+
+
+def _render_preview_html(text, image_list=None):
+    template = Template('{% load article_extras %}{{ text|render_inline_images:images }}')
+    return template.render(Context({'text': text or '', 'images': image_list or []}))
+
+
+class PreviewRenderView(View):
+    def post(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            return JsonResponse({'ok': False, 'error': 'permission denied'}, status=403)
+
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return JsonResponse({'ok': False, 'error': 'invalid payload'}, status=400)
+
+        preview_type = str(payload.get('type') or '').strip().lower()
+        if preview_type == 'faq':
+            question_html = _render_preview_html(payload.get('question', ''), [])
+            answer_html = _render_preview_html(payload.get('answer', ''), [])
+            return JsonResponse(
+                {
+                    'ok': True,
+                    'question_html': question_html,
+                    'answer_html': answer_html,
+                }
+            )
+
+        if preview_type == 'tips':
+            body_html = _render_preview_html(payload.get('body', ''), [])
+            return JsonResponse(
+                {
+                    'ok': True,
+                    'body_html': body_html,
+                }
+            )
+
+        return JsonResponse({'ok': False, 'error': 'invalid type'}, status=400)
 
 
 def can_user_access_article(user, article):
