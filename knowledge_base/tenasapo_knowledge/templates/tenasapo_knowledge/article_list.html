@@ -208,13 +208,13 @@
                                             </div>
                                             <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
                                                 <span class="badge text-bg-primary flex-shrink-0">Q</span>
-                                                <div class="flex-grow-1">
+                                                <div class="flex-grow-1 faq-body-indent">
                                                     {{ article.summary|default:article.title|render_inline_images:article.question_images }}
                                                 </div>
                                             </div>
                                             <div class="faq-question d-flex align-items-start gap-3 p-3 rounded">
                                                 <span class="badge text-bg-secondary flex-shrink-0">A</span>
-                                                <div class="flex-grow-1">
+                                                <div class="flex-grow-1 faq-body-indent">
                                                     {{ article.body|render_inline_images:article.images }}
                                                 </div>
                                             </div>
@@ -283,6 +283,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.accordion-collapse[data-article-id]').forEach(panel => {
         panel.addEventListener('shown.bs.collapse', function() {
+            const accordionItem = this.closest('.faq-item');
+            if (accordionItem) {
+                accordionItem.classList.add('faq-item-expanded');
+            }
+
             const articleId = this.dataset.articleId;
             if (!articleId) {
                 return;
@@ -302,6 +307,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     category: filterState.category,
                 }),
             }).catch(() => {});
+        });
+
+        panel.addEventListener('hidden.bs.collapse', function() {
+            const accordionItem = this.closest('.faq-item');
+            if (accordionItem) {
+                accordionItem.classList.remove('faq-item-expanded');
+            }
         });
     });
 

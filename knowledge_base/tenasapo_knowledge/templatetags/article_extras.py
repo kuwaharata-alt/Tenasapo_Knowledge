@@ -31,12 +31,12 @@ ALLOWED_TAGS = [
 ALLOWED_ATTRIBUTES = {
     'span': ['style'],
     'p': ['style'],
-    'div': ['class'],
+    'div': ['class', 'style'],
     'a': ['href', 'target', 'rel'],
     'img': ['src', 'alt', 'class'],
 }
 CSS_SANITIZER = CSSSanitizer(
-    allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'line-height']
+    allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'text-indent', 'line-height']
 )
 
 

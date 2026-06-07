@@ -199,7 +199,7 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <div>{{ tip.body|render_inline_images:tip.inline_images }}</div>
+                                            <div class="faq-body-indent">{{ tip.body|render_inline_images:tip.inline_images }}</div>
                                             {% if tip.reference_links %}
                                                 <div class="border-top pt-3 mt-3">
                                                     <div class="fw-semibold small mb-2">参考リンク</div>
@@ -321,6 +321,22 @@ document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function
     document.getElementById('pdfPageStack').innerHTML = '';
     document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
     document.getElementById('pdfLoadingMsg').style.display = 'block';
+});
+
+document.querySelectorAll('.accordion-collapse').forEach(panel => {
+    panel.addEventListener('shown.bs.collapse', function() {
+        const accordionItem = this.closest('.faq-item');
+        if (accordionItem) {
+            accordionItem.classList.add('faq-item-expanded');
+        }
+    });
+
+    panel.addEventListener('hidden.bs.collapse', function() {
+        const accordionItem = this.closest('.faq-item');
+        if (accordionItem) {
+            accordionItem.classList.remove('faq-item-expanded');
+        }
+    });
 });
 
 document.querySelectorAll('.tips-good-btn[data-tip-id]').forEach(button => {
