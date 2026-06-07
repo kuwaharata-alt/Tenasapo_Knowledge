@@ -173,7 +173,7 @@
                         {% if tip_images %}
                             <div class="mt-2 d-flex flex-column gap-2">
                                 {% for image in tip_images %}
-                                    <div class="d-flex align-items-center gap-2 p-2 border rounded">
+                                    <div class="d-flex align-items-center gap-2 p-2 border rounded" data-preview-tip-image data-image-name="{{ image.display_name }}" data-image-url="{{ image.file.url }}">
                                         <span class="small text-muted">{{ image.display_name }}</span>
                                         <a class="btn btn-outline-secondary btn-sm" href="{{ image.file.url }}" target="_blank" rel="noopener">表示</a>
                                         <button
@@ -238,7 +238,7 @@
                     </div>
                     <div class="modal-body p-3">
                         <p class="text-muted small mb-3">
-                            ※ これは入力中の内容を一覧での表示イメージとして確認するためのプレビューです。画像マーカーはプレビューに反映されません。
+                            ※ これは入力中の内容を一覧での表示イメージとして確認するためのプレビューです。
                         </p>
                         <div class="accordion shadow-sm" id="tipsPreviewAccordion">
                             <article class="accordion-item faq-item">
@@ -1221,6 +1221,99 @@ document.addEventListener('DOMContentLoaded', function() {
         renderTipImageInsertList();
     }
 
+    function addPreviewImageAlias(images, name, url) {
+        const normalized = (name || '').trim();
+        if (normalized && url && !images.has(normalized)) {
+            images.set(normalized, url);
+        }
+    }
+
+    function fileNameFromUrl(url) {
+        const cleanUrl = (url || '').split('#')[0].split('?')[0];
+        const fileName = cleanUrl.split('/').pop() || '';
+        try {
+            return decodeURIComponent(fileName);
+        } catch (e) {
+            return fileName;
+        }
+    }
+
+    function collectPreviewImages(fileInput, existingSelector) {
+        const images = new Map();
+        document.querySelectorAll(existingSelector).forEach(function(row) {
+            const name = (row.dataset.imageName || '').trim();
+            const url = (row.dataset.imageUrl || '').trim();
+            addPreviewImageAlias(images, name, url);
+            addPreviewImageAlias(images, fileNameFromUrl(url), url);
+        });
+        Array.from((fileInput && fileInput.files) || []).forEach(function(file) {
+            if (file && file.name) {
+                addPreviewImageAlias(images, file.name, URL.createObjectURL(file));
+            }
+        });
+        return images;
+    }
+
+    function imagePreviewNode(url, name) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'inline-image-list my-2';
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener';
+
+        const img = document.createElement('img');
+        img.className = 'inline-faq-image';
+        img.src = url;
+        img.alt = name;
+
+        link.appendChild(img);
+        wrapper.appendChild(link);
+        return wrapper;
+    }
+
+    function replacePreviewImageMarkers(container, images) {
+        if (!container || !images || images.size === 0) {
+            return;
+        }
+        const pattern = /【画像:([^】]+)】/g;
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        const textNodes = [];
+        while (walker.nextNode()) {
+            if (pattern.test(walker.currentNode.nodeValue || '')) {
+                textNodes.push(walker.currentNode);
+            }
+            pattern.lastIndex = 0;
+        }
+
+        textNodes.forEach(function(node) {
+            const text = node.nodeValue || '';
+            const fragment = document.createDocumentFragment();
+            let cursor = 0;
+            text.replace(pattern, function(match, imageName, offset) {
+                const name = (imageName || '').trim();
+                const url = images.get(name);
+                if (!url) {
+                    return match;
+                }
+                if (offset > cursor) {
+                    fragment.appendChild(document.createTextNode(text.slice(cursor, offset)));
+                }
+                fragment.appendChild(imagePreviewNode(url, name));
+                cursor = offset + match.length;
+                return match;
+            });
+            if (cursor === 0) {
+                return;
+            }
+            if (cursor < text.length) {
+                fragment.appendChild(document.createTextNode(text.slice(cursor)));
+            }
+            node.parentNode.replaceChild(fragment, node);
+        });
+    }
+
     // 参考リンク管理
     const referenceLinksContainer = document.getElementById('reference_links_container');
     const referenceLinksHidden = document.getElementById('reference_links_hidden');
@@ -1434,6 +1527,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 span.textContent = label;
                 chipsEl.appendChild(span);
             });
+            targetOsChips.forEach(function(os) {
+                let text = '対象OS ' + os.name;
+                if (os.version) {
+                    text += ' ' + os.version;
+                }
+                if (os.condition) {
+                    text += ' ' + os.condition;
+                }
+                const span = document.createElement('span');
+                span.className = 'badge faq-meta-badge faq-os-chip';
+                span.textContent = text;
+                chipsEl.appendChild(span);
+            });
 
             // --- メタバッジ ---
             const metaEl = document.getElementById('previewTipsMetaBadges');
@@ -1450,23 +1556,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 span.textContent = text;
                 metaEl.appendChild(span);
             }
-            addBadge('登録日 ' + todayStr);
-            if (sourcePublishedAt) {
-                addBadge('ソース公開日 ' + formatDate(sourcePublishedAt));
-            }
+            addBadge('掲載日 ' + todayStr);
             if (expiresOn) {
                 addBadge('掲載期限 ' + formatDate(expiresOn));
             }
-            targetOsChips.forEach(function(os) {
-                let text = '対象OS ' + os.name;
-                if (os.version) {
-                    text += ' ' + os.version;
-                }
-                if (os.condition) {
-                    text += ' ' + os.condition;
-                }
-                addBadge(text);
-            });
+            if (sourcePublishedAt) {
+                addBadge('ソース公開日 ' + formatDate(sourcePublishedAt));
+            }
 
             // --- 本文（一覧と同じサーバー描画） ---
             const bodyEl = document.getElementById('previewTipsBody');
@@ -1514,6 +1610,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     bodyEl.innerHTML = data.body_html || '<span class="text-muted">（本文未入力）</span>';
+                    replacePreviewImageMarkers(
+                        bodyEl,
+                        collectPreviewImages(tipImagesInput, '[data-preview-tip-image]')
+                    );
                 })
                 .catch(function() {
                     bodyEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';

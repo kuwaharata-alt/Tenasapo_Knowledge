@@ -131,6 +131,15 @@
                                                         {% endfor %}
                                                     </div>
                                                 {% endif %}
+                                                {% if article.target_os_chips %}
+                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                        {% for target_os in article.target_os_chips %}
+                                                            <span class="badge faq-meta-badge faq-os-chip">
+                                                                対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}
+                                                            </span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                             <button
                                                 class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
@@ -167,7 +176,7 @@
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
                                                 <span class="badge faq-meta-badge">
-                                                    登録日 {{ article.published_at|date:"Y/m/d" }}
+                                                    掲載日 {{ article.published_at|date:"Y/m/d" }}
                                                 </span>
                                                 {% if article.expires_on %}
                                                     <span class="badge faq-meta-badge">
@@ -178,13 +187,6 @@
                                                     <span class="badge faq-meta-badge">
                                                         ソース公開日 {{ article.source_published_at|date:"Y/m/d" }}
                                                     </span>
-                                                {% endif %}
-                                                {% if article.target_os_chips %}
-                                                    {% for target_os in article.target_os_chips %}
-                                                        <span class="badge faq-meta-badge">
-                                                            対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}
-                                                        </span>
-                                                    {% endfor %}
                                                 {% endif %}
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">

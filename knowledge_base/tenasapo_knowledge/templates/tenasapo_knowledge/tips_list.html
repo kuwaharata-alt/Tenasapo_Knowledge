@@ -131,6 +131,13 @@
                                                         {% endfor %}
                                                     </div>
                                                 {% endif %}
+                                                {% if tip.target_os_chips %}
+                                                    <div class="d-flex flex-wrap gap-2 mt-2">
+                                                        {% for target_os in tip.target_os_chips %}
+                                                            <span class="badge faq-meta-badge faq-os-chip">対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
                                             </div>
                                             <button
                                                 class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
@@ -174,17 +181,12 @@
                                     >
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
-                                                <span class="badge faq-meta-badge">登録日 {{ tip.published_at|date:"Y/m/d" }}</span>
-                                                {% if tip.source_published_at %}
-                                                    <span class="badge faq-meta-badge">ソース公開日 {{ tip.source_published_at|date:"Y/m/d" }}</span>
-                                                {% endif %}
+                                                <span class="badge faq-meta-badge">掲載日 {{ tip.published_at|date:"Y/m/d" }}</span>
                                                 {% if tip.expires_on %}
                                                     <span class="badge faq-meta-badge">掲載期限 {{ tip.expires_on|date:"Y/m/d" }}</span>
                                                 {% endif %}
-                                                {% if tip.target_os_chips %}
-                                                    {% for target_os in tip.target_os_chips %}
-                                                        <span class="badge faq-meta-badge">対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}</span>
-                                                    {% endfor %}
+                                                {% if tip.source_published_at %}
+                                                    <span class="badge faq-meta-badge">ソース公開日 {{ tip.source_published_at|date:"Y/m/d" }}</span>
                                                 {% endif %}
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">投稿者 {{ tip.creator_display_name|default:"-" }}</span>

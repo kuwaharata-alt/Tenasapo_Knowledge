@@ -276,7 +276,6 @@ class KnowledgeArticleCreateForm(forms.Form):
     )
     question = forms.CharField(
         label='質問',
-        max_length=200,
         required=True,
         widget=forms.Textarea(attrs={'rows': 8}),
     )
