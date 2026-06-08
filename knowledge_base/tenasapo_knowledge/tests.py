@@ -17,12 +17,14 @@ from django.utils import timezone
 
 from .models import (
     ArticleAttachment,
+    ArticleFavorite,
     Customer,
     FAQCategory,
     FAQParentCategorySetting,
     KnowledgeArticle,
     LoginHistory,
     TipsArticle,
+    TipsFavorite,
     UserProfile,
     default_expires_on,
 )
@@ -127,6 +129,52 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertNotContains(response, hidden_parent_article.title)
         self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
+
+    def test_customer_user_can_toggle_article_favorite(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        self.client.force_login(self.user)
+
+        first_response = self.client.post(
+            reverse('faq_toggle_favorite'),
+            data=json.dumps({'article_id': self.visible_article.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertTrue(ArticleFavorite.objects.filter(article=self.visible_article, user=self.user).exists())
+
+        second_response = self.client.post(
+            reverse('faq_toggle_favorite'),
+            data=json.dumps({'article_id': self.visible_article.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(second_response.status_code, 200)
+        self.assertFalse(ArticleFavorite.objects.filter(article=self.visible_article, user=self.user).exists())
+
+    def test_customer_user_can_filter_articles_by_favorite_only(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        self.client.force_login(self.user)
+        ArticleFavorite.objects.create(article=self.visible_article, user=self.user)
+
+        response = self.client.get(reverse('article_list'), {'favorite_only': '1'})
+
+        self.assertContains(response, self.visible_article.title)
+        self.assertNotContains(response, self.hidden_article.title)
+
+    def test_systena_user_can_use_article_favorite_filter(self):
+        systena_group, _ = Group.objects.get_or_create(name='システナ')
+        self.user.groups.add(systena_group)
+        self.client.force_login(self.user)
+        ArticleFavorite.objects.create(article=self.visible_article, user=self.user)
+
+        response = self.client.get(reverse('article_list'), {'favorite_only': '1'})
+
+        self.assertContains(response, '☆表示解除')
+        self.assertContains(response, self.visible_article.title)
+        self.assertNotContains(response, self.hidden_article.title)
 
     def test_render_inline_images_with_japanese_marker_does_not_append_remaining_images(self):
         text = '本文\n【画像:first.png】\n終わり'
@@ -1010,6 +1058,74 @@ class TipsListTests(TestCase):
 
         self.assertNotContains(response, hidden_parent_tip.title)
         self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
+
+    def test_customer_user_can_toggle_tip_favorite(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        tip = TipsArticle.objects.create(
+            title='お気に入り対象Tips',
+            category='PC/設定',
+            body='本文',
+        )
+
+        first_response = self.client.post(
+            reverse('tip_toggle_favorite'),
+            data=json.dumps({'tip_id': tip.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertTrue(TipsFavorite.objects.filter(tip=tip, user=self.user).exists())
+
+        second_response = self.client.post(
+            reverse('tip_toggle_favorite'),
+            data=json.dumps({'tip_id': tip.id}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(second_response.status_code, 200)
+        self.assertFalse(TipsFavorite.objects.filter(tip=tip, user=self.user).exists())
+
+    def test_customer_user_can_filter_tips_by_favorite_only(self):
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.user.groups.add(customer_group)
+        favorited_tip = TipsArticle.objects.create(
+            title='お気に入りTips',
+            category='PC/設定',
+            body='本文',
+        )
+        other_tip = TipsArticle.objects.create(
+            title='通常Tips',
+            category='PC/設定',
+            body='本文',
+        )
+        TipsFavorite.objects.create(tip=favorited_tip, user=self.user)
+
+        response = self.client.get(reverse('tip_list'), {'favorite_only': '1'})
+
+        self.assertContains(response, favorited_tip.title)
+        self.assertNotContains(response, other_tip.title)
+
+    def test_systena_user_can_use_tip_favorite_filter(self):
+        systena_group, _ = Group.objects.get_or_create(name='システナ')
+        self.user.groups.add(systena_group)
+        favorited_tip = TipsArticle.objects.create(
+            title='システナお気に入りTips',
+            category='PC/設定',
+            body='本文',
+        )
+        other_tip = TipsArticle.objects.create(
+            title='システナ通常Tips',
+            category='PC/設定',
+            body='本文',
+        )
+        TipsFavorite.objects.create(tip=favorited_tip, user=self.user)
+
+        response = self.client.get(reverse('tip_list'), {'favorite_only': '1'})
+
+        self.assertContains(response, '☆表示解除')
+        self.assertContains(response, favorited_tip.title)
+        self.assertNotContains(response, other_tip.title)
 
 
 class TipsFormTests(TestCase):

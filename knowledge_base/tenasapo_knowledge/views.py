@@ -32,6 +32,7 @@ from .forms import (
     UserUpdateForm,
 )
 from .models import (
+    ArticleFavorite,
     ArticleGood,
     ArticleAttachment,
     Customer,
@@ -41,6 +42,7 @@ from .models import (
     KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
+    TipsFavorite,
     TipsGood,
     TipsArticle,
     TipsImageAttachment,
@@ -299,6 +301,18 @@ def is_customer_user(user):
         user.is_authenticated
         and in_group(user, CUSTOMER_GROUP_NAME)
         and not (user.is_staff or user.is_superuser)
+    )
+
+
+def can_use_favorite(user):
+    return (
+        user.is_authenticated
+        and (
+            user.is_staff
+            or user.is_superuser
+            or in_group(user, SYSTENA_GROUP_NAME)
+            or in_group(user, CUSTOMER_GROUP_NAME)
+        )
     )
 
 
@@ -649,6 +663,7 @@ class ArticleListView(ListView):
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
+        favorite_only = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         if category:
             matching_ids = [
                 article.id
@@ -664,12 +679,19 @@ class ArticleListView(ListView):
             ]
             queryset = queryset.filter(id__in=matching_ids)
 
+        if favorite_only:
+            if can_use_favorite(self.request.user):
+                queryset = queryset.filter(favorites__user=self.request.user)
+            else:
+                queryset = queryset.none()
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['can_use_good'] = is_customer_user(self.request.user)
+        context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_article'] = can_edit_article(self.request.user)
         context['can_view_approval_meta'] = can_view_approval_meta
 
@@ -694,8 +716,15 @@ class ArticleListView(ListView):
                 article_id__in=[article.id for article in visible_articles],
             ).values_list('article_id', flat=True)
         )
+        favorite_article_ids = set(
+            ArticleFavorite.objects.filter(
+                user=self.request.user,
+                article_id__in=[article.id for article in visible_articles],
+            ).values_list('article_id', flat=True)
+        )
         for article in visible_articles:
             article.is_gooded = article.id in liked_article_ids
+            article.is_favorited = article.id in favorite_article_ids
             article.creator_display_name = article.created_by_name or (
                 article.created_by.get_username() if article.created_by else ''
             )
@@ -752,6 +781,7 @@ class ArticleListView(ListView):
             [group['name'] for group in parent_categories],
         )
         context['query'] = self.request.GET.get('q', '')
+        context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         return context
 
     @staticmethod
@@ -900,6 +930,7 @@ class TipsListView(ListView):
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
+        favorite_only = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         if category:
             matching_ids = [
                 tip.id
@@ -918,12 +949,19 @@ class TipsListView(ListView):
             ]
             queryset = queryset.filter(id__in=matching_ids)
 
+        if favorite_only:
+            if can_use_favorite(self.request.user):
+                queryset = queryset.filter(favorites__user=self.request.user)
+            else:
+                queryset = queryset.none()
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['can_use_good'] = is_customer_user(self.request.user)
+        context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_tip'] = can_edit_article(self.request.user)
         context['can_view_approval_meta'] = can_view_approval_meta
 
@@ -948,9 +986,16 @@ class TipsListView(ListView):
                 tip_id__in=[tip.id for tip in visible_tips],
             ).values_list('tip_id', flat=True)
         )
+        favorite_tip_ids = set(
+            TipsFavorite.objects.filter(
+                user=self.request.user,
+                tip_id__in=[tip.id for tip in visible_tips],
+            ).values_list('tip_id', flat=True)
+        )
 
         for tip in visible_tips:
             tip.is_gooded = tip.id in liked_tip_ids
+            tip.is_favorited = tip.id in favorite_tip_ids
             tip.creator_display_name = tip.created_by_name or (
                 tip.created_by.get_username() if tip.created_by else ''
             )
@@ -993,6 +1038,7 @@ class TipsListView(ListView):
             [group['name'] for group in parent_categories],
         )
         context['query'] = self.request.GET.get('q', '')
+        context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         return context
 
     @staticmethod
@@ -1392,6 +1438,44 @@ class FAQGoodToggleView(View):
         return JsonResponse({'ok': True, 'liked': liked, 'good_count': good_count})
 
 
+class FAQFavoriteToggleView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+        if not can_use_favorite(request.user):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        article_id = payload.get('article_id')
+        if not article_id:
+            return JsonResponse({'detail': 'article_id is required'}, status=400)
+
+        article = get_object_or_404(KnowledgeArticle, pk=article_id, is_published=True)
+        if not can_user_access_article(request.user, article):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        favorite, created = ArticleFavorite.objects.get_or_create(article=article, user=request.user)
+        favorited = True
+        if not created:
+            favorite.delete()
+            favorited = False
+
+        record_view_history(
+            request,
+            page_name=f'FAQお気に入り: {article.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'favorited': favorited})
+
+
 class TipsGoodToggleView(View):
     def post(self, request):
         if not request.user.is_authenticated:
@@ -1430,6 +1514,44 @@ class TipsGoodToggleView(View):
         )
 
         return JsonResponse({'ok': True, 'liked': liked, 'good_count': good_count})
+
+
+class TipsFavoriteToggleView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+        if not can_use_favorite(request.user):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        tip_id = payload.get('tip_id')
+        if not tip_id:
+            return JsonResponse({'detail': 'tip_id is required'}, status=400)
+
+        tip = get_object_or_404(TipsArticle, pk=tip_id, is_published=True)
+        if not can_user_access_tip(request.user, tip):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        favorite, created = TipsFavorite.objects.get_or_create(tip=tip, user=request.user)
+        favorited = True
+        if not created:
+            favorite.delete()
+            favorited = False
+
+        record_view_history(
+            request,
+            page_name=f'Tipsお気に入り: {tip.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'favorited': favorited})
 
 
 class StaffRequiredMixin(UserPassesTestMixin):

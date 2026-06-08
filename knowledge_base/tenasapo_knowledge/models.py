@@ -443,3 +443,63 @@ class TipsGood(models.Model):
 
     def __str__(self):
         return f'{self.tip_id} - {self.user_id}'
+
+
+class ArticleFavorite(models.Model):
+    article = models.ForeignKey(
+        KnowledgeArticle,
+        on_delete=models.CASCADE,
+        related_name='favorites',
+        verbose_name='記事',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='article_favorites',
+        verbose_name='ユーザー',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'FAQお気に入り'
+        verbose_name_plural = 'FAQお気に入り'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['article', 'user'],
+                name='unique_article_favorite_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.article_id} - {self.user_id}'
+
+
+class TipsFavorite(models.Model):
+    tip = models.ForeignKey(
+        TipsArticle,
+        on_delete=models.CASCADE,
+        related_name='favorites',
+        verbose_name='Tips',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tips_favorites',
+        verbose_name='ユーザー',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tipsお気に入り'
+        verbose_name_plural = 'Tipsお気に入り'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tip', 'user'],
+                name='unique_tip_favorite_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.tip_id} - {self.user_id}'

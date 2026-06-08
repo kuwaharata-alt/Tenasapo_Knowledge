@@ -32,8 +32,16 @@
         <div class="col-12 col-md-7">
             <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
         </div>
-        <div class="col-12 col-md-auto">
+        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
             <button class="btn btn-primary" type="submit">検索</button>
+            {% if can_use_favorite %}
+                <a
+                    class="btn {% if favorite_only %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                    href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if not favorite_only %}&favorite_only=1{% endif %}"
+                >
+                    {% if favorite_only %}☆表示解除{% else %}☆のみ表示{% endif %}
+                </a>
+            {% endif %}
         </div>
     </form>
 </div>
@@ -45,7 +53,7 @@
             <div class="list-group list-group-flush">
                 <a
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
-                    href="?q={{ query|urlencode }}"
+                    href="?q={{ query|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
                 >
                     <span>すべて</span>
                     <span class="category-count">{{ all_count|default:0 }}件</span>
@@ -53,7 +61,7 @@
                 {% for parent_category in parent_categories %}
                     <a
                         class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
-                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}"
+                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
                         aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
                         aria-controls="categoryChildren{{ forloop.counter }}"
                     >
@@ -69,7 +77,7 @@
                                 {% if child_category.count > 0 %}
                                     <a
                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
                                     >
                                         <span>{{ child_category.name }}</span>
                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -99,7 +107,7 @@
                                                 {% if child_category.count > 0 %}
                                                     <a
                                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
                                                     >
                                                         <span>{{ child_category.name }}</span>
                                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -169,6 +177,17 @@
                                                     aria-label="グッド"
                                                 >
                                                     👍 <span class="faq-good-count">{{ article.good_count }}</span>
+                                                </button>
+                                            {% endif %}
+                                            {% if can_use_favorite %}
+                                                <button
+                                                    class="btn btn-sm flex-shrink-0 faq-favorite-btn {% if article.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                                                    type="button"
+                                                    data-article-id="{{ article.id }}"
+                                                    data-favorited="{% if article.is_favorited %}1{% else %}0{% endif %}"
+                                                    aria-label="お気に入り"
+                                                >
+                                                    ☆
                                                 </button>
                                             {% endif %}
                                             {% if can_edit_article %}
@@ -280,6 +299,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     const trackUrl = "{% url 'faq_answer_track_view' %}";
     const toggleGoodUrl = "{% url 'faq_toggle_good' %}";
+    const toggleFavoriteUrl = "{% url 'faq_toggle_favorite' %}";
     const filterState = {
         search_query: "{{ query|escapejs }}",
         parent_category: "{{ selected_parent_category|escapejs }}",
@@ -364,6 +384,41 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (countElm) {
                         countElm.textContent = data.good_count;
                     }
+                })
+                .catch(() => {});
+        });
+    });
+
+    document.querySelectorAll('.faq-favorite-btn[data-article-id]').forEach(button => {
+        button.addEventListener('click', function() {
+            const articleId = this.dataset.articleId;
+            if (!articleId) {
+                return;
+            }
+
+            fetch(toggleFavoriteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    article_id: Number(articleId),
+                    source_path: window.location.pathname + window.location.search,
+                    search_query: filterState.search_query,
+                    parent_category: filterState.parent_category,
+                    category: filterState.category,
+                }),
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data || !data.ok) {
+                        return;
+                    }
+
+                    this.dataset.favorited = data.favorited ? '1' : '0';
+                    this.classList.toggle('btn-warning', data.favorited);
+                    this.classList.toggle('btn-outline-warning', !data.favorited);
                 })
                 .catch(() => {});
         });
