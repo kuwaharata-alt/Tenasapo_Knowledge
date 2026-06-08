@@ -39,7 +39,7 @@
 </div>
 
 <div class="row g-4 align-items-start">
-    <aside class="col-12 col-lg-2">
+    <aside class="col-12 col-lg-2 category-sidebar-col">
         <div class="category-sidebar">
             <div class="category-sidebar-title">カテゴリ</div>
             <div class="list-group list-group-flush">
@@ -47,7 +47,8 @@
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
                     href="?q={{ query|urlencode }}"
                 >
-                    すべて
+                    <span>すべて</span>
+                    <span class="category-count">{{ all_count|default:0 }}件</span>
                 </a>
                 {% for parent_category in parent_categories %}
                     <a
@@ -56,7 +57,8 @@
                         aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
                         aria-controls="categoryChildren{{ forloop.counter }}"
                     >
-                        {{ parent_category.name }}
+                        <span>{{ parent_category.name }}</span>
+                        <span class="category-count">{{ parent_category.count|default:0 }}件</span>
                     </a>
                     <div
                         class="collapse {% if selected_parent_category == parent_category.name %}show{% endif %}"
@@ -64,40 +66,49 @@
                     >
                         <div class="category-child-list">
                             {% for child_category in parent_category.children %}
-                                <a
-                                    class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                    href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
-                                >
-                                    {{ child_category.name }}
-                                </a>
+                                {% if child_category.count > 0 %}
+                                    <a
+                                        class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                    >
+                                        <span>{{ child_category.name }}</span>
+                                        <span class="category-count">{{ child_category.count|default:0 }}件</span>
+                                    </a>
+                                {% endif %}
                             {% endfor %}
                             {% for middle_group in parent_category.middle_groups %}
-                                <a
-                                    class="category-child-link category-sidebar-toggle {% if selected_category in middle_group.full_names %}active{% endif %}"
-                                    href="#"
-                                    data-bs-toggle="collapse"
-                                    data-bs-target="#categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
-                                    aria-expanded="{% if selected_category in middle_group.full_names %}true{% else %}false{% endif %}"
-                                    aria-controls="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
-                                    onclick="event.preventDefault();"
-                                >
-                                    {{ middle_group.name }}
-                                </a>
-                                <div
-                                    class="collapse {% if selected_category in middle_group.full_names %}show{% endif %}"
-                                    id="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
-                                >
-                                    <div class="category-child-list ps-3">
-                                        {% for child_category in middle_group.children %}
-                                            <a
-                                                class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                                href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
-                                            >
-                                                {{ child_category.name }}
-                                            </a>
-                                        {% endfor %}
+                                {% if middle_group.count > 0 %}
+                                    <a
+                                        class="category-child-link category-sidebar-toggle {% if selected_category in middle_group.full_names %}active{% endif %}"
+                                        href="#"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                        aria-expanded="{% if selected_category in middle_group.full_names %}true{% else %}false{% endif %}"
+                                        aria-controls="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                        onclick="event.preventDefault();"
+                                    >
+                                        <span>{{ middle_group.name }}</span>
+                                        <span class="category-count">{{ middle_group.count|default:0 }}件</span>
+                                    </a>
+                                    <div
+                                        class="collapse {% if selected_category in middle_group.full_names %}show{% endif %}"
+                                        id="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                    >
+                                        <div class="category-child-list ps-3">
+                                            {% for child_category in middle_group.children %}
+                                                {% if child_category.count > 0 %}
+                                                    <a
+                                                        class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                                    >
+                                                        <span>{{ child_category.name }}</span>
+                                                        <span class="category-count">{{ child_category.count|default:0 }}件</span>
+                                                    </a>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
                                     </div>
-                                </div>
+                                {% endif %}
                             {% endfor %}
                         </div>
                     </div>
@@ -106,7 +117,7 @@
         </div>
     </aside>
 
-    <section class="col-12 col-lg-10">
+    <section class="col-12 col-lg-10 category-content-col">
 
         {% if grouped_tips %}
             <div class="faq-group-list">

@@ -726,11 +726,26 @@ class ArticleListView(ListView):
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
         parent_categories = self.available_parent_category_groups()
+        parent_counts, category_counts = self.category_count_maps(visible_articles)
+        for parent_category in parent_categories:
+            parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
+
+            for child_category in parent_category.get('children', []):
+                child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
+
+            for middle_group in parent_category.get('middle_groups', []):
+                middle_group['count'] = sum(
+                    category_counts.get(full_name, 0)
+                    for full_name in middle_group.get('full_names', [])
+                )
+                for child_category in middle_group.get('children', []):
+                    child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
         if selected_category and not selected_parent:
             selected_parent = self.parent_category_name(selected_category)
         context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
+        context['all_count'] = len(visible_articles)
         context['grouped_articles'] = self.group_articles(
             visible_articles,
             selected_parent,
@@ -766,6 +781,24 @@ class ArticleListView(ListView):
             for category in cls.split_categories(article.category)
         ]
         return list(dict.fromkeys(parent_names or ['未分類']))
+
+    @classmethod
+    def category_count_maps(cls, articles):
+        parent_counts = {}
+        category_counts = {}
+        for article in articles:
+            seen_categories = set()
+            seen_parents = set()
+            for category_name in cls.split_categories(article.category):
+                if category_name and category_name not in seen_categories:
+                    category_counts[category_name] = category_counts.get(category_name, 0) + 1
+                    seen_categories.add(category_name)
+
+                parent_name = cls.parent_category_name(category_name)
+                if parent_name and parent_name not in seen_parents:
+                    parent_counts[parent_name] = parent_counts.get(parent_name, 0) + 1
+                    seen_parents.add(parent_name)
+        return parent_counts, category_counts
 
     def navigation_category_texts(self):
         queryset = (
@@ -934,11 +967,26 @@ class TipsListView(ListView):
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
         parent_categories = self.available_parent_category_groups()
+        parent_counts, category_counts = self.category_count_maps(visible_tips)
+        for parent_category in parent_categories:
+            parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
+
+            for child_category in parent_category.get('children', []):
+                child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
+
+            for middle_group in parent_category.get('middle_groups', []):
+                middle_group['count'] = sum(
+                    category_counts.get(full_name, 0)
+                    for full_name in middle_group.get('full_names', [])
+                )
+                for child_category in middle_group.get('children', []):
+                    child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
         if selected_category and not selected_parent:
             selected_parent = self.parent_category_name(selected_category)
         context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
+        context['all_count'] = len(visible_tips)
         context['grouped_tips'] = self.group_tips(
             visible_tips,
             selected_parent,
@@ -974,6 +1022,24 @@ class TipsListView(ListView):
             for category in cls.split_categories(tip.category)
         ]
         return list(dict.fromkeys(parent_names or ['未分類']))
+
+    @classmethod
+    def category_count_maps(cls, tips):
+        parent_counts = {}
+        category_counts = {}
+        for tip in tips:
+            seen_categories = set()
+            seen_parents = set()
+            for category_name in cls.split_categories(tip.category):
+                if category_name and category_name not in seen_categories:
+                    category_counts[category_name] = category_counts.get(category_name, 0) + 1
+                    seen_categories.add(category_name)
+
+                parent_name = cls.parent_category_name(category_name)
+                if parent_name and parent_name not in seen_parents:
+                    parent_counts[parent_name] = parent_counts.get(parent_name, 0) + 1
+                    seen_parents.add(parent_name)
+        return parent_counts, category_counts
 
     def navigation_category_texts(self):
         queryset = (
