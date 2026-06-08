@@ -205,59 +205,40 @@
             margin-top: 0;
             margin-bottom: 0.35em;
         }
-        /* 本文エリア共通 */
         .faq-body-indent {
-            --tk-body-indent: 1.5em;
-            --tk-body-first-extra-indent: 1em;
-            --tk-list-marker-width: 1.25em;
-            --tk-list-marker-gap: 0.25em;
             font-size: 10pt;
+            line-height: 1.5;
+            margin-left: 1cm;
+            margin-right: 1cm;
         }
-        /* ■見出し：左端 */
         .faq-body-indent > div[style*="font-weight: 700"] {
+            margin: 0.5em 0;
             margin-left: 0 !important;
             text-indent: 0 !important;
         }
-        /* 本文段落：1em下げ＋文頭1em追加 */
-        .faq-body-indent > p,
-        .faq-body-indent > div:not([style*="font-weight: 700"]) {
-            margin-left: var(--tk-body-indent);
-            text-indent: var(--tk-body-first-extra-indent);
+        .faq-body-indent p {
+            margin: 0 0 0.35em 0;
+            text-indent: 0;
         }
-        /* 箇条書き・番号：内容を本文2行目と揃え、マーカーを左にぶら下げ */
+        .faq-body-indent p:empty,
+        .faq-body-indent div:empty,
+        .faq-body-indent p:has(br:only-child),
+        .faq-body-indent div:has(br:only-child) {
+            min-height: 1.5em;
+        }
+        .faq-body-indent p:empty::before,
+        .faq-body-indent div:empty::before {
+            content: "\00a0";
+        }
         .faq-body-indent ul,
         .faq-body-indent ol {
-            list-style: none;
-            margin: 0.25rem 0;
+            margin: 0.25rem 0 0.25rem 1.5em;
+            padding-left: 1em;
+            list-style-position: outside;
+        }
+        .faq-body-indent li {
             padding-left: 0;
-        }
-        .faq-body-indent ul > li,
-        .faq-body-indent ol > li {
-            margin-left: var(--tk-body-indent);
-            padding-left: calc(var(--tk-list-marker-width) + var(--tk-list-marker-gap));
-            position: relative;
             margin-bottom: 0.1rem;
-        }
-        .faq-body-indent ul > li::before,
-        .faq-body-indent ol > li::before {
-            box-sizing: border-box;
-            position: absolute;
-            left: 0;
-            width: var(--tk-list-marker-width);
-            text-align: right;
-            white-space: nowrap;
-        }
-        .faq-body-indent ul > li::before {
-            content: "・";
-        }
-        .faq-body-indent ol {
-            counter-reset: tk-list-item;
-        }
-        .faq-body-indent ol > li {
-            counter-increment: tk-list-item;
-        }
-        .faq-body-indent ol > li::before {
-            content: counter(tk-list-item) ".";
         }
         .faq-question blockquote,
         .accordion-body blockquote {

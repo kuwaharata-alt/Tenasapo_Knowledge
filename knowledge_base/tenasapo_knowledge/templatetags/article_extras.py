@@ -38,11 +38,24 @@ ALLOWED_ATTRIBUTES = {
 CSS_SANITIZER = CSSSanitizer(
     allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'text-indent', 'line-height']
 )
+TRAILING_BLANK_PARAGRAPH_PATTERN = re.compile(
+    r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br(?:\s[^>]*)?\s*/?>)*</p>\s*$',
+    flags=re.IGNORECASE,
+)
 
 
 def _split_lines_preserving_trailing(text):
     normalized = str(text or '').replace('\r\n', '\n').replace('\r', '\n')
     return normalized.split('\n')
+
+
+def _ensure_trailing_blank_paragraph(html):
+    rendered = str(html or '')
+    if not rendered.strip():
+        return '<p>&nbsp;</p>'
+    if TRAILING_BLANK_PARAGRAPH_PATTERN.search(rendered):
+        return rendered
+    return rendered + '<p>&nbsp;</p>'
 
 
 @register.filter
@@ -64,7 +77,7 @@ def render_inline_images(value, images):
         # 空の<p>タグを空白段落として保持
         # <p></p>, <p style="..."></p>, <p><span style="..."></span></p>, <p>&nbsp;</p> 全パターン対応
         result = re.sub(
-            r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br(?:\s[^>]*)?\s*/?>)*</p>',
+            r'<(?:p|div)[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br(?:\s[^>]*)?\s*/?>)*</(?:p|div)>',
             '<p>&nbsp;</p>',
             result
         )
@@ -75,7 +88,8 @@ def render_inline_images(value, images):
         elif not has_explicit_marker and next_image_index < len(image_list):
             for image in image_list[next_image_index:]:
                 extra.append(_image_html(image))
-        return mark_safe(result + ''.join(str(p) for p in extra))
+        final_html = result + ''.join(str(p) for p in extra)
+        return mark_safe(_ensure_trailing_blank_paragraph(final_html))
 
     # 旧形式（プレーンテキスト / BBCode）: 行単位で <p> 追加
     next_image_index = 0
@@ -104,7 +118,7 @@ def render_inline_images(value, images):
         for image in image_list[next_image_index:]:
             parts.append(_image_html(image))
 
-    return mark_safe(''.join(str(part) for part in parts))
+    return mark_safe(_ensure_trailing_blank_paragraph(''.join(str(part) for part in parts)))
 
 
 @register.filter
@@ -113,7 +127,7 @@ def render_rich_text(value):
     rendered_text = _apply_rich_text_markup(text)
 
     if BLOCK_HTML_PATTERN.search(rendered_text):
-        return mark_safe(rendered_text)
+        return mark_safe(_ensure_trailing_blank_paragraph(rendered_text))
 
     parts = []
     for line in _split_lines_preserving_trailing(rendered_text):
@@ -121,7 +135,7 @@ def render_rich_text(value):
             parts.append(format_html('<p>{}</p>', mark_safe(line)))
         else:
             parts.append('<p>&nbsp;</p>')
-    return mark_safe(''.join(str(part) for part in parts))
+    return mark_safe(_ensure_trailing_blank_paragraph(''.join(str(part) for part in parts)))
 
 
 def _replace_image_tokens(text, image_list, next_image_index):
