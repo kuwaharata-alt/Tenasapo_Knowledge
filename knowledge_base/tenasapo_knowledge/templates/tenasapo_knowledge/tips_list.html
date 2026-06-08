@@ -20,9 +20,9 @@
     </div>
 </div>
 
-<div class="home-panel p-4 mb-4">
+<div class="search-panel py-3 mb-4">
 
-    <form class="row gy-2 gx-2 align-items-end" method="get">
+    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
         {% if selected_parent_category %}
             <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
         {% endif %}
@@ -30,11 +30,10 @@
             <input type="hidden" name="category" value="{{ selected_category }}">
         {% endif %}
         <div class="col-12 col-md-7">
-            <label class="form-label" for="q">検索</label>
-            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="タイトルで検索">
+            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
         </div>
         <div class="col-12 col-md-auto">
-            <button class="btn btn-primary" type="submit">絞り込み</button>
+            <button class="btn btn-primary" type="submit">検索</button>
         </div>
     </form>
 </div>
