@@ -13,6 +13,8 @@
             --tk-bg: #fff8f1;
             --tk-surface: #ffffff;
             --tk-surface-warm: #fff1df;
+            --tk-navbar-offset: 4.5rem;
+            --tk-navbar-underlay: 1rem;
             --tk-primary: #e87524;
             --tk-primary-dark: #b95414;
             --tk-primary-soft: #ffe1c2;
@@ -24,13 +26,30 @@
             background: var(--tk-bg);
             color: var(--tk-text);
             font-family: "Yu Gothic", "Hiragino Maru Gothic ProN", "Meiryo", system-ui, sans-serif;
-            padding-top: 4.5rem;
+            padding-top: var(--tk-navbar-offset);
         }
         .navbar {
-            background: rgba(255, 255, 255, 0.94);
+            background: #ffffff;
             border-color: var(--tk-border);
             box-shadow: 0 8px 24px rgba(184, 112, 39, 0.08);
-            backdrop-filter: blur(8px);
+            z-index: 1035;
+        }
+        .navbar::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(var(--tk-navbar-underlay) * -1);
+            height: var(--tk-navbar-underlay);
+            background: var(--tk-bg);
+            box-shadow:
+                inset 0 0.45rem 0.9rem rgba(255, 255, 255, 0.9),
+                inset 0 -0.25rem 0.65rem rgba(184, 112, 39, 0.045);
+            pointer-events: none;
+        }
+        .navbar > .container {
+            position: relative;
+            z-index: 1;
         }
         .brand-title {
             display: inline-flex;
@@ -106,21 +125,54 @@
             border-radius: 1rem;
             box-shadow: 0 18px 38px rgba(184, 112, 39, 0.11);
         }
+        .faq-group .accordion {
+            display: grid;
+            gap: 0.85rem;
+            border: 0;
+            background: transparent;
+            box-shadow: none !important;
+        }
         .faq-item {
-            border-color: var(--tk-border);
             overflow: hidden;
+            border: 2px solid var(--tk-border) !important;
+            border-radius: 0.9rem !important;
+            background: var(--tk-surface);
+            box-shadow: 0 10px 24px rgba(184, 112, 39, 0.07);
+        }
+        .faq-item > .accordion-header {
+            border-radius: 0.9rem;
+            overflow: hidden;
+            background: var(--tk-surface);
+        }
+        .faq-item > .accordion-header .faq-question {
+            background: var(--tk-surface);
+        }
+        .faq-item > .accordion-header .faq-question:hover {
+            background: #fffaf4;
+        }
+        .faq-item > .accordion-collapse,
+        .faq-item > .accordion-collapse > .accordion-body {
+            background: var(--tk-surface);
         }
         .faq-item.faq-item-expanded {
             overflow: visible;
+            background: var(--tk-surface);
         }
         .faq-item.faq-item-expanded > .accordion-header {
             position: sticky;
-            top: 4.25rem;
-            z-index: 4;
+            top: var(--tk-navbar-offset);
+            z-index: 1020;
+            overflow: hidden;
+            border-radius: 0.9rem 0.9rem 0 0;
+            background: var(--tk-surface);
+            box-shadow:
+                0 0 0 2px var(--tk-border),
+                0 8px 16px rgba(184, 112, 39, 0.1);
         }
         .faq-item.faq-item-expanded > .accordion-header .faq-question {
-            border-bottom: 1px solid var(--tk-border);
-            box-shadow: 0 6px 14px rgba(184, 112, 39, 0.08);
+            position: relative;
+            z-index: 1;
+            background: var(--tk-surface);
         }
         .faq-question {
             background: var(--tk-surface);
