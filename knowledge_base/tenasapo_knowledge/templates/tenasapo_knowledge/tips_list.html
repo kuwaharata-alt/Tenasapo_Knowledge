@@ -191,15 +191,6 @@
                                             {% if can_edit_tip %}
                                                 <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
                                             {% endif %}
-                                            {% if tip.pdf_file %}
-                                                <button
-                                                    class="btn btn-outline-primary btn-sm flex-shrink-0"
-                                                    type="button"
-                                                    data-pdf-url="{{ tip.pdf_file.url }}"
-                                                    data-pdf-title="{{ tip.title }}"
-                                                    onclick="openPdfModal(this)"
-                                                >PDFを見る</button>
-                                            {% endif %}
                                         </div>
                                     </h3>
                                     <div
@@ -230,6 +221,17 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
+                                            {% if tip.pdf_file %}
+                                                <div class="d-flex justify-content-end mb-3">
+                                                    <button
+                                                        class="btn btn-outline-primary btn-sm"
+                                                        type="button"
+                                                        data-pdf-url="{{ tip.pdf_file.url }}"
+                                                        data-pdf-title="{{ tip.title }}"
+                                                        onclick="openPdfModal(this)"
+                                                    >PDFを見る</button>
+                                                </div>
+                                            {% endif %}
                                             <div class="faq-body-indent">{{ tip.body|render_inline_images:tip.inline_images }}</div>
                                             {% if tip.reference_links %}
                                                 <div class="border-top pt-3 mt-3">
