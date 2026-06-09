@@ -9,6 +9,7 @@
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                 <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                     <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"FAQ登録" }}
+                    {% if article and article.is_approved and article.visible_to_customer %}<span class="badge bg-success">公開中</span>{% endif %}
                 </h1>
             </div>
         </div>

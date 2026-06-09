@@ -141,7 +141,7 @@
                                         <div class="faq-question d-flex align-items-center gap-3 p-3">
                                             <span class="badge text-bg-primary flex-shrink-0">Tips</span>
                                             <div class="flex-grow-1">
-                                                <div class="faq-question-title fw-semibold">{{ tip.title }}</div>
+                                                   <div class="faq-question-title fw-semibold">{{ tip.title }}</div>
                                                 {% if tip.category_chips %}
                                                     <div class="d-flex flex-wrap gap-2 mt-2">
                                                         {% for category in tip.category_chips %}
@@ -157,40 +157,49 @@
                                                     </div>
                                                 {% endif %}
                                             </div>
-                                            <button
-                                                class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
-                                                type="button"
-                                                data-bs-toggle="collapse"
-                                                data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
-                                                aria-expanded="false"
-                                                aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
-                                                aria-label="内容を表示"
-                                            ></button>
-                                            {% if can_use_good %}
-                                                <button
-                                                    class="btn btn-sm flex-shrink-0 tips-good-btn {% if tip.is_gooded %}btn-success{% else %}btn-outline-success{% endif %}"
-                                                    type="button"
-                                                    data-tip-id="{{ tip.id }}"
-                                                    data-liked="{% if tip.is_gooded %}1{% else %}0{% endif %}"
-                                                    aria-label="グッド"
-                                                >
-                                                    👍 <span class="tips-good-count">{{ tip.good_count }}</span>
-                                                </button>
-                                            {% endif %}
-                                            {% if can_use_favorite %}
-                                                <button
-                                                    class="btn btn-sm flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                                                    type="button"
-                                                    data-tip-id="{{ tip.id }}"
-                                                    data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
-                                                    aria-label="お気に入り"
-                                                >
-                                                    ☆
-                                                </button>
-                                            {% endif %}
-                                            {% if can_edit_tip %}
-                                                <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
-                                            {% endif %}
+                                            <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+                                                {% if tip.is_approved and tip.visible_to_customer %}
+                                                    {% if user.is_staff or user.is_superuser %}
+                                                        <span class="badge bg-success flex-shrink-0" style="font-size: 0.65rem;">公開中</span>
+                                                    {% endif %}
+                                                {% endif %}
+                                                <div class="d-flex align-items-center gap-1">
+                                                    <button
+                                                        class="btn btn-outline-primary btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
+                                                        type="button"
+                                                        data-bs-toggle="collapse"
+                                                        data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                        aria-expanded="false"
+                                                        aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                        aria-label="内容を表示"
+                                                    ></button>
+                                                    {% if can_use_good %}
+                                                        <button
+                                                            class="btn btn-sm flex-shrink-0 tips-good-btn {% if tip.is_gooded %}btn-success{% else %}btn-outline-success{% endif %}"
+                                                            type="button"
+                                                            data-tip-id="{{ tip.id }}"
+                                                            data-liked="{% if tip.is_gooded %}1{% else %}0{% endif %}"
+                                                            aria-label="グッド"
+                                                        >
+                                                            👍 <span class="tips-good-count">{{ tip.good_count }}</span>
+                                                        </button>
+                                                    {% endif %}
+                                                    {% if can_use_favorite %}
+                                                        <button
+                                                            class="btn btn-sm flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                                                            type="button"
+                                                            data-tip-id="{{ tip.id }}"
+                                                            data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
+                                                            aria-label="お気に入り"
+                                                        >
+                                                            ☆
+                                                        </button>
+                                                    {% endif %}
+                                                    {% if can_edit_tip %}
+                                                        <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
                                         </div>
                                     </h3>
                                     <div
