@@ -32,6 +32,8 @@ ALLOWED_ATTRIBUTES = {
     'span': ['style'],
     'p': ['style'],
     'div': ['class', 'style'],
+    'ol': ['start'],
+    'li': ['value'],
     'a': ['href', 'target', 'rel'],
     'img': ['src', 'alt', 'class'],
 }

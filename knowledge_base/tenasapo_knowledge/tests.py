@@ -1435,6 +1435,24 @@ class RichTextTemplateFilterTests(TestCase):
 
         self.assertIn('<p><strong>見出し</strong><span style="color:#ff0000;">赤</span></p>', rendered)
 
+    def test_render_rich_text_preserves_ordered_list_start_attribute(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '<ol start="3"><li>3番目</li></ol>'})
+        )
+
+        self.assertIn('<ol start="3">', rendered)
+
+    def test_render_rich_text_preserves_list_item_value_attribute(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_rich_text }}"
+        ).render(
+            Context({'text': '<ol><li value="3">3番目</li></ol>'})
+        )
+
+        self.assertIn('<li value="3">', rendered)
+
     def test_render_rich_text_supports_image_url_markup(self):
         rendered = Template(
             "{% load article_extras %}{{ text|render_rich_text }}"

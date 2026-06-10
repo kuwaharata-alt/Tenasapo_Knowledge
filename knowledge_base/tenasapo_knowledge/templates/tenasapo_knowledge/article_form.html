@@ -734,7 +734,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             ],
             content_style: 'body { font-family: "Yu Gothic", "Hiragino Maru Gothic ProN", "Meiryo", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; padding-left: 0 !important; text-indent: 0 !important; } ul, ol { margin: 0.25rem 0 0.25rem 1.5em; padding-left: 1em; list-style-position: outside; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
-            valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[class|style],ul,ol[start],li,a[href|target|rel],h1[class|style],h2[class|style],h3[class|style],h4[class|style],blockquote,pre,code',
+            valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[class|style],ul,ol[start],li[value],a[href|target|rel],h1[class|style],h2[class|style],h3[class|style],h4[class|style],blockquote,pre,code',
             valid_styles: {
                 '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,text-indent,line-height'
             },
@@ -785,18 +785,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (num !== null && num.trim() !== '') {
                             const startNum = parseInt(num, 10);
                             if (!isNaN(startNum) && startNum > 0) {
-                                const selected = editor.selection.getNode();
-                                if (selected && (selected.tagName === 'OL' || selected.tagName === 'UL')) {
-                                    selected.setAttribute('start', startNum);
-                                } else {
-                                    const ol = document.createElement('ol');
-                                    ol.setAttribute('start', startNum);
-                                    const li = document.createElement('li');
-                                    li.textContent = 'リスト項目';
-                                    ol.appendChild(li);
-                                    editor.selection.setNode(ol);
-                                    editor.nodeChanged();
-                                }
+                                editor.undoManager.transact(function() {
+                                    let orderedList = editor.dom.getParent(editor.selection.getNode(), 'ol');
+
+                                    if (!orderedList) {
+                                        editor.execCommand('InsertOrderedList');
+                                        orderedList = editor.dom.getParent(editor.selection.getNode(), 'ol');
+                                    }
+
+                                    if (orderedList) {
+                                        if (startNum === 1) {
+                                            orderedList.removeAttribute('start');
+                                        } else {
+                                            orderedList.setAttribute('start', String(startNum));
+                                        }
+                                        editor.nodeChanged();
+                                    } else {
+                                        alert('番号付きリストを作成できませんでした。まず対象テキストを選択してから実行してください。');
+                                    }
+                                });
                             } else {
                                 alert('正の整数を入力してください。');
                             }
