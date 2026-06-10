@@ -138,6 +138,12 @@ def render_rich_text(value):
     return mark_safe(_ensure_trailing_blank_paragraph(''.join(str(part) for part in parts)))
 
 
+@register.filter
+def split_plus(value):
+    text = str(value or '')
+    return [part.strip() for part in text.split('+') if part.strip()]
+
+
 def _replace_image_tokens(text, image_list, next_image_index):
     found_name_marker = False
 

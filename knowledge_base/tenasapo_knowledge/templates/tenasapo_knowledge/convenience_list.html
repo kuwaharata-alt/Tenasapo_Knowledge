@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% load article_extras %}
+
+{% block title %}クイックリファレンス | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>クイックリファレンス
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <a class="btn btn-outline-primary" href="{% url 'article_list' %}">FAQへ</a>
+            <a class="btn btn-outline-primary" href="{% url 'tip_list' %}">Tipsへ</a>
+            {% if can_create_convenience %}
+                <a class="btn btn-primary" href="{% url 'convenience_create' %}">QR登録</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+    <a class="btn {% if active_tab == 'shortcut' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'convenience_list' %}?tab=shortcut{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">ショートカットタブ</a>
+    <a class="btn {% if active_tab == 'command' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'convenience_list' %}?tab=command{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">コマンドタブ</a>
+    {% if can_use_convenience_favorite %}
+        <a class="btn {% if sort_mode == 'favorite' %}btn-warning{% else %}btn-outline-warning{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode != 'favorite' %}&sort=favorite{% endif %}">
+            {% if sort_mode == 'favorite' %}☆頻度順に戻す{% else %}☆お気に入り順{% endif %}
+        </a>
+    {% endif %}
+</div>
+
+<div class="row g-4 align-items-start">
+    <aside class="col-12 col-lg-3 category-sidebar-col">
+        <div class="category-sidebar">
+            <div class="category-sidebar-title">カテゴリ</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item category-sidebar-link {% if not selected_category %}active{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">すべて</a>
+                {% for category in available_categories %}
+                    <a class="list-group-item category-sidebar-link {% if selected_category == category %}active{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}&category={{ category|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">{{ category }}</a>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <section class="col-12 col-lg-9 category-content-col">
+        {% if category_groups %}
+            <div class="faq-group-list">
+                {% for group in category_groups %}
+                    <section class="faq-group mb-4">
+                        <h2 class="faq-group-title mb-2">{{ group.middle_name }}</h2>
+                        <div class="table-responsive shadow-sm rounded">
+                            <table class="table table-hover align-middle mb-0 bg-white">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="text-center" style="min-width: 18rem;">内容</th>
+                                        {% if active_tab == 'shortcut' %}
+                                            <th class="text-center" style="min-width: 12rem;">ショートカットキー</th>
+                                        {% else %}
+                                            <th class="text-center" style="min-width: 12rem;">コマンド</th>
+                                        {% endif %}
+                                        <th class="text-center" style="min-width: 7rem;">頻度</th>
+                                        <th class="text-center" style="min-width: 13rem;">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for feature in group.features %}
+                                        <tr>
+                                            <td style="font-size: 12pt;">{{ feature.display_text }}</td>
+                                            <td class="text-center">
+                                                {% if active_tab == 'shortcut' %}
+                                                    {% with shortcut_parts=feature.shortcut_key|split_plus %}
+                                                        {% if shortcut_parts %}
+                                                            <div class="d-inline-flex align-items-center justify-content-center flex-wrap gap-1">
+                                                                {% for part in shortcut_parts %}
+                                                                    <span class="badge faq-category-chip">{{ part }}</span>
+                                                                    {% if not forloop.last %}<span class="text-muted">+</span>{% endif %}
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    {% endwith %}
+                                                {% else %}
+                                                    {{ feature.shortcut_key }}
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center text-secondary">{{ feature.usage_frequency_stars }}</td>
+                                            <td class="text-center">
+                                                <div class="d-inline-flex align-items-center gap-1">
+                                                    {% if can_use_convenience_favorite %}
+                                                        <button
+                                                            class="btn btn-sm {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
+                                                            type="button"
+                                                            data-feature-id="{{ feature.id }}"
+                                                            data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
+                                                        >☆</button>
+                                                    {% endif %}
+                                                    {% if can_edit_convenience %}
+                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'convenience_edit' feature.id %}">編集</a>
+                                                    {% endif %}
+                                                    <button
+                                                        type="button"
+                                                        class="btn btn-outline-primary btn-sm qr-detail-toggle"
+                                                        data-target-id="qrDetail{{ feature.id }}"
+                                                        aria-expanded="false"
+                                                    >▽</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr id="qrDetail{{ feature.id }}" class="qr-detail-row d-none">
+                                            <td colspan="4" class="bg-light-subtle">
+                                                <div class="row g-3 py-2">
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="small text-muted">備考</div>
+                                                        <div>{{ feature.note|default:'-' }}</div>
+                                                    </div>
+                                                    <div class="col-12 col-md-6">
+                                                        <div class="small text-muted">画像</div>
+                                                        {% if feature.image %}
+                                                            <a href="{{ feature.image.url }}" target="_blank" rel="noopener">表示</a>
+                                                        {% else %}
+                                                            -
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="card shadow-sm"><div class="card-body"><p class="mb-0">表示できるデータがありません。</p></div></div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const buttons = Array.from(document.querySelectorAll('.convenience-favorite-btn'));
+    const detailButtons = Array.from(document.querySelectorAll('.qr-detail-toggle'));
+
+    const getCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
+    };
+
+    buttons.forEach((button) => {
+        button.addEventListener('click', async () => {
+            const response = await fetch('{% url "convenience_toggle_favorite" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({ feature_id: button.dataset.featureId }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) {
+                alert(data.detail || '保存に失敗しました。');
+                return;
+            }
+            const favorited = data.favorited;
+            button.dataset.favorited = favorited ? '1' : '0';
+            button.classList.toggle('btn-warning', favorited);
+            button.classList.toggle('btn-outline-warning', !favorited);
+        });
+    });
+
+    detailButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            const targetId = button.dataset.targetId;
+            const row = document.getElementById(targetId);
+            if (!row) return;
+            const isHidden = row.classList.contains('d-none');
+            row.classList.toggle('d-none', !isHidden);
+            button.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+            button.textContent = isHidden ? '△' : '▽';
+        });
+    });
+})();
+</script>
+{% endblock %}

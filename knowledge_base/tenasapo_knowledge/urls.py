@@ -2,6 +2,10 @@ from django.urls import path
 from django.views.generic import RedirectView
 from .views import (
     ArticleListView,
+    ConvenienceCreateView,
+    ConvenienceListView,
+    ConvenienceFavoriteToggleView,
+    ConvenienceUpdateView,
     ArticleAttachmentDeleteView,
     HomeView,
     FAQCategoryCreateView,
@@ -42,6 +46,10 @@ urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path('faq/', ArticleListView.as_view(), name='article_list'),
     path('tips/', TipsListView.as_view(), name='tip_list'),
+    path('convenience/', ConvenienceListView.as_view(), name='convenience_list'),
+    path('convenience/create/', ConvenienceCreateView.as_view(), name='convenience_create'),
+    path('convenience/<int:pk>/edit/', ConvenienceUpdateView.as_view(), name='convenience_edit'),
+    path('convenience/toggle-favorite/', ConvenienceFavoriteToggleView.as_view(), name='convenience_toggle_favorite'),
     path('tips/toggle-good/', TipsGoodToggleView.as_view(), name='tip_toggle_good'),
     path('tips/toggle-favorite/', TipsFavoriteToggleView.as_view(), name='tip_toggle_favorite'),
     path('tips/create/', TipsCreateView.as_view(), name='tip_create'),

@@ -586,11 +586,13 @@
                             <li><h6 class="dropdown-header">📚 Knowledge</h6></li>
                             <li><a class="dropdown-item" href="{% url 'article_list' %}">FAQ</a></li>
                             <li><a class="dropdown-item" href="{% url 'tip_list' %}">Tips</a></li>
+                            <li><a class="dropdown-item" href="{% url 'convenience_list' %}">QR</a></li>
                             {% if user.is_staff or user.is_superuser %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">✍️ Input</h6></li>
                                 <li><a class="dropdown-item" href="{% url 'article_create' %}">FAQ登録</a></li>
                                 <li><a class="dropdown-item" href="{% url 'tip_create' %}">Tips登録</a></li>
+                                <li><a class="dropdown-item" href="{% url 'convenience_create' %}">QR登録</a></li>
                                 <li><a class="dropdown-item" href="{% url 'category_create' %}">カテゴリ登録</a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><h6 class="dropdown-header">📘 Manual</h6></li>

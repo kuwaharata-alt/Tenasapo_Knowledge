@@ -20,6 +20,7 @@ from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
 
 from .forms import (
+    ConvenienceFeatureCreateForm,
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
@@ -32,6 +33,8 @@ from .forms import (
     UserUpdateForm,
 )
 from .models import (
+    ConvenienceFeature,
+    ConvenienceFavorite,
     ArticleFavorite,
     ArticleGood,
     ArticleAttachment,
@@ -316,6 +319,10 @@ def can_use_favorite(user):
     )
 
 
+def can_use_convenience_favorite(user):
+    return can_use_favorite(user)
+
+
 def active_until_filter(base_date=None):
     target_date = base_date or timezone.localdate()
     return Q(expires_on__isnull=True) | Q(expires_on__gte=target_date)
@@ -581,6 +588,7 @@ class HomeView(TemplateView):
                 'items': [
                     {'label': 'FAQ', 'url_name': 'article_list'},
                     {'label': 'Tips', 'url_name': 'tip_list'},
+                    {'label': 'クイックリファレンス', 'url_name': 'convenience_list'},
                 ],
             },
             {'name': 'Input', 'icon': '✍️', 'items': []},
@@ -593,6 +601,7 @@ class HomeView(TemplateView):
                 [
                     {'label': 'FAQ登録', 'url_name': 'article_create'},
                     {'label': 'Tips登録', 'url_name': 'tip_create'},
+                    {'label': 'クイックリファレンス登録', 'url_name': 'convenience_create'},
                     {'label': 'カテゴリ登録', 'url_name': 'category_create'},
                 ]
             )
@@ -607,6 +616,209 @@ class HomeView(TemplateView):
             )
         context['menu_groups'] = [group for group in menu_groups if group['items']]
         return context
+
+
+class ConvenienceListView(TemplateView):
+    template_name = 'tenasapo_knowledge/convenience_list.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(request, 'QR一覧')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        tab = (self.request.GET.get('tab') or ConvenienceFeature.TYPE_SHORTCUT).strip().lower()
+        if tab not in {ConvenienceFeature.TYPE_SHORTCUT, ConvenienceFeature.TYPE_COMMAND}:
+            tab = ConvenienceFeature.TYPE_SHORTCUT
+        sort_mode = (self.request.GET.get('sort') or 'frequency').strip().lower()
+        if sort_mode not in {'frequency', 'favorite'}:
+            sort_mode = 'frequency'
+
+        features = list(ConvenienceFeature.objects.filter(reference_type=tab))
+        favorite_ids = set()
+        can_use_convenience_favorite_flag = can_use_convenience_favorite(self.request.user)
+        if can_use_convenience_favorite_flag:
+            favorite_ids = set(
+                ConvenienceFavorite.objects.filter(user=self.request.user, feature__in=features)
+                .values_list('feature_id', flat=True)
+            )
+        for feature in features:
+            try:
+                frequency = int(feature.usage_frequency or '0')
+            except (TypeError, ValueError):
+                frequency = 0
+            frequency = max(0, min(5, frequency))
+            feature.usage_frequency_value = frequency
+            feature.usage_frequency_stars = ('★' * frequency) + ('☆' * (5 - frequency))
+            feature.is_favorited = feature.id in favorite_ids
+
+        if sort_mode == 'favorite' and can_use_convenience_favorite_flag:
+            features.sort(
+                key=lambda feature: (
+                    not feature.is_favorited,
+                    -feature.usage_frequency_value,
+                    feature.category or '',
+                    feature.display_text or '',
+                    feature.id,
+                )
+            )
+        else:
+            sort_mode = 'frequency'
+            features.sort(
+                key=lambda feature: (
+                    -feature.usage_frequency_value,
+                    feature.category or '',
+                    feature.display_text or '',
+                    feature.id,
+                )
+            )
+
+        available_categories = list(dict.fromkeys(feature.category for feature in features if feature.category))
+        selected_category = (self.request.GET.get('category') or '').strip()
+        if selected_category and selected_category not in available_categories:
+            selected_category = ''
+
+        filtered_features = [
+            feature for feature in features
+            if not selected_category or feature.category == selected_category
+        ]
+
+        group_map = {}
+        for feature in filtered_features:
+            group_name = (feature.middle_category or '未分類').strip() or '未分類'
+            group_map.setdefault(group_name, []).append(feature)
+
+        groups = [
+            {
+                'middle_name': middle_name,
+                'features': items,
+            }
+            for middle_name, items in group_map.items()
+        ]
+
+        context['category_groups'] = [
+            {
+                'middle_name': group['middle_name'],
+                'features': group['features'],
+            }
+            for group in groups
+        ]
+        context['active_tab'] = tab
+        context['available_categories'] = available_categories
+        context['selected_category'] = selected_category
+        context['can_create_convenience'] = (
+            self.request.user.is_authenticated
+            and (self.request.user.is_staff or self.request.user.is_superuser)
+        )
+        context['can_edit_convenience'] = context['can_create_convenience']
+        context['can_use_convenience_favorite'] = can_use_convenience_favorite_flag
+        context['sort_mode'] = sort_mode
+        return context
+
+
+class ConvenienceCreateView(FormView):
+    template_name = 'tenasapo_knowledge/convenience_form.html'
+    form_class = ConvenienceFeatureCreateForm
+    success_url = reverse_lazy('convenience_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('convenience_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'QR登録'
+        context['submit_label'] = '登録'
+        return context
+
+    def form_valid(self, form):
+        feature = ConvenienceFeature.objects.create(
+            reference_type=form.cleaned_data['reference_type'],
+            category=form.cleaned_data['category'],
+            middle_category=form.cleaned_data['middle_category'],
+            usage_frequency=form.cleaned_data['usage_frequency'],
+            shortcut_key=form.cleaned_data['shortcut_key'],
+            display_text=form.cleaned_data['display_text'],
+            note=form.cleaned_data['note'],
+            image=form.cleaned_data.get('image'),
+        )
+        messages.success(self.request, f'QR「{feature.display_text}」を登録しました。')
+        return super().form_valid(form)
+
+
+class ConvenienceUpdateView(FormView):
+    template_name = 'tenasapo_knowledge/convenience_form.html'
+    form_class = ConvenienceFeatureCreateForm
+    success_url = reverse_lazy('convenience_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('convenience_list')
+        self.feature = get_object_or_404(ConvenienceFeature, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_initial(self):
+        return {
+            'reference_type': self.feature.reference_type,
+            'category': self.feature.category,
+            'middle_category': self.feature.middle_category,
+            'usage_frequency': self.feature.usage_frequency,
+            'shortcut_key': self.feature.shortcut_key,
+            'display_text': self.feature.display_text,
+            'note': self.feature.note,
+        }
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'QR編集'
+        context['submit_label'] = '更新'
+        context['feature'] = self.feature
+        return context
+
+    def form_valid(self, form):
+        self.feature.reference_type = form.cleaned_data['reference_type']
+        self.feature.category = form.cleaned_data['category']
+        self.feature.middle_category = form.cleaned_data['middle_category']
+        self.feature.usage_frequency = form.cleaned_data['usage_frequency']
+        self.feature.shortcut_key = form.cleaned_data['shortcut_key']
+        self.feature.display_text = form.cleaned_data['display_text']
+        self.feature.note = form.cleaned_data['note']
+        if form.cleaned_data.get('image'):
+            if self.feature.image:
+                self.feature.image.delete(save=False)
+            self.feature.image = form.cleaned_data['image']
+        self.feature.save()
+        messages.success(self.request, f'QR「{self.feature.display_text}」を更新しました。')
+        return super().form_valid(form)
+
+
+class ConvenienceFavoriteToggleView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+        if not can_use_convenience_favorite(request.user):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        feature_id = payload.get('feature_id')
+        if not feature_id:
+            return JsonResponse({'detail': 'feature_id is required'}, status=400)
+
+        feature = get_object_or_404(ConvenienceFeature, pk=feature_id)
+        favorite, created = ConvenienceFavorite.objects.get_or_create(feature=feature, user=request.user)
+        favorited = True
+        if not created:
+            favorite.delete()
+            favorited = False
+
+        return JsonResponse({'ok': True, 'favorited': favorited})
 
 
 class ArticleListView(ListView):

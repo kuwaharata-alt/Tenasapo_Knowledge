@@ -264,6 +264,72 @@ class TipsImageAttachment(models.Model):
         return self.display_name or self.file.name
 
 
+class ConvenienceFeature(models.Model):
+    TYPE_SHORTCUT = 'shortcut'
+    TYPE_COMMAND = 'command'
+    TYPE_CHOICES = (
+        (TYPE_SHORTCUT, 'ショートカット'),
+        (TYPE_COMMAND, 'コマンド'),
+    )
+
+    USAGE_FREQUENCY_CHOICES = (
+        ('1', '1'),
+        ('2', '2'),
+        ('3', '3'),
+        ('4', '4'),
+        ('5', '5'),
+    )
+
+    reference_type = models.CharField('種別', max_length=20, choices=TYPE_CHOICES, default=TYPE_SHORTCUT)
+    category = models.CharField('カテゴリ', max_length=120)
+    middle_category = models.CharField('中カテゴリ', max_length=120, blank=True, default='')
+    usage_frequency = models.CharField('使用頻度', max_length=1, choices=USAGE_FREQUENCY_CHOICES, default='3')
+    shortcut_key = models.CharField('ショートカットキー', max_length=120)
+    display_text = models.CharField('内容', max_length=200)
+    note = models.TextField('備考', blank=True)
+    image = models.FileField('画像', upload_to='manuals/%Y/%m/', blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = 'クイックリファレンス'
+        verbose_name_plural = 'クイックリファレンス'
+        ordering = ['reference_type', 'category', 'middle_category', 'display_text', 'id']
+
+    def __str__(self):
+        return f'{self.category} - {self.display_text}'
+
+
+class ConvenienceFavorite(models.Model):
+    feature = models.ForeignKey(
+        ConvenienceFeature,
+        on_delete=models.CASCADE,
+        related_name='favorites',
+        verbose_name='クイックリファレンス',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='convenience_favorites',
+        verbose_name='ユーザー',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'クイックリファレンスお気に入り'
+        verbose_name_plural = 'クイックリファレンスお気に入り'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['feature', 'user'],
+                name='unique_convenience_favorite_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.feature_id} - {self.user_id}'
+
+
 class ArticleAttachment(models.Model):
     PLACEMENT_ATTACHMENT = 'attachment'
     PLACEMENT_QUESTION = 'question'

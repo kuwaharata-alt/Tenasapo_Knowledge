@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title|default:"QR登録" }} | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"QR登録" }}
+            </h1>
+        </div>
+
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-section-label" for="{{ form.reference_type.id_for_label }}">{{ form.reference_type.label }} <span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.reference_type.errors %} is-invalid{% endif %}" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}" required>
+                            {% for value, label in form.reference_type.field.choices %}
+                                <option value="{{ value }}" {% if form.reference_type.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-section-label" for="{{ form.category.id_for_label }}">{{ form.category.label }} <span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.category.errors %} is-invalid{% endif %}" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" required>
+                            {% for value, label in form.category.field.choices %}
+                                <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label form-section-label" for="{{ form.middle_category.id_for_label }}">{{ form.middle_category.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.middle_category.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}" required>
+                        {% for error in form.middle_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.usage_frequency.id_for_label }}">{{ form.usage_frequency.label }} <span class="text-danger">*</span></label>
+                        <input type="hidden" name="{{ form.usage_frequency.html_name }}" id="{{ form.usage_frequency.id_for_label }}" value="{{ form.usage_frequency.value|default:'3' }}">
+                        <div class="d-flex align-items-center gap-2" id="usageFrequencyStars" role="radiogroup" aria-label="使用頻度">
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="1" aria-label="1">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="2" aria-label="2">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="3" aria-label="3">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="4" aria-label="4">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="5" aria-label="5">☆</button>
+                        </div>
+                        <div class="form-text">☆が多いほど使用頻度が高い評価です。</div>
+                        {% for error in form.usage_frequency.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.shortcut_key.id_for_label }}">{{ form.shortcut_key.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.shortcut_key.errors %} is-invalid{% endif %}" type="text" name="{{ form.shortcut_key.html_name }}" id="{{ form.shortcut_key.id_for_label }}" value="{{ form.shortcut_key.value|default_if_none:'' }}" required>
+                        {% for error in form.shortcut_key.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.display_text.id_for_label }}">{{ form.display_text.label }} <span class="text-danger">*</span></label>
+                        <textarea class="form-control{% if form.display_text.errors %} is-invalid{% endif %}" name="{{ form.display_text.html_name }}" id="{{ form.display_text.id_for_label }}" rows="4" required>{{ form.display_text.value|default_if_none:'' }}</textarea>
+                        {% for error in form.display_text.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+                        <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="3">{{ form.note.value|default_if_none:'' }}</textarea>
+                        {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
+                        <input class="form-control{% if form.image.errors %} is-invalid{% endif %}" type="file" name="{{ form.image.html_name }}" id="{{ form.image.id_for_label }}" accept="image/*">
+                        {% for error in form.image.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'convenience_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:"登録" }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+    const usageInput = document.getElementById('{{ form.usage_frequency.id_for_label }}');
+    const usageButtons = Array.from(document.querySelectorAll('#usageFrequencyStars [data-rating-value]'));
+
+    const updateUsageStars = () => {
+        const current = parseInt(usageInput.value || '0', 10);
+        usageButtons.forEach((button, index) => {
+            button.textContent = index < current ? '★' : '☆';
+            button.classList.toggle('text-warning', index < current);
+            button.classList.toggle('text-muted', index >= current);
+        });
+    };
+
+    usageButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            usageInput.value = button.dataset.ratingValue;
+            updateUsageStars();
+        });
+    });
+
+    updateUsageStars();
+})();
+</script>
+{% endblock %}

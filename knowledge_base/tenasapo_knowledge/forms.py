@@ -6,7 +6,7 @@ from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import FAQCategory, FAQParentCategorySetting, Manual, default_expires_on
+from .models import ConvenienceFeature, FAQCategory, FAQParentCategorySetting, Manual, default_expires_on
 
 
 TARGET_OS_VERSION_MAP = {
@@ -235,6 +235,58 @@ class FAQCategoryCreateForm(forms.ModelForm):
             defaults={'visible_to_customer': self.cleaned_data.get('visible_to_customer', True)},
         )
         return setting
+
+
+class ConvenienceFeatureCreateForm(forms.ModelForm):
+    CATEGORY_CHOICES = (
+        ('Winodws', 'Winodws'),
+        ('Office', 'Office'),
+        ('Googleカレンダー', 'Googleカレンダー'),
+        ('コントロールパネル', 'コントロールパネル'),
+        ('Windowsの設定', 'Windowsの設定'),
+    )
+
+    reference_type = forms.ChoiceField(
+        label='タブ種別',
+        choices=ConvenienceFeature.TYPE_CHOICES,
+        initial=ConvenienceFeature.TYPE_SHORTCUT,
+    )
+
+    category = forms.ChoiceField(
+        label='大カテゴリ',
+        choices=CATEGORY_CHOICES,
+    )
+    middle_category = forms.CharField(
+        label='中カテゴリ',
+        required=True,
+        max_length=120,
+    )
+    usage_frequency = forms.ChoiceField(
+        label='使用頻度',
+        choices=ConvenienceFeature.USAGE_FREQUENCY_CHOICES,
+        initial='3',
+    )
+    display_text = forms.CharField(
+        label='得られる結果',
+        widget=forms.Textarea(attrs={'rows': 4}),
+    )
+
+    class Meta:
+        model = ConvenienceFeature
+        fields = ('reference_type', 'category', 'middle_category', 'shortcut_key', 'display_text', 'note', 'image')
+        labels = {
+            'reference_type': 'タブ種別',
+            'category': '大カテゴリ',
+            'middle_category': '中カテゴリ',
+            'usage_frequency': '使用頻度',
+            'shortcut_key': 'ショートカットキー / コマンド',
+            'display_text': '内容',
+            'note': '備考',
+            'image': '画像',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
 
 class KnowledgeArticleCreateForm(forms.Form):
