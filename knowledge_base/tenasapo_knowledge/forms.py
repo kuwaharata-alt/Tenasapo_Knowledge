@@ -245,6 +245,17 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
         ('コントロールパネル', 'コントロールパネル'),
         ('Windowsの設定', 'Windowsの設定'),
     )
+    USAGE_FREQUENCY_CHOICES = getattr(
+        ConvenienceFeature,
+        'USAGE_FREQUENCY_CHOICES',
+        (
+            ('1', '1'),
+            ('2', '2'),
+            ('3', '3'),
+            ('4', '4'),
+            ('5', '5'),
+        ),
+    )
 
     reference_type = forms.ChoiceField(
         label='タブ種別',
@@ -263,7 +274,7 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
     )
     usage_frequency = forms.ChoiceField(
         label='使用頻度',
-        choices=ConvenienceFeature.USAGE_FREQUENCY_CHOICES,
+        choices=USAGE_FREQUENCY_CHOICES,
         initial='3',
     )
     display_text = forms.CharField(
