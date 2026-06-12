@@ -595,6 +595,7 @@ class HomeView(TemplateView):
             {'name': 'Input', 'icon': '✍️', 'items': []},
             {'name': 'Manual', 'icon': '📘', 'items': []},
             {'name': 'User', 'icon': '👥', 'items': []},
+            {'name': 'Management', 'icon': '📊', 'items': []},
             {'name': 'History', 'icon': '🕒', 'items': []},
         ]
         if is_admin:
@@ -611,6 +612,11 @@ class HomeView(TemplateView):
             menu_groups[4]['items'].extend(
                 [
                     {'label': 'データ分析まとめ', 'url_name': 'summary'},
+                    {'label': '記事管理', 'url_name': 'article_management'},
+                ]
+            )
+            menu_groups[5]['items'].extend(
+                [
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
                     {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
@@ -2721,3 +2727,215 @@ class ManualDeleteView(StaffRequiredMixin, View):
         manual.delete()
         messages.success(request, f'マニュアル「{title}」を削除しました。')
         return redirect('manual_list')
+
+
+class ArticleManagementView(TemplateView):
+    template_name = 'tenasapo_knowledge/article_management.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (
+            request.user.is_authenticated
+            and (
+                request.user.is_staff
+                or request.user.is_superuser
+                or in_group(request.user, ADMIN_GROUP_NAME)
+            )
+        ):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('home')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        article_type = (self.request.GET.get('article_type') or '').strip()
+        author_filter = (self.request.GET.get('author') or '').strip()
+        status_filter = (self.request.GET.get('status') or '').strip()
+        date_from = (self.request.GET.get('date_from') or '').strip()
+        date_to = (self.request.GET.get('date_to') or '').strip()
+        sort_by = (self.request.GET.get('sort') or 'date').strip()
+        sort_dir = (self.request.GET.get('dir') or 'desc').strip()
+
+        # システナ・管理者ユーザーの表示名リストを構築（プルダウン用）
+        User = get_user_model()
+        systena_users = User.objects.filter(
+            Q(is_staff=True)
+            | Q(is_superuser=True)
+            | Q(groups__name=SYSTENA_GROUP_NAME)
+            | Q(groups__name=ADMIN_GROUP_NAME)
+        ).distinct().select_related().prefetch_related('knowledge_profile')
+        author_choices = []
+        seen_names = set()
+        for u in systena_users.order_by('username'):
+            name = resolve_user_display_name(u)
+            if name and name not in seen_names:
+                author_choices.append(name)
+                seen_names.add(name)
+        author_choices.sort()
+
+        combined = []
+
+        if article_type != 'tips':
+            faq_qs = (
+                KnowledgeArticle.objects
+                .select_related('created_by', 'approved_by', 'customer')
+                .prefetch_related('attachments', 'images')
+                .annotate(good_count=Count('goods'))
+                .order_by('-created_at')
+            )
+            for article in faq_qs:
+                creator_name = resolve_saved_or_user_display_name(
+                    article.created_by_name, article.created_by
+                )
+                time_diff = (article.updated_at - article.created_at).total_seconds()
+                if time_diff > 60:
+                    display_date = article.updated_at
+                    date_label = '更新日'
+                else:
+                    display_date = article.created_at
+                    date_label = '作成日'
+
+                ordered_attachments = sorted(
+                    article.attachments.all(),
+                    key=lambda a: (a.uploaded_at, a.id),
+                )
+                question_images = [
+                    a for a in ordered_attachments
+                    if a.placement == ArticleAttachment.PLACEMENT_QUESTION
+                ]
+                body_images = sorted(
+                    article.images.all(),
+                    key=lambda img: (img.uploaded_at, img.id),
+                )
+                file_attachments = [
+                    a for a in ordered_attachments
+                    if a.placement == ArticleAttachment.PLACEMENT_ATTACHMENT
+                ]
+
+                combined.append({
+                    'type': 'faq',
+                    'id': article.id,
+                    'title': article.title,
+                    'creator_display_name': creator_name,
+                    'display_date': display_date,
+                    'date_label': date_label,
+                    'is_published': article.is_published,
+                    'is_approved': article.is_approved,
+                    'good_count': article.good_count,
+                    'view_count': article.answer_view_count,
+                    'category_chips': list(dict.fromkeys(
+                        ArticleListView.split_categories(article.category)
+                    )),
+                    'obj': article,
+                    'question_images': question_images,
+                    'body_images': body_images,
+                    'file_attachments': file_attachments,
+                    'inline_images': [],
+                })
+
+        if article_type != 'faq':
+            tips_qs = (
+                TipsArticle.objects
+                .select_related('created_by', 'approved_by')
+                .prefetch_related('images')
+                .annotate(good_count=Count('goods'))
+                .order_by('-created_at')
+            )
+            for tip in tips_qs:
+                creator_name = resolve_saved_or_user_display_name(
+                    tip.created_by_name, tip.created_by
+                )
+                time_diff = (tip.updated_at - tip.created_at).total_seconds()
+                if time_diff > 60:
+                    display_date = tip.updated_at
+                    date_label = '更新日'
+                else:
+                    display_date = tip.created_at
+                    date_label = '作成日'
+
+                inline_images = sorted(
+                    tip.images.all(),
+                    key=lambda img: (img.uploaded_at, img.id),
+                )
+
+                combined.append({
+                    'type': 'tips',
+                    'id': tip.id,
+                    'title': tip.title,
+                    'creator_display_name': creator_name,
+                    'display_date': display_date,
+                    'date_label': date_label,
+                    'is_published': tip.is_published,
+                    'is_approved': tip.is_approved,
+                    'good_count': tip.good_count,
+                    'view_count': None,
+                    'category_chips': list(dict.fromkeys(
+                        TipsListView.split_categories(tip.category)
+                    )),
+                    'obj': tip,
+                    'question_images': [],
+                    'body_images': [],
+                    'file_attachments': [],
+                    'inline_images': inline_images,
+                })
+
+        # 作成者フィルター（プルダウン値と完全一致）
+        if author_filter:
+            combined = [
+                item for item in combined
+                if item['creator_display_name'] == author_filter
+            ]
+
+        # 公開状態フィルター
+        if status_filter == 'published':
+            combined = [
+                item for item in combined
+                if item['is_published'] and item['is_approved']
+            ]
+        elif status_filter == 'unpublished':
+            combined = [
+                item for item in combined
+                if not (item['is_published'] and item['is_approved'])
+            ]
+
+        # 期間フィルター（created_at ベース）
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+                combined = [
+                    item for item in combined
+                    if item['obj'].created_at.date() >= date_from_obj
+                ]
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                combined = [
+                    item for item in combined
+                    if item['obj'].created_at.date() <= date_to_obj
+                ]
+            except ValueError:
+                pass
+
+        # ソート
+        reverse = (sort_dir != 'asc')
+        if sort_by == 'good_count':
+            combined.sort(key=lambda item: item['good_count'], reverse=reverse)
+        elif sort_by == 'view_count':
+            combined.sort(key=lambda item: (item['view_count'] or 0), reverse=reverse)
+        else:
+            combined.sort(key=lambda item: item['display_date'], reverse=reverse)
+
+        context['articles'] = combined
+        context['article_type'] = article_type
+        context['author_filter'] = author_filter
+        context['author_choices'] = author_choices
+        context['status_filter'] = status_filter
+        context['date_from'] = date_from
+        context['date_to'] = date_to
+        context['sort_by'] = sort_by
+        context['sort_dir'] = sort_dir
+        context['can_edit'] = can_edit_article(self.request.user)
+        return context

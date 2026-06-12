@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 from .views import (
     ArticleListView,
+    ArticleManagementView,
     ConvenienceCreateView,
     ConvenienceListView,
     ConvenienceFavoriteToggleView,
@@ -92,4 +93,5 @@ urlpatterns = [
     path('manuals/create/', ManualCreateView.as_view(), name='manual_create'),
     path('manuals/<int:pk>/edit/', ManualUpdateView.as_view(), name='manual_edit'),
     path('manuals/<int:pk>/delete/', ManualDeleteView.as_view(), name='manual_delete'),
+    path('management/articles/', ArticleManagementView.as_view(), name='article_management'),
 ]

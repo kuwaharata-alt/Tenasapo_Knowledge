@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% load article_extras %}
+
+{% block title %}記事管理 | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-journal-text"></i></span>記事管理
+            </h1>
+        </div>
+    </div>
+</div>
+
+{# ── フィルターフォーム ── #}
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-6 col-sm-4 col-md-2 col-xl-1">
+                <label class="form-label fw-semibold small mb-1">カテゴリ</label>
+                <select class="form-select form-select-sm" name="article_type">
+                    <option value="" {% if not article_type %}selected{% endif %}>すべて</option>
+                    <option value="faq" {% if article_type == 'faq' %}selected{% endif %}>FAQ</option>
+                    <option value="tips" {% if article_type == 'tips' %}selected{% endif %}>Tips</option>
+                </select>
+            </div>
+            <div class="col-6 col-sm-4 col-md-3 col-xl-2">
+                <label class="form-label fw-semibold small mb-1">作成者</label>
+                <select class="form-select form-select-sm" name="author">
+                    <option value="" {% if not author_filter %}selected{% endif %}>すべて</option>
+                    {% for name in author_choices %}
+                        <option value="{{ name }}" {% if author_filter == name %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-sm-4 col-md-2 col-xl-1">
+                <label class="form-label fw-semibold small mb-1">公開状態</label>
+                <select class="form-select form-select-sm" name="status">
+                    <option value="" {% if not status_filter %}selected{% endif %}>すべて</option>
+                    <option value="published" {% if status_filter == 'published' %}selected{% endif %}>公開中</option>
+                    <option value="unpublished" {% if status_filter == 'unpublished' %}selected{% endif %}>非公開</option>
+                </select>
+            </div>
+            <div class="col-12 col-sm-auto">
+                <label class="form-label fw-semibold small mb-1">期間（作成日）</label>
+                <div class="d-flex gap-1 align-items-center">
+                    <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}" style="width:8.5rem;">
+                    <span class="text-muted small">〜</span>
+                    <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}" style="width:8.5rem;">
+                </div>
+            </div>
+            {# ソート値を保持 #}
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+            <input type="hidden" name="dir" value="{{ sort_dir }}">
+            <div class="col-12 col-sm-auto ms-sm-auto">
+                <button class="btn btn-primary btn-sm" type="submit">絞り込み</button>
+                <a class="btn btn-outline-secondary btn-sm ms-1" href="{% url 'article_management' %}">リセット</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── 件数表示 ── #}
+<div class="mb-2 text-muted small">{{ articles|length }} 件</div>
+
+{# ── 一覧テーブル ── #}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="mgmt-table">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:5rem;">カテゴリ</th>
+                    <th>タイトル</th>
+                    <th style="width:8rem;">作成者</th>
+                    <th style="width:9rem;" class="text-nowrap">
+                        {% if sort_by == 'date' %}
+                            {% if sort_dir == 'asc' %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=desc" class="text-decoration-none text-dark">日付 ▲</a>
+                            {% else %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=asc" class="text-decoration-none text-dark">日付 ▼</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=desc" class="text-decoration-none text-muted">日付</a>
+                        {% endif %}
+                    </th>
+                    <th style="width:6rem;">公開状況</th>
+                    <th style="width:5rem;" class="text-nowrap text-center">
+                        {% if sort_by == 'good_count' %}
+                            {% if sort_dir == 'asc' %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=desc" class="text-decoration-none text-dark">👍 ▲</a>
+                            {% else %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=asc" class="text-decoration-none text-dark">👍 ▼</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=desc" class="text-decoration-none text-muted">👍</a>
+                        {% endif %}
+                    </th>
+                    <th style="width:5rem;" class="text-nowrap text-center">
+                        {% if sort_by == 'view_count' %}
+                            {% if sort_dir == 'asc' %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=desc" class="text-decoration-none text-dark">閲覧 ▲</a>
+                            {% else %}
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=asc" class="text-decoration-none text-dark">閲覧 ▼</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=desc" class="text-decoration-none text-muted">閲覧</a>
+                        {% endif %}
+                    </th>
+                    {% if can_edit %}
+                        <th style="width:4rem;"></th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in articles %}
+                    <tr>
+                        <td>
+                            {% if item.type == 'faq' %}
+                                <span class="badge text-bg-primary">FAQ</span>
+                            {% else %}
+                                <span class="badge text-bg-info text-white">Tips</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button
+                                type="button"
+                                class="btn btn-link text-start p-0 text-decoration-none text-dark fw-semibold mgmt-title-btn"
+                                data-detail-id="detail-{{ item.type }}-{{ item.id }}"
+                                data-modal-title="{{ item.title|escapejs }}"
+                                data-modal-type="{{ item.type }}"
+                            >{{ item.title }}</button>
+                            {% if item.category_chips %}
+                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                    {% for chip in item.category_chips %}
+                                        <span class="badge faq-category-chip" style="font-size:0.65rem;">{{ chip }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </td>
+                        <td class="text-muted small text-truncate" style="max-width:8rem;" title="{{ item.creator_display_name }}">
+                            {{ item.creator_display_name|default:"-" }}
+                        </td>
+                        <td class="text-muted small text-nowrap">
+                            <span class="badge bg-secondary" style="font-size:0.6rem;">{{ item.date_label }}</span><br>
+                            {{ item.display_date|date:"Y/m/d" }}
+                        </td>
+                        <td>
+                            {% if item.is_published and item.is_approved %}
+                                <span class="badge bg-success">公開中</span>
+                            {% elif item.is_published and not item.is_approved %}
+                                <span class="badge bg-warning text-dark">未承認</span>
+                            {% else %}
+                                <span class="badge bg-secondary">非公開</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center fw-semibold">{{ item.good_count }}</td>
+                        <td class="text-center text-muted">
+                            {% if item.view_count is not None %}
+                                {{ item.view_count }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        {% if can_edit %}
+                            <td>
+                                {% if item.type == 'faq' %}
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'article_edit' item.id %}">編集</a>
+                                {% else %}
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'tip_edit' item.id %}">編集</a>
+                                {% endif %}
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="{% if can_edit %}8{% else %}7{% endif %}" class="text-center text-muted py-4">
+                            該当する記事がありません。
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{# ── 詳細コンテンツ（非表示）── #}
+{% for item in articles %}
+    <div id="detail-{{ item.type }}-{{ item.id }}" class="d-none article-detail-content">
+        {# メタ情報 #}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <span class="badge faq-meta-badge">掲載日 {{ item.obj.published_at|date:"Y/m/d" }}</span>
+            {% if item.obj.expires_on %}
+                <span class="badge faq-meta-badge">掲載期限 {{ item.obj.expires_on|date:"Y/m/d" }}</span>
+            {% endif %}
+            {% if item.obj.source_published_at %}
+                <span class="badge faq-meta-badge">ソース公開日 {{ item.obj.source_published_at|date:"Y/m/d" }}</span>
+            {% endif %}
+            <span class="badge faq-meta-badge">投稿者 {{ item.creator_display_name|default:"-" }}</span>
+            <span class="badge faq-meta-badge">{{ item.date_label }} {{ item.display_date|date:"Y/m/d H:i" }}</span>
+        </div>
+
+        {% if item.type == 'faq' %}
+            {# FAQ: Q/A 形式 #}
+            {% if item.obj.pdf_file %}
+                <div class="d-flex justify-content-end mb-3">
+                    <button class="btn btn-outline-primary btn-sm" type="button"
+                        data-pdf-url="{{ item.obj.pdf_file.url }}"
+                        data-pdf-title="{{ item.obj.title }}"
+                        onclick="openPdfModal(this)">PDFを見る</button>
+                </div>
+            {% endif %}
+            <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
+                <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                <div class="flex-grow-1 faq-body-indent">
+                    {{ item.obj.summary|default:item.obj.title|render_inline_images:item.question_images }}
+                </div>
+            </div>
+            <div class="faq-question d-flex align-items-start gap-3 p-3 rounded">
+                <span class="badge text-bg-secondary flex-shrink-0">A</span>
+                <div class="flex-grow-1 faq-body-indent">
+                    {{ item.obj.body|render_inline_images:item.body_images }}
+                </div>
+            </div>
+            {% if item.file_attachments %}
+                <div class="border-top pt-3 mt-3">
+                    <div class="fw-semibold small mb-2">添付ファイル</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for attachment in item.file_attachments %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.file.url }}">
+                                {{ attachment }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% else %}
+            {# Tips: 本文 #}
+            {% if item.obj.pdf_file %}
+                <div class="d-flex justify-content-end mb-3">
+                    <button class="btn btn-outline-primary btn-sm" type="button"
+                        data-pdf-url="{{ item.obj.pdf_file.url }}"
+                        data-pdf-title="{{ item.obj.title }}"
+                        onclick="openPdfModal(this)">PDFを見る</button>
+                </div>
+            {% endif %}
+            <div class="faq-body-indent">{{ item.obj.body|render_inline_images:item.inline_images }}</div>
+        {% endif %}
+
+        {% if item.obj.reference_links %}
+            <div class="border-top pt-3 mt-3">
+                <div class="fw-semibold small mb-2">参考リンク</div>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for link in item.obj.reference_links %}
+                        {% if link.url %}
+                            <a class="btn btn-outline-info btn-sm" href="{{ link.url }}" target="_blank" rel="noopener">
+                                🔗 {{ link.label|default:link.url }}
+                            </a>
+                        {% else %}
+                            <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
+                                🔗 {{ link }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if can_edit %}
+            <div class="border-top pt-3 mt-3 d-flex justify-content-end">
+                {% if item.type == 'faq' %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'article_edit' item.id %}">
+                        <i class="bi bi-pencil"></i> 編集
+                    </a>
+                {% else %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'tip_edit' item.id %}">
+                        <i class="bi bi-pencil"></i> 編集
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+{% endfor %}
+
+{# ── 詳細モーダル ── #}
+<div class="modal fade" id="articleDetailModal" tabindex="-1" aria-labelledby="articleDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex align-items-center gap-2">
+                    <span id="modalTypeBadge" class="badge text-bg-primary"></span>
+                    <h5 class="modal-title" id="articleDetailModalLabel"></h5>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body" id="articleDetailModalBody"></div>
+        </div>
+    </div>
+</div>
+
+{# ── PDF モーダル ── #}
+<div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height:90vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
+                <h5 class="modal-title" id="pdfModalLabel">PDF閲覧</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body p-2" id="pdfModalBody" style="flex:1; overflow-y:auto; background:#3c3c3c;">
+                <div id="pdfLoadingMsg" class="text-white text-center py-4">読み込み中...</div>
+                <div id="pdfPageStack"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
+                <a id="pdfDownloadLink" href="" download class="btn btn-outline-secondary btn-sm">ダウンロード</a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+
+window.openPdfModal = async function(btn) {
+    const url = btn.dataset.pdfUrl;
+    const title = btn.dataset.pdfTitle;
+    document.getElementById('pdfModalLabel').textContent = title;
+    document.getElementById('pdfDownloadLink').href = url;
+    const pageStack = document.getElementById('pdfPageStack');
+    const loadingMsg = document.getElementById('pdfLoadingMsg');
+    pageStack.innerHTML = '';
+    loadingMsg.textContent = '読み込み中...';
+    loadingMsg.style.display = 'block';
+
+    const modalEl = document.getElementById('pdfModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    try {
+        const pdfDoc = await pdfjsLib.getDocument(url).promise;
+        loadingMsg.style.display = 'none';
+        const bodyWidth = document.getElementById('pdfModalBody').clientWidth - 32;
+        for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
+            const page = await pdfDoc.getPage(pageNo);
+            const section = document.createElement('section');
+            section.className = 'mb-3';
+            const label = document.createElement('div');
+            label.className = 'small text-white-50 mb-1';
+            label.textContent = pageNo + ' ページ';
+            const frame = document.createElement('div');
+            frame.style.cssText = 'background:#fff;border-radius:.5rem;overflow:hidden;display:flex;justify-content:center;';
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = 'max-width:100%;display:block;';
+            const base = page.getViewport({ scale: 1 });
+            const scale = Math.max(1, bodyWidth) / base.width;
+            const viewport = page.getViewport({ scale });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            frame.appendChild(canvas);
+            section.appendChild(label);
+            section.appendChild(frame);
+            pageStack.appendChild(section);
+        }
+    } catch (e) {
+        loadingMsg.textContent = 'PDFの読み込みに失敗しました: ' + e.message;
+        loadingMsg.style.display = 'block';
+        console.error(e);
+    }
+};
+
+document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('pdfPageStack').innerHTML = '';
+    document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
+    document.getElementById('pdfLoadingMsg').style.display = 'block';
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const detailModal = new bootstrap.Modal(document.getElementById('articleDetailModal'));
+    const modalLabel = document.getElementById('articleDetailModalLabel');
+    const modalBadge = document.getElementById('modalTypeBadge');
+    const modalBody = document.getElementById('articleDetailModalBody');
+
+    document.querySelectorAll('.mgmt-title-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const detailId = this.dataset.detailId;
+            const title = this.dataset.modalTitle;
+            const type = this.dataset.modalType;
+
+            modalLabel.textContent = title;
+            modalBadge.textContent = type === 'faq' ? 'FAQ' : 'Tips';
+            modalBadge.className = 'badge ' + (type === 'faq' ? 'text-bg-primary' : 'text-bg-info text-white');
+
+            const detailEl = document.getElementById(detailId);
+            modalBody.innerHTML = detailEl ? detailEl.innerHTML : '';
+
+            detailModal.show();
+        });
+    });
+});
+</script>
+{% endblock %}
