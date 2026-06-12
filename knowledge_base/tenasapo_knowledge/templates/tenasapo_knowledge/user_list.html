@@ -23,7 +23,7 @@
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
     <div class="col-12 col-md-5">
         <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ユーザー名・ユーザーIDで検索">
+        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
     </div>
     <div class="col-12 col-md-3">
         <label class="form-label" for="role">所属役割</label>
@@ -48,18 +48,20 @@
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
             <colgroup>
+                <col style="width: 7%">
+                <col style="width: 11%">
+                <col style="width: 11%">
+                <col style="width: 13%">
                 <col style="width: 8%">
-                <col style="width: 12%">
-                <col style="width: 14%">
-                <col style="width: 8%">
-                <col style="width: 14%">
+                <col style="width: 13%">
+                <col style="width: 15%">
                 <col style="width: 16%">
-                <col style="width: 16%">
-                <col style="width: 12%">
+                <col style="width: 6%">
             </colgroup>
             <thead class="table-light">
                 <tr>
-                    <th scope="col">ユーザーID</th>
+                    <th scope="col">管理番号</th>
+                    <th scope="col">ログインID</th>
                     <th scope="col">ユーザー名</th>
                     <th scope="col">会社名</th>
                     <th scope="col">権限</th>
@@ -80,6 +82,7 @@
                             {% endif %}
                         </td>
                         <td class="fw-semibold">{{ account.username }}</td>
+                        <td class="fw-semibold">{{ account.knowledge_profile.display_name|default:account.username }}</td>
                         <td>{{ account.knowledge_profile.company_name|default:"-" }}</td>
                         <td>
                             {% if account.is_staff or account.is_superuser %}
@@ -107,7 +110,7 @@
                             {% endif %}
                         </td>
                         <td class="text-break">{{ account.knowledge_profile.note|default:"-"|linebreaksbr }}</td>
-                        <td>
+                        <td class="text-nowrap">
                             <div class="d-flex flex-wrap gap-2" role="group">
                                 <a class="btn btn-outline-primary btn-sm" href="{% url 'user_edit' account.id %}">編集</a>
                                 <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
@@ -117,7 +120,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="8">ユーザーが見つかりません。</td>
+                        <td class="text-center text-secondary py-4" colspan="9">ユーザーが見つかりません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -152,7 +155,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h1 class="modal-title fs-5" id="passwordChangeModalLabel{{ account.id }}">{{ account.username }} のパスワード変更</h1>
+                <h1 class="modal-title fs-5" id="passwordChangeModalLabel{{ account.id }}">{{ account.knowledge_profile.display_name|default:account.username }}（{{ account.username }}）のパスワード変更</h1>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -201,7 +204,7 @@
             </div>
             <div class="modal-body">
                 <p>このユーザーを削除してもよろしいですか？</p>
-                <p class="text-danger"><strong>{{ account.username }}</strong></p>
+                <p class="text-danger"><strong>{{ account.knowledge_profile.display_name|default:account.username }}（{{ account.username }}）</strong></p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>

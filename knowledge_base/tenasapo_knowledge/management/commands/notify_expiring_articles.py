@@ -6,6 +6,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from tenasapo_knowledge.models import KnowledgeArticle, TipsArticle
+from tenasapo_knowledge.utils import resolve_user_display_name
 
 
 class Command(BaseCommand):
@@ -43,7 +44,7 @@ class Command(BaseCommand):
     def display_name(saved_name, user):
         name = (saved_name or '').strip()
         if not name and user:
-            name = user.get_username().strip()
+            name = resolve_user_display_name(user)
         return name or '-'
 
     def send_for_queryset(self, queryset, label, target_date, dry_run=False):

@@ -25,21 +25,31 @@
 
                 <div class="row g-3">
                     <div class="col-12 col-md-4">
-                        <label class="form-label" for="{{ form.uid.id_for_label }}">ユーザーID</label>
+                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号</label>
                         <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
                         <div class="form-text">数字6桁（省略可）</div>
                         {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     {% if is_edit %}
-                        <div class="col-12 col-md-8">
-                            <label class="form-label">ユーザー名</label>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label">ログインID</label>
                             <input class="form-control" type="text" value="{{ user_obj.username }}" readonly>
                         </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
+                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}" required>
+                            {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
                     {% else %}
-                        <div class="col-12 col-md-6">
-                            <label class="form-label" for="{{ form.username.id_for_label }}">ユーザー名</label>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="{{ form.username.id_for_label }}">ログインID</label>
                             <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
                             {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
+                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}" required>
+                            {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                     {% endif %}
                     <div class="col-12 col-md-6">

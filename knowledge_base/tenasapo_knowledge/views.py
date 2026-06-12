@@ -52,6 +52,7 @@ from .models import (
     UserProfile,
     ViewHistory,
 )
+from .utils import resolve_saved_or_user_display_name, resolve_user_display_name
 
 
 ADMIN_GROUP_NAME = getattr(
@@ -194,7 +195,7 @@ def record_view_history(
     ViewHistory.objects.create(
         login_history=login_history,
         user=user,
-        username=user.get_username(),
+        username=resolve_user_display_name(user),
         page_name=page_name,
         path=resolved_path,
         search_query=search_query,
@@ -938,10 +939,10 @@ class ArticleListView(ListView):
             article.is_gooded = article.id in liked_article_ids
             article.is_favorited = article.id in favorite_article_ids
             article.creator_display_name = article.created_by_name or (
-                article.created_by.get_username() if article.created_by else ''
+                resolve_user_display_name(article.created_by)
             )
             article.approver_display_name = article.approved_by_name or (
-                article.approved_by.get_username() if article.approved_by else ''
+                resolve_user_display_name(article.approved_by)
             )
             article.category_chips = list(dict.fromkeys(self.split_categories(article.category)))
             article.target_os_chips = parse_target_os_values(article.target_os)
@@ -1209,10 +1210,10 @@ class TipsListView(ListView):
             tip.is_gooded = tip.id in liked_tip_ids
             tip.is_favorited = tip.id in favorite_tip_ids
             tip.creator_display_name = tip.created_by_name or (
-                tip.created_by.get_username() if tip.created_by else ''
+                resolve_user_display_name(tip.created_by)
             )
             tip.approver_display_name = tip.approved_by_name or (
-                tip.approved_by.get_username() if tip.approved_by else ''
+                resolve_user_display_name(tip.approved_by)
             )
             tip.category_chips = list(dict.fromkeys(self.split_categories(tip.category)))
             tip.target_os_chips = parse_target_os_values(tip.target_os)
@@ -1396,7 +1397,7 @@ class TipsCreateView(FormView):
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
             created_by=self.request.user,
-            created_by_name=self.request.user.get_username(),
+            created_by_name=resolve_user_display_name(self.request.user),
             reference_links=reference_links,
         )
         pdf_file = form.cleaned_data.get('pdf_file')
@@ -1455,7 +1456,7 @@ class TipsUpdateView(FormView):
         context['submit_label'] = '更新'
         context['tip'] = self.tip
         context['tip_approver_display_name'] = self.tip.approved_by_name or (
-            self.tip.approved_by.get_username() if self.tip.approved_by else ''
+            resolve_user_display_name(self.tip.approved_by)
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_tip'] = can_approve_article(self.request.user)
@@ -1541,7 +1542,7 @@ class TipsApproveView(View):
 
         tip.is_approved = True
         tip.approved_by = request.user
-        tip.approved_by_name = request.user.get_username()
+        tip.approved_by_name = resolve_user_display_name(request.user)
         tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
         return redirect('tip_list')
@@ -1790,10 +1791,7 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
     @classmethod
     def resolve_contributor_name(cls, saved_name='', user=None):
-        name = (saved_name or '').strip()
-        if not name and user:
-            name = user.get_username().strip()
-        return name
+        return resolve_saved_or_user_display_name(saved_name, user, default='').strip()
 
     @classmethod
     def is_excluded_contributor(cls, contributor_name):
@@ -2037,7 +2035,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             source_published_at=form.cleaned_data['source_published_at'],
             expires_on=form.cleaned_data['expires_on'],
             created_by=self.request.user,
-            created_by_name=self.request.user.get_username(),
+            created_by_name=resolve_user_display_name(self.request.user),
             reference_links=reference_links,
         )
         self.save_question_images(article, form)
@@ -2101,7 +2099,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['submit_label'] = '更新'
         context['article'] = self.article
         context['article_approver_display_name'] = self.article.approved_by_name or (
-            self.article.approved_by.get_username() if self.article.approved_by else ''
+            resolve_user_display_name(self.article.approved_by)
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_article'] = can_approve_article(self.request.user)
@@ -2188,7 +2186,7 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
 
         article.is_approved = True
         article.approved_by = request.user
-        article.approved_by_name = request.user.get_username()
+        article.approved_by_name = resolve_user_display_name(request.user)
         article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect('article_list')
@@ -2395,6 +2393,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
         UserProfile.objects.create(
             user=user,
             uid=form.cleaned_data.get('uid') or None,
+            display_name=form.cleaned_data['display_name'],
             company_name=form.cleaned_data['company_name'],
             user_type=profile_user_type_from_groups(selected_group_names),
             email_addresses='\n'.join(emails),
@@ -2404,7 +2403,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
         customer, _ = Customer.objects.get_or_create(name=form.cleaned_data['company_name'])
         customer.users.add(user)
 
-        messages.success(self.request, f'{user.username} を作成しました。')
+        messages.success(self.request, f'{resolve_user_display_name(user)}（{user.username}）を作成しました。')
         return super().form_valid(form)
 
 
@@ -2416,13 +2415,14 @@ class UserListView(StaffRequiredMixin, ListView):
     def get_queryset(self):
         User = get_user_model()
         queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by(
-            'knowledge_profile__uid', 'username'
+            'knowledge_profile__uid', 'knowledge_profile__display_name', 'username'
         )
 
         query = self.request.GET.get('q', '').strip()
         if query:
             queryset = queryset.filter(
                 Q(username__icontains=query) |
+                Q(knowledge_profile__display_name__icontains=query) |
                 Q(knowledge_profile__uid__icontains=query)
             )
 
@@ -2453,14 +2453,14 @@ class UserPasswordResetView(StaffRequiredMixin, View):
             if not temporary_password:
                 messages.error(request, '手動設定するパスワードを入力してください。')
                 return redirect('user_list')
-            message = f'{user.username} のパスワードを手動設定しました。'
+            message = f'{resolve_user_display_name(user)}（{user.username}）のパスワードを手動設定しました。'
         else:
             temporary_password = get_random_string(
                 12,
                 allowed_chars='abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789',
             )
             message = (
-                f'{user.username} のパスワードをランダム生成しました。'
+                f'{resolve_user_display_name(user)}（{user.username}）のパスワードをランダム生成しました。'
                 f'一時パスワード: {temporary_password}'
             )
 
@@ -2482,7 +2482,11 @@ class LoginHistoryListView(StaffRequiredMixin, ListView):
         queryset = LoginHistory.objects.select_related('user')
         query = self.request.GET.get('q', '').strip()
         if query:
-            queryset = queryset.filter(username__icontains=query)
+            queryset = queryset.filter(
+                Q(username__icontains=query)
+                | Q(user__username__icontains=query)
+                | Q(user__knowledge_profile__display_name__icontains=query)
+            )
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2498,10 +2502,16 @@ class ViewHistoryListView(StaffRequiredMixin, ListView):
 
     def get_queryset(self):
         User = get_user_model()
-        queryset = User.objects.all().order_by('username')
+        queryset = User.objects.select_related('knowledge_profile').all().order_by(
+            'knowledge_profile__display_name',
+            'username',
+        )
         query = self.request.GET.get('q', '').strip()
         if query:
-            queryset = queryset.filter(username__icontains=query)
+            queryset = queryset.filter(
+                Q(username__icontains=query) |
+                Q(knowledge_profile__display_name__icontains=query)
+            )
         return queryset
 
     def get_context_data(self, **kwargs):
@@ -2549,6 +2559,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         return {
             'uid': profile.uid if profile else '',
             'username': self.user_obj.username,
+            'display_name': profile.display_name if profile else self.user_obj.username,
             'company_name': profile.company_name if profile else '',
             'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
             'groups': list(self.user_obj.groups.values_list('name', flat=True)),
@@ -2599,6 +2610,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         # プロフィールを更新
         profile, _ = UserProfile.objects.get_or_create(user=self.user_obj)
         profile.uid = form.cleaned_data.get('uid') or None
+        profile.display_name = form.cleaned_data['display_name']
         profile.company_name = form.cleaned_data['company_name']
         profile.user_type = profile_user_type_from_groups(selected_group_names)
         profile.email_addresses = '\n'.join(emails)
@@ -2610,7 +2622,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         if self.user_obj not in customer.users.all():
             customer.users.add(self.user_obj)
 
-        messages.success(self.request, f'{self.user_obj.username} を更新しました。')
+        messages.success(self.request, f'{resolve_user_display_name(self.user_obj)}（{self.user_obj.username}）を更新しました。')
         return super().form_valid(form)
 
 
@@ -2624,9 +2636,10 @@ class UserDeleteView(StaffRequiredMixin, View):
             messages.error(request, '自分自身を削除することはできません。')
             return redirect('user_list')
         
-        username = user.username
+        username = resolve_user_display_name(user) or user.username
+        login_id = user.username
         user.delete()
-        messages.success(request, f'{username} を削除しました。')
+        messages.success(request, f'{username}（{login_id}）を削除しました。')
         return redirect('user_list')
 
 

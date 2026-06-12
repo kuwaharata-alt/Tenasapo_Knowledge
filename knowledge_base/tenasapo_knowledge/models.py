@@ -63,6 +63,7 @@ class UserProfile(models.Model):
         unique=True,
         help_text='数字6桁',
     )
+    display_name = models.CharField('表示名', max_length=150, blank=True)
     company_name = models.CharField('会社名', max_length=120)
     user_type = models.CharField(
         'ユーザー区分',
@@ -81,7 +82,7 @@ class UserProfile(models.Model):
         ordering = ['user__username']
 
     def __str__(self):
-        return f'{self.user.username} ({self.company_name})'
+        return f'{self.display_name or self.user.username} ({self.company_name})'
 
 
 class FAQCategory(models.Model):

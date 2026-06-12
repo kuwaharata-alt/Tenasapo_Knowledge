@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.dispatch import receiver
 
 from .models import LoginHistory
+from .utils import resolve_user_display_name
 
 
 def client_ip_from_request(request):
@@ -21,7 +22,7 @@ def record_login_history(sender, request, user, **kwargs):
 
     history = LoginHistory.objects.create(
         user=user,
-        username=user.get_username(),
+        username=resolve_user_display_name(user),
         ip_address=client_ip_from_request(request),
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
     )

@@ -13,7 +13,7 @@
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
     <div class="col-12 col-md-5">
         <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ユーザー名で検索">
+        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名で検索">
     </div>
     <div class="col-12 col-md-auto">
         <button class="btn btn-outline-primary" type="submit">検索</button>
@@ -27,6 +27,7 @@
                 <tr>
                     <th scope="col">ログイン日時</th>
                     <th scope="col">ユーザー名</th>
+                    <th scope="col">ログインID</th>
                     <th scope="col">IPアドレス</th>
                     <th scope="col">User-Agent</th>
                 </tr>
@@ -36,12 +37,13 @@
                     <tr>
                         <td>{{ history.logged_in_at|date:"Y/m/d H:i:s" }}</td>
                         <td class="fw-semibold">{{ history.username }}</td>
+                        <td>{{ history.user.username|default:"-" }}</td>
                         <td>{{ history.ip_address|default:"-" }}</td>
                         <td class="text-break">{{ history.user_agent|default:"-" }}</td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="4">ログイン履歴がありません。</td>
+                        <td class="text-center text-secondary py-4" colspan="5">ログイン履歴がありません。</td>
                     </tr>
                 {% endfor %}
             </tbody>

@@ -610,9 +610,11 @@
                     </div>
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            {{ user.get_username }}
+                            {{ current_user_display_name }}
                         </button>
                         <div class="dropdown-menu dropdown-menu-end p-2">
+                            <div class="dropdown-item-text text-muted small">ログインID: {{ user.username }}</div>
+                            <hr class="dropdown-divider">
                             <form method="post" action="{% url 'logout' %}">
                                 {% csrf_token %}
                                 <button class="dropdown-item" type="submit">ログアウト</button>

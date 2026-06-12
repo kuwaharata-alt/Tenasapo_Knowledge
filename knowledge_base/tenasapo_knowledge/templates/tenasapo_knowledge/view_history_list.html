@@ -13,7 +13,7 @@
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
     <div class="col-12 col-md-5">
         <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ユーザー名で検索">
+        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名で検索">
     </div>
     <div class="col-12 col-md-auto">
         <button class="btn btn-outline-primary" type="submit">検索</button>
@@ -33,7 +33,7 @@
                         aria-expanded="false"
                         aria-controls="userBody{{ forloop.counter }}"
                     >
-                        {{ group.user.username }}
+                        {{ group.user.knowledge_profile.display_name|default:group.user.username }}（{{ group.user.username }}）
                     </button>
                 </div>
                 <div

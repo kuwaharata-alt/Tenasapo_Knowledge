@@ -15,6 +15,7 @@ from .models import (
     UserProfile,
     ViewHistory,
 )
+from .utils import resolve_user_display_name
 
 
 class ArticleAttachmentInline(admin.TabularInline):
@@ -79,7 +80,7 @@ class KnowledgeArticleAdmin(admin.ModelAdmin):
         if not obj.created_by:
             obj.created_by = request.user
         if not obj.created_by_name:
-            obj.created_by_name = obj.created_by.get_username() if obj.created_by else request.user.get_username()
+            obj.created_by_name = resolve_user_display_name(obj.created_by or request.user)
         super().save_model(request, obj, form, change)
 
 
@@ -105,9 +106,9 @@ class FAQParentCategorySettingAdmin(admin.ModelAdmin):
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'company_name', 'user_type', 'created_at', 'updated_at')
+    list_display = ('user', 'display_name', 'company_name', 'user_type', 'created_at', 'updated_at')
     list_filter = ('user_type',)
-    search_fields = ('user__username', 'company_name', 'email_addresses', 'note')
+    search_fields = ('user__username', 'display_name', 'company_name', 'email_addresses', 'note')
 
 
 @admin.register(Manual)
@@ -155,7 +156,7 @@ class TipsArticleAdmin(admin.ModelAdmin):
         if not obj.created_by:
             obj.created_by = request.user
         if not obj.created_by_name:
-            obj.created_by_name = obj.created_by.get_username() if obj.created_by else request.user.get_username()
+            obj.created_by_name = resolve_user_display_name(obj.created_by or request.user)
         super().save_model(request, obj, form, change)
 
 
