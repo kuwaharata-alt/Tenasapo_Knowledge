@@ -3017,22 +3017,18 @@ class ArticleManagementView(TemplateView):
         sort_by = (self.request.GET.get('sort') or 'created_at').strip()
         sort_dir = (self.request.GET.get('dir') or 'desc').strip()
 
-        # システナ・管理者ユーザーの表示名リストを構築（プルダウン用）
+        # 投稿者ロールのユーザー表示名リストを構築（プルダウン用）
         User = get_user_model()
-        systena_users = User.objects.filter(
-            Q(is_staff=True)
-            | Q(is_superuser=True)
-            | Q(groups__name=SYSTENA_GROUP_NAME)
-            | Q(groups__name=ADMIN_GROUP_NAME)
-        ).distinct().select_related().prefetch_related('knowledge_profile')
+        contributor_users = User.objects.filter(
+            groups__name=CONTRIBUTOR_GROUP_NAME
+        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
         author_choices = []
         seen_names = set()
-        for u in systena_users.order_by('username'):
+        for u in contributor_users:
             name = resolve_user_display_name(u)
             if name and name not in seen_names:
                 author_choices.append({'id': u.id, 'name': name})
                 seen_names.add(name)
-        author_choices.sort(key=lambda item: item['id'])
 
         combined = []
 
