@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 
 from django.contrib import messages
@@ -322,6 +322,16 @@ def can_use_favorite(user):
 
 def can_use_convenience_favorite(user):
     return can_use_favorite(user)
+
+
+def should_count_content_view(user, content_creator=None):
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser or user.is_staff or in_group(user, ADMIN_GROUP_NAME):
+        return False
+    if content_creator and getattr(content_creator, 'pk', None) == user.pk:
+        return False
+    return True
 
 
 def active_until_filter(base_date=None):
@@ -944,11 +954,13 @@ class ArticleListView(ListView):
         for article in visible_articles:
             article.is_gooded = article.id in liked_article_ids
             article.is_favorited = article.id in favorite_article_ids
-            article.creator_display_name = article.created_by_name or (
-                resolve_user_display_name(article.created_by)
+            article.creator_display_name = resolve_saved_or_user_display_name(
+                article.created_by_name,
+                article.created_by,
             )
-            article.approver_display_name = article.approved_by_name or (
-                resolve_user_display_name(article.approved_by)
+            article.approver_display_name = resolve_saved_or_user_display_name(
+                article.approved_by_name,
+                article.approved_by,
             )
             article.category_chips = list(dict.fromkeys(self.split_categories(article.category)))
             article.target_os_chips = parse_target_os_values(article.target_os)
@@ -1215,11 +1227,13 @@ class TipsListView(ListView):
         for tip in visible_tips:
             tip.is_gooded = tip.id in liked_tip_ids
             tip.is_favorited = tip.id in favorite_tip_ids
-            tip.creator_display_name = tip.created_by_name or (
-                resolve_user_display_name(tip.created_by)
+            tip.creator_display_name = resolve_saved_or_user_display_name(
+                tip.created_by_name,
+                tip.created_by,
             )
-            tip.approver_display_name = tip.approved_by_name or (
-                resolve_user_display_name(tip.approved_by)
+            tip.approver_display_name = resolve_saved_or_user_display_name(
+                tip.approved_by_name,
+                tip.approved_by,
             )
             tip.category_chips = list(dict.fromkeys(self.split_categories(tip.category)))
             tip.target_os_chips = parse_target_os_values(tip.target_os)
@@ -1461,8 +1475,9 @@ class TipsUpdateView(FormView):
         context['form_title'] = 'Tips編集'
         context['submit_label'] = '更新'
         context['tip'] = self.tip
-        context['tip_approver_display_name'] = self.tip.approved_by_name or (
-            resolve_user_display_name(self.tip.approved_by)
+        context['tip_approver_display_name'] = resolve_saved_or_user_display_name(
+            self.tip.approved_by_name,
+            self.tip.approved_by,
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_tip'] = can_approve_article(self.request.user)
@@ -1602,8 +1617,9 @@ class FAQAnswerViewTrackView(View):
         if not can_user_access_article(request.user, article):
             return JsonResponse({'detail': 'forbidden'}, status=403)
 
-        KnowledgeArticle.objects.filter(pk=article.pk).update(answer_view_count=F('answer_view_count') + 1)
-        article.refresh_from_db(fields=['answer_view_count'])
+        if should_count_content_view(request.user, article.created_by):
+            KnowledgeArticle.objects.filter(pk=article.pk).update(answer_view_count=F('answer_view_count') + 1)
+            article.refresh_from_db(fields=['answer_view_count'])
 
         record_view_history(
             request,
@@ -1615,6 +1631,40 @@ class FAQAnswerViewTrackView(View):
         )
 
         return JsonResponse({'ok': True, 'answer_view_count': article.answer_view_count})
+
+
+class TipViewTrackView(View):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return JsonResponse({'detail': 'authentication required'}, status=401)
+
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            payload = {}
+
+        tip_id = payload.get('tip_id')
+        if not tip_id:
+            return JsonResponse({'detail': 'tip_id is required'}, status=400)
+
+        tip = get_object_or_404(TipsArticle, pk=tip_id, is_published=True)
+        if not can_user_access_tip(request.user, tip):
+            return JsonResponse({'detail': 'forbidden'}, status=403)
+
+        if should_count_content_view(request.user, tip.created_by):
+            TipsArticle.objects.filter(pk=tip.pk).update(view_count=F('view_count') + 1)
+            tip.refresh_from_db(fields=['view_count'])
+
+        record_view_history(
+            request,
+            page_name=f'Tips表示: {tip.title}'[:200],
+            search_query=str(payload.get('search_query', ''))[:200],
+            parent_category=str(payload.get('parent_category', ''))[:120],
+            category=str(payload.get('category', ''))[:120],
+            path=str(payload.get('source_path') or request.path)[:255],
+        )
+
+        return JsonResponse({'ok': True, 'view_count': tip.view_count})
 
 
 class FAQGoodToggleView(View):
@@ -1806,82 +1856,217 @@ class SummaryView(StaffRequiredMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
-        faq_articles = list(
+        selected_period = (self.request.GET.get('period') or 'all').strip().lower()
+        if selected_period not in {'all', 'current', 'previous'}:
+            selected_period = 'all'
+
+        from_date = None
+        to_date = None
+        today = timezone.localdate()
+        if selected_period == 'current':
+            from_date = today.replace(day=1)
+            to_date = today
+        elif selected_period == 'previous':
+            first_day_this_month = today.replace(day=1)
+            last_day_previous_month = first_day_this_month - timedelta(days=1)
+            from_date = last_day_previous_month.replace(day=1)
+            to_date = last_day_previous_month
+
+        faq_qs = (
+            KnowledgeArticle.objects.select_related('created_by')
+            .filter(visible_to_any_account_filter())
+            .annotate(good_count=Count('goods'))
+        )
+        tips_qs = (
+            TipsArticle.objects.select_related('created_by')
+            .filter(visible_to_any_account_filter())
+            .annotate(good_count=Count('goods'))
+        )
+
+        if from_date:
+            faq_qs = faq_qs.filter(created_at__date__gte=from_date)
+            tips_qs = tips_qs.filter(created_at__date__gte=from_date)
+        if to_date:
+            faq_qs = faq_qs.filter(created_at__date__lte=to_date)
+            tips_qs = tips_qs.filter(created_at__date__lte=to_date)
+
+        faq_articles = list(faq_qs.order_by('-created_at'))
+        tips_articles = list(tips_qs.order_by('-created_at'))
+
+        member_map = {}
+        member_monthly_map = {}
+
+        def ensure_member(name):
+            node = member_map.get(name)
+            if node is None:
+                node = {
+                    'name': name,
+                    'faq_post_count': 0,
+                    'tips_post_count': 0,
+                    'good_count_total': 0,
+                    'view_count_total': 0,
+                }
+                member_map[name] = node
+            return node
+
+        def ensure_member_month(name, month_key):
+            monthly = member_monthly_map.setdefault(name, {})
+            month_node = monthly.get(month_key)
+            if month_node is None:
+                month_node = {
+                    'month': month_key,
+                    'faq_post_count': 0,
+                    'tips_post_count': 0,
+                    'good_count_total': 0,
+                    'view_count_total': 0,
+                }
+                monthly[month_key] = month_node
+            return month_node
+
+        for article in faq_articles:
+            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            member = ensure_member(creator_name)
+            month_key = article.created_at.strftime('%Y-%m')
+            month_node = ensure_member_month(creator_name, month_key)
+            member['faq_post_count'] += 1
+            member['good_count_total'] += article.good_count
+            member['view_count_total'] += article.answer_view_count
+            month_node['faq_post_count'] += 1
+            month_node['good_count_total'] += article.good_count
+            month_node['view_count_total'] += article.answer_view_count
+
+        for tip in tips_articles:
+            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            member = ensure_member(creator_name)
+            month_key = tip.created_at.strftime('%Y-%m')
+            month_node = ensure_member_month(creator_name, month_key)
+            member['tips_post_count'] += 1
+            member['good_count_total'] += tip.good_count
+            member['view_count_total'] += tip.view_count
+            month_node['tips_post_count'] += 1
+            month_node['good_count_total'] += tip.good_count
+            month_node['view_count_total'] += tip.view_count
+
+        member_summaries = list(member_map.values())
+        for item in member_summaries:
+            item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
+            monthly_totals = list(member_monthly_map.get(item['name'], {}).values())
+            for month_item in monthly_totals:
+                month_item['post_count_total'] = month_item['faq_post_count'] + month_item['tips_post_count']
+            monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
+            item['monthly_totals'] = monthly_totals
+
+        member_summaries.sort(
+            key=lambda item: (
+                -item['post_count_total'],
+                -item['good_count_total'],
+                -item['view_count_total'],
+                item['name'].lower(),
+            )
+        )
+
+        context['selected_period'] = selected_period
+        context['member_summaries'] = member_summaries
+        context['summary_totals'] = {
+            'faq_post_count': sum(item['faq_post_count'] for item in member_summaries),
+            'tips_post_count': sum(item['tips_post_count'] for item in member_summaries),
+            'good_count_total': sum(item['good_count_total'] for item in member_summaries),
+            'view_count_total': sum(item['view_count_total'] for item in member_summaries),
+            'post_count_total': sum(item['post_count_total'] for item in member_summaries),
+        }
+        context['chart_labels'] = [item['name'] for item in member_summaries]
+        context['chart_post_counts'] = [item['post_count_total'] for item in member_summaries]
+
+        # ── 社内タブ用（旧集計） ──────────────────────────────────────────────
+        internal_faq_articles = list(
             KnowledgeArticle.objects.select_related('created_by', 'approved_by')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
         )
-        tips_articles = list(
+        internal_tips_articles = list(
             TipsArticle.objects.select_related('created_by', 'approved_by')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
         )
 
-        post_counts = Counter()
-        review_counts = Counter()
-        like_counts = Counter()
+        internal_post_counts = Counter()
+        internal_review_counts = Counter()
+        internal_like_counts = Counter()
 
-        for article in faq_articles:
+        for article in internal_faq_articles:
             creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
             article.creator_display_name = creator_name or '-'
             if not self.is_excluded_contributor(creator_name):
-                post_counts[creator_name] += 1
-                like_counts[creator_name] += article.good_count
+                internal_post_counts[creator_name] += 1
+                internal_like_counts[creator_name] += article.good_count
 
             reviewer_name = self.resolve_contributor_name(article.approved_by_name, article.approved_by)
             if article.is_approved and not self.is_excluded_contributor(reviewer_name):
-                review_counts[reviewer_name] += 1
+                internal_review_counts[reviewer_name] += 1
 
-        for tip in tips_articles:
+        for tip in internal_tips_articles:
             creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
             tip.creator_display_name = creator_name or '-'
             if not self.is_excluded_contributor(creator_name):
-                post_counts[creator_name] += 1
-                like_counts[creator_name] += tip.good_count
+                internal_post_counts[creator_name] += 1
+                internal_like_counts[creator_name] += tip.good_count
 
             reviewer_name = self.resolve_contributor_name(tip.approved_by_name, tip.approved_by)
             if tip.is_approved and not self.is_excluded_contributor(reviewer_name):
-                review_counts[reviewer_name] += 1
+                internal_review_counts[reviewer_name] += 1
 
-        contributor_names = sorted(
-            set(post_counts) | set(review_counts) | set(like_counts),
-            key=lambda name: (-post_counts[name], -review_counts[name], -like_counts[name], name.lower()),
+        internal_contributor_names = sorted(
+            set(internal_post_counts) | set(internal_review_counts) | set(internal_like_counts),
+            key=lambda name: (
+                -internal_post_counts[name],
+                -internal_review_counts[name],
+                -internal_like_counts[name],
+                name.lower(),
+            ),
         )
-        contributor_summaries = [
+        internal_contributor_summaries = [
             {
                 'name': name,
-                'post_count': post_counts[name],
-                'review_count': review_counts[name],
-                'like_count': like_counts[name],
+                'post_count': internal_post_counts[name],
+                'review_count': internal_review_counts[name],
+                'like_count': internal_like_counts[name],
             }
-            for name in contributor_names
+            for name in internal_contributor_names
         ]
 
-        context['summary_totals'] = {
-            'post_count': sum(post_counts.values()),
-            'review_count': sum(review_counts.values()),
-            'like_count': sum(like_counts.values()),
+        context['internal_summary_totals'] = {
+            'post_count': sum(internal_post_counts.values()),
+            'review_count': sum(internal_review_counts.values()),
+            'like_count': sum(internal_like_counts.values()),
         }
-        context['contributor_summaries'] = contributor_summaries
-        context['chart_labels'] = [item['name'] for item in contributor_summaries]
-        context['post_chart_data'] = [item['post_count'] for item in contributor_summaries]
-        context['review_chart_data'] = [item['review_count'] for item in contributor_summaries]
-        context['like_chart_data'] = [item['like_count'] for item in contributor_summaries]
-        context['top_faq_articles'] = faq_articles[:5]
-        context['top_tips_articles'] = tips_articles[:5]
-        context['contributor_post_ranking'] = sorted(
-            contributor_summaries,
-            key=lambda item: (-item['post_count'], -item['review_count'], -item['like_count'], item['name'].lower()),
+        context['internal_contributor_summaries'] = internal_contributor_summaries
+        context['internal_chart_labels'] = [item['name'] for item in internal_contributor_summaries]
+        context['internal_post_chart_data'] = [item['post_count'] for item in internal_contributor_summaries]
+        context['internal_review_chart_data'] = [item['review_count'] for item in internal_contributor_summaries]
+        context['internal_like_chart_data'] = [item['like_count'] for item in internal_contributor_summaries]
+        context['internal_top_faq_articles'] = internal_faq_articles[:5]
+        context['internal_top_tips_articles'] = internal_tips_articles[:5]
+        context['internal_contributor_post_ranking'] = sorted(
+            internal_contributor_summaries,
+            key=lambda item: (
+                -item['post_count'],
+                -item['review_count'],
+                -item['like_count'],
+                item['name'].lower(),
+            ),
         )
 
-        # ── 顧客タブ用データ ──────────────────────────────────────────────
+        # ── 顧客タブ用（旧集計） ──────────────────────────────────────────────
         User = get_user_model()
         customer_users = User.objects.filter(groups__name=CUSTOMER_GROUP_NAME)
         customer_user_ids = list(customer_users.values_list('id', flat=True))
 
-        # カスタマーユーザーのアクセス数（ユーザー別）
         customer_access_per_user = (
             ViewHistory.objects.filter(user_id__in=customer_user_ids)
             .values('username')
@@ -1891,7 +2076,6 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         context['customer_access_per_user'] = list(customer_access_per_user)
         context['customer_total_access'] = sum(r['access_count'] for r in context['customer_access_per_user'])
 
-        # カテゴリへのアクセス数（大カテゴリ別）
         category_access_qs = (
             ViewHistory.objects.filter(user_id__in=customer_user_ids)
             .exclude(parent_category='')
@@ -1900,24 +2084,24 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             .order_by('parent_category', 'category')
         )
         category_access_list = list(category_access_qs)
-        # 大カテゴリ別にグループ化
         category_groups_map = {}
         for row in category_access_list:
-            pc = row['parent_category']
-            if pc not in category_groups_map:
-                category_groups_map[pc] = {'total': 0, 'children': []}
-            category_groups_map[pc]['total'] += row['access_count']
+            parent_category = row['parent_category']
+            if parent_category not in category_groups_map:
+                category_groups_map[parent_category] = {'total': 0, 'children': []}
+            category_groups_map[parent_category]['total'] += row['access_count']
             if row['category']:
-                category_groups_map[pc]['children'].append({
-                    'category': row['category'],
-                    'access_count': row['access_count'],
-                })
+                category_groups_map[parent_category]['children'].append(
+                    {
+                        'category': row['category'],
+                        'access_count': row['access_count'],
+                    }
+                )
         context['customer_category_access'] = [
-            {'parent_category': k, 'total': v['total'], 'children': v['children']}
-            for k, v in sorted(category_groups_map.items(), key=lambda x: -x[1]['total'])
+            {'parent_category': key, 'total': value['total'], 'children': value['children']}
+            for key, value in sorted(category_groups_map.items(), key=lambda item: -item[1]['total'])
         ]
 
-        # 回答へのアクセス数（FAQ回答表示）
         answer_access_qs = (
             ViewHistory.objects.filter(
                 user_id__in=customer_user_ids,
@@ -1936,17 +2120,16 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         ]
         context['customer_answer_total_access'] = sum(r['access_count'] for r in context['customer_answer_access'])
 
-        # Goodボタン数（FAQナレッジ一覧、good_count > 0 のもの含む全件）
         faq_with_goods = [
-            a for a in faq_articles if a.good_count > 0
+            article for article in internal_faq_articles if article.good_count > 0
         ]
         tips_with_goods = [
-            t for t in tips_articles if t.good_count > 0
+            tip for tip in internal_tips_articles if tip.good_count > 0
         ]
         context['customer_faq_goods'] = faq_with_goods
         context['customer_tips_goods'] = tips_with_goods
-        context['customer_faq_good_total'] = sum(a.good_count for a in faq_with_goods)
-        context['customer_tips_good_total'] = sum(t.good_count for t in tips_with_goods)
+        context['customer_faq_good_total'] = sum(article.good_count for article in faq_with_goods)
+        context['customer_tips_good_total'] = sum(tip.good_count for tip in tips_with_goods)
 
         return context
 
@@ -2104,8 +2287,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
         context['article'] = self.article
-        context['article_approver_display_name'] = self.article.approved_by_name or (
-            resolve_user_display_name(self.article.approved_by)
+        context['article_approver_display_name'] = resolve_saved_or_user_display_name(
+            self.article.approved_by_name,
+            self.article.approved_by,
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_article'] = can_approve_article(self.request.user)
@@ -2753,7 +2937,7 @@ class ArticleManagementView(TemplateView):
         status_filter = (self.request.GET.get('status') or '').strip()
         date_from = (self.request.GET.get('date_from') or '').strip()
         date_to = (self.request.GET.get('date_to') or '').strip()
-        sort_by = (self.request.GET.get('sort') or 'date').strip()
+        sort_by = (self.request.GET.get('sort') or 'created_at').strip()
         sort_dir = (self.request.GET.get('dir') or 'desc').strip()
 
         # システナ・管理者ユーザーの表示名リストを構築（プルダウン用）
@@ -2769,9 +2953,9 @@ class ArticleManagementView(TemplateView):
         for u in systena_users.order_by('username'):
             name = resolve_user_display_name(u)
             if name and name not in seen_names:
-                author_choices.append(name)
+                author_choices.append({'id': u.id, 'name': name})
                 seen_names.add(name)
-        author_choices.sort()
+        author_choices.sort(key=lambda item: item['id'])
 
         combined = []
 
@@ -2787,14 +2971,6 @@ class ArticleManagementView(TemplateView):
                 creator_name = resolve_saved_or_user_display_name(
                     article.created_by_name, article.created_by
                 )
-                time_diff = (article.updated_at - article.created_at).total_seconds()
-                if time_diff > 60:
-                    display_date = article.updated_at
-                    date_label = '更新日'
-                else:
-                    display_date = article.created_at
-                    date_label = '作成日'
-
                 ordered_attachments = sorted(
                     article.attachments.all(),
                     key=lambda a: (a.uploaded_at, a.id),
@@ -2817,8 +2993,8 @@ class ArticleManagementView(TemplateView):
                     'id': article.id,
                     'title': article.title,
                     'creator_display_name': creator_name,
-                    'display_date': display_date,
-                    'date_label': date_label,
+                    'created_at': article.created_at,
+                    'updated_at': article.updated_at,
                     'is_published': article.is_published,
                     'is_approved': article.is_approved,
                     'good_count': article.good_count,
@@ -2845,14 +3021,6 @@ class ArticleManagementView(TemplateView):
                 creator_name = resolve_saved_or_user_display_name(
                     tip.created_by_name, tip.created_by
                 )
-                time_diff = (tip.updated_at - tip.created_at).total_seconds()
-                if time_diff > 60:
-                    display_date = tip.updated_at
-                    date_label = '更新日'
-                else:
-                    display_date = tip.created_at
-                    date_label = '作成日'
-
                 inline_images = sorted(
                     tip.images.all(),
                     key=lambda img: (img.uploaded_at, img.id),
@@ -2863,12 +3031,12 @@ class ArticleManagementView(TemplateView):
                     'id': tip.id,
                     'title': tip.title,
                     'creator_display_name': creator_name,
-                    'display_date': display_date,
-                    'date_label': date_label,
+                    'created_at': tip.created_at,
+                    'updated_at': tip.updated_at,
                     'is_published': tip.is_published,
                     'is_approved': tip.is_approved,
                     'good_count': tip.good_count,
-                    'view_count': None,
+                    'view_count': tip.view_count,
                     'category_chips': list(dict.fromkeys(
                         TipsListView.split_categories(tip.category)
                     )),
@@ -2926,7 +3094,7 @@ class ArticleManagementView(TemplateView):
         elif sort_by == 'view_count':
             combined.sort(key=lambda item: (item['view_count'] or 0), reverse=reverse)
         else:
-            combined.sort(key=lambda item: item['display_date'], reverse=reverse)
+            combined.sort(key=lambda item: item['created_at'], reverse=reverse)
 
         context['articles'] = combined
         context['article_type'] = article_type

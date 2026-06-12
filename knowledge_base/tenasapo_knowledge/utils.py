@@ -21,6 +21,14 @@ def resolve_user_display_name(user, default=''):
 
 def resolve_saved_or_user_display_name(saved_name, user, default=''):
     name = (saved_name or '').strip()
+    resolved_name = resolve_user_display_name(user, default='') if user else ''
+    login_id = (user.get_username() or '').strip() if user else ''
+
     if name:
+        if login_id and name == login_id and resolved_name:
+            return resolved_name
         return name
-    return resolve_user_display_name(user, default=default)
+
+    if resolved_name:
+        return resolved_name
+    return default

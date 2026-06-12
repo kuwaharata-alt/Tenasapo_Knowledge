@@ -30,8 +30,8 @@
                 <label class="form-label fw-semibold small mb-1">作成者</label>
                 <select class="form-select form-select-sm" name="author">
                     <option value="" {% if not author_filter %}selected{% endif %}>すべて</option>
-                    {% for name in author_choices %}
-                        <option value="{{ name }}" {% if author_filter == name %}selected{% endif %}>{{ name }}</option>
+                    {% for user_item in author_choices %}
+                        <option value="{{ user_item.name }}" {% if author_filter == user_item.name %}selected{% endif %}>{{ user_item.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -71,21 +71,22 @@
         <table class="table table-hover align-middle mb-0" id="mgmt-table">
             <thead class="table-light">
                 <tr>
-                    <th style="width:5rem;">カテゴリ</th>
-                    <th>タイトル</th>
-                    <th style="width:8rem;">作成者</th>
-                    <th style="width:9rem;" class="text-nowrap">
-                        {% if sort_by == 'date' %}
+                    <th style="width:5rem;" class="text-center">カテゴリ</th>
+                    <th class="text-center">タイトル</th>
+                    <th style="width:8rem;" class="text-center">作成者</th>
+                    <th style="width:8.5rem;" class="text-nowrap text-center">
+                        {% if sort_by == 'created_at' %}
                             {% if sort_dir == 'asc' %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=desc" class="text-decoration-none text-dark">日付 ▲</a>
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=desc" class="text-decoration-none text-dark">作成日 ▲</a>
                             {% else %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=asc" class="text-decoration-none text-dark">日付 ▼</a>
+                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=asc" class="text-decoration-none text-dark">作成日 ▼</a>
                             {% endif %}
                         {% else %}
-                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=date&dir=desc" class="text-decoration-none text-muted">日付</a>
+                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=desc" class="text-decoration-none text-muted">作成日</a>
                         {% endif %}
                     </th>
-                    <th style="width:6rem;">公開状況</th>
+                    <th style="width:8.5rem;" class="text-nowrap text-center">更新日</th>
+                    <th style="width:6rem;" class="text-center">公開状況</th>
                     <th style="width:5rem;" class="text-nowrap text-center">
                         {% if sort_by == 'good_count' %}
                             {% if sort_dir == 'asc' %}
@@ -109,14 +110,14 @@
                         {% endif %}
                     </th>
                     {% if can_edit %}
-                        <th style="width:4rem;"></th>
+                        <th style="width:4rem;" class="text-center"></th>
                     {% endif %}
                 </tr>
             </thead>
             <tbody>
                 {% for item in articles %}
                     <tr>
-                        <td>
+                        <td class="text-center">
                             {% if item.type == 'faq' %}
                                 <span class="badge text-bg-primary">FAQ</span>
                             {% else %}
@@ -126,7 +127,7 @@
                         <td>
                             <button
                                 type="button"
-                                class="btn btn-link text-start p-0 text-decoration-none text-dark fw-semibold mgmt-title-btn"
+                                class="btn btn-link text-start p-0 text-decoration-none text-dark mgmt-title-btn small"
                                 data-detail-id="detail-{{ item.type }}-{{ item.id }}"
                                 data-modal-title="{{ item.title|escapejs }}"
                                 data-modal-type="{{ item.type }}"
@@ -143,8 +144,10 @@
                             {{ item.creator_display_name|default:"-" }}
                         </td>
                         <td class="text-muted small text-nowrap">
-                            <span class="badge bg-secondary" style="font-size:0.6rem;">{{ item.date_label }}</span><br>
-                            {{ item.display_date|date:"Y/m/d" }}
+                            {{ item.created_at|date:"Y/m/d" }}
+                        </td>
+                        <td class="text-muted small text-nowrap">
+                            {{ item.updated_at|date:"Y/m/d" }}
                         </td>
                         <td>
                             {% if item.is_published and item.is_approved %}
@@ -155,8 +158,8 @@
                                 <span class="badge bg-secondary">非公開</span>
                             {% endif %}
                         </td>
-                        <td class="text-center fw-semibold">{{ item.good_count }}</td>
-                        <td class="text-center text-muted">
+                        <td class="text-center">{{ item.good_count }}</td>
+                        <td class="text-center">
                             {% if item.view_count is not None %}
                                 {{ item.view_count }}
                             {% else %}
@@ -175,7 +178,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if can_edit %}8{% else %}7{% endif %}" class="text-center text-muted py-4">
+                        <td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-center text-muted py-4">
                             該当する記事がありません。
                         </td>
                     </tr>
@@ -198,7 +201,8 @@
                 <span class="badge faq-meta-badge">ソース公開日 {{ item.obj.source_published_at|date:"Y/m/d" }}</span>
             {% endif %}
             <span class="badge faq-meta-badge">投稿者 {{ item.creator_display_name|default:"-" }}</span>
-            <span class="badge faq-meta-badge">{{ item.date_label }} {{ item.display_date|date:"Y/m/d H:i" }}</span>
+            <span class="badge faq-meta-badge">作成日 {{ item.created_at|date:"Y/m/d H:i" }}</span>
+            <span class="badge faq-meta-badge">更新日 {{ item.updated_at|date:"Y/m/d H:i" }}</span>
         </div>
 
         {% if item.type == 'faq' %}

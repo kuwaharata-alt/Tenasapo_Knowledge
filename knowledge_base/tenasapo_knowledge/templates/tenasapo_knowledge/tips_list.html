@@ -207,6 +207,7 @@
                                         id="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
                                         aria-labelledby="tipsHeading{{ forloop.parentloop.counter }}{{ tip.id }}"
                                         data-bs-parent="#tipsAccordion{{ forloop.parentloop.counter }}"
+                                        data-tip-id="{{ tip.id }}"
                                     >
                                         <div class="accordion-body">
                                             <div class="d-flex flex-wrap gap-2 mb-3">
@@ -297,6 +298,7 @@
 import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
 
+const trackViewUrl = "{% url 'tip_track_view' %}";
 const toggleGoodUrl = "{% url 'tip_toggle_good' %}";
 const toggleFavoriteUrl = "{% url 'tip_toggle_favorite' %}";
 const filterState = {
@@ -366,12 +368,32 @@ document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function
     document.getElementById('pdfLoadingMsg').style.display = 'block';
 });
 
-document.querySelectorAll('.accordion-collapse').forEach(panel => {
+document.querySelectorAll('.accordion-collapse[data-tip-id]').forEach(panel => {
     panel.addEventListener('shown.bs.collapse', function() {
         const accordionItem = this.closest('.faq-item');
         if (accordionItem) {
             accordionItem.classList.add('faq-item-expanded');
         }
+
+        const tipId = this.dataset.tipId;
+        if (!tipId) {
+            return;
+        }
+
+        fetch(trackViewUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({
+                tip_id: Number(tipId),
+                source_path: window.location.pathname + window.location.search,
+                search_query: filterState.search_query,
+                parent_category: filterState.parent_category,
+                category: filterState.category,
+            }),
+        }).catch(() => {});
     });
 
     panel.addEventListener('hidden.bs.collapse', function() {
