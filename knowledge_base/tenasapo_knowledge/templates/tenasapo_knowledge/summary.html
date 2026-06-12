@@ -60,8 +60,9 @@
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 12rem;">メンバー</th>
-                                    <th class="text-end">FAQ投稿数</th>
-                                    <th class="text-end">Tips投稿数</th>
+                                    <th class="text-end">全件（今月）</th>
+                                    <th class="text-end">FAQ（今月）</th>
+                                    <th class="text-end">Tips（今月）</th>
                                     <th class="text-end">Good総数</th>
                                     <th class="text-end">閲覧数総数</th>
                                     <th style="width: 7rem;"></th>
@@ -71,8 +72,9 @@
                                 {% for item in member_summaries %}
                                     <tr>
                                         <td class="fw-semibold">{{ item.name }}</td>
-                                        <td class="text-end">{{ item.faq_post_count }}</td>
-                                        <td class="text-end">{{ item.tips_post_count }}</td>
+                                        <td class="text-end">{{ item.post_count_total }}(+{{ item.current_month_post_count_total }})</td>
+                                        <td class="text-end {% if item.faq_post_count <= 2 %}text-danger fw-semibold{% endif %}">{{ item.faq_post_count }}(+{{ item.current_month_faq_post_count }})</td>
+                                        <td class="text-end {% if item.tips_post_count <= 1 %}text-danger fw-semibold{% endif %}">{{ item.tips_post_count }}(+{{ item.current_month_tips_post_count }})</td>
                                         <td class="text-end">{{ item.good_count_total }}</td>
                                         <td class="text-end">{{ item.view_count_total }}</td>
                                         <td class="text-end">
@@ -82,7 +84,7 @@
                                         </td>
                                     </tr>
                                     <tr class="collapse" id="memberMonthly{{ forloop.counter }}">
-                                        <td colspan="6" class="bg-light-subtle">
+                                        <td colspan="7" class="bg-light-subtle">
                                             <div class="small fw-semibold mb-2">{{ item.name }} の月別総数</div>
                                             <div class="table-responsive">
                                                 <table class="table table-sm align-middle mb-0">
@@ -468,7 +470,8 @@
 </div>
 
 {{ chart_labels|json_script:"summary-chart-labels" }}
-{{ chart_post_counts|json_script:"summary-chart-post-counts" }}
+{{ chart_faq_post_counts|json_script:"summary-chart-faq-counts" }}
+{{ chart_tips_post_counts|json_script:"summary-chart-tips-counts" }}
 {{ internal_chart_labels|json_script:"internal-summary-chart-labels" }}
 {{ internal_post_chart_data|json_script:"internal-summary-post-data" }}
 {{ internal_review_chart_data|json_script:"internal-summary-review-data" }}
@@ -478,35 +481,94 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const labels = JSON.parse(document.getElementById('summary-chart-labels').textContent || '[]');
-    const postCounts = JSON.parse(document.getElementById('summary-chart-post-counts').textContent || '[]');
+    const faqPostCounts = JSON.parse(document.getElementById('summary-chart-faq-counts').textContent || '[]');
+    const tipsPostCounts = JSON.parse(document.getElementById('summary-chart-tips-counts').textContent || '[]');
     const canvas = document.getElementById('memberPostChart');
     if (!canvas || !labels.length) {
         return;
     }
 
-    new Chart(canvas, {
+    const totalLabelPlugin = {
+        id: 'totalLabelPlugin',
+        afterDatasetsDraw(chart) {
+            const { ctx, data } = chart;
+            const faqMeta = chart.getDatasetMeta(0);
+            const tipsMeta = chart.getDatasetMeta(1);
+            if (!faqMeta || !tipsMeta) {
+                return;
+            }
+
+            ctx.save();
+            ctx.fillStyle = '#374151';
+            ctx.font = '600 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+
+            for (let i = 0; i < data.labels.length; i += 1) {
+                const faqVisible = chart.isDatasetVisible(0);
+                const tipsVisible = chart.isDatasetVisible(1);
+                const faqVal = faqVisible ? (Number(data.datasets[0].data[i]) || 0) : 0;
+                const tipsVal = tipsVisible ? (Number(data.datasets[1].data[i]) || 0) : 0;
+                const total = faqVal + tipsVal;
+
+                const targetMeta = tipsVisible ? tipsMeta : faqMeta;
+                const barElement = targetMeta.data[i];
+                if (!barElement) {
+                    continue;
+                }
+                const x = barElement.x;
+                const y = barElement.y - 4;
+                ctx.fillText(String(total), x, y);
+            }
+            ctx.restore();
+        },
+    };
+
+    const memberPostChart = new Chart(canvas, {
         type: 'bar',
         data: {
             labels,
             datasets: [
                 {
-                    label: '投稿数',
-                    data: postCounts,
+                    label: 'FAQ',
+                    data: faqPostCounts,
                     backgroundColor: 'rgba(232, 117, 36, 0.82)',
                     borderRadius: 8,
                     maxBarThickness: 42,
+                    stack: 'postStack',
+                },
+                {
+                    label: 'Tips',
+                    data: tipsPostCounts,
+                    backgroundColor: 'rgba(73, 136, 232, 0.82)',
+                    borderRadius: 8,
+                    maxBarThickness: 42,
+                    stack: 'postStack',
                 },
             ],
         },
+        plugins: [totalLabelPlugin],
         options: {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false,
+                    display: true,
+                },
+                tooltip: {
+                    callbacks: {
+                        footer(tooltipItems) {
+                            const total = tooltipItems.reduce((sum, item) => sum + (item.parsed.y || 0), 0);
+                            return `合計: ${total}`;
+                        },
+                    },
                 },
             },
             scales: {
+                x: {
+                    stacked: true,
+                },
                 y: {
+                    stacked: true,
                     beginAtZero: true,
                     ticks: {
                         precision: 0,

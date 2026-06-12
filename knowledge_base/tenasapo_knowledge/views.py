@@ -621,7 +621,7 @@ class HomeView(TemplateView):
             menu_groups[3]['items'].append({'label': 'ユーザー一覧', 'url_name': 'user_list'})
             menu_groups[4]['items'].extend(
                 [
-                    {'label': 'データ分析まとめ', 'url_name': 'summary'},
+                    {'label': 'アナライズ', 'url_name': 'summary'},
                     {'label': '記事管理', 'url_name': 'article_management'},
                 ]
             )
@@ -1871,6 +1871,7 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             last_day_previous_month = first_day_this_month - timedelta(days=1)
             from_date = last_day_previous_month.replace(day=1)
             to_date = last_day_previous_month
+        current_month_key = today.strftime('%Y-%m')
 
         faq_qs = (
             KnowledgeArticle.objects.select_related('created_by')
@@ -1893,13 +1894,25 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         faq_articles = list(faq_qs.order_by('-created_at'))
         tips_articles = list(tips_qs.order_by('-created_at'))
 
+        User = get_user_model()
+        summary_users = User.objects.filter(
+            Q(is_staff=True)
+            | Q(is_superuser=True)
+            | Q(groups__name=SYSTENA_GROUP_NAME)
+            | Q(groups__name=ADMIN_GROUP_NAME)
+        ).distinct().prefetch_related('knowledge_profile').order_by('id')
+
         member_map = {}
         member_monthly_map = {}
+        member_order_map = {}
 
-        def ensure_member(name):
+        def ensure_member(name, member_id=None):
             node = member_map.get(name)
             if node is None:
+                if member_id is None:
+                    member_id = member_order_map.get(name, 10**9)
                 node = {
+                    'member_id': member_id,
                     'name': name,
                     'faq_post_count': 0,
                     'tips_post_count': 0,
@@ -1923,11 +1936,23 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                 monthly[month_key] = month_node
             return month_node
 
+        for user in summary_users:
+            display_name = resolve_user_display_name(user).strip()
+            if self.is_excluded_contributor(display_name):
+                continue
+            if display_name not in member_order_map:
+                member_order_map[display_name] = user.id
+            ensure_member(display_name, member_order_map[display_name])
+
         for article in faq_articles:
             creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
             if self.is_excluded_contributor(creator_name):
                 continue
-            member = ensure_member(creator_name)
+            creator_id = member_order_map.get(creator_name)
+            if creator_id is None and article.created_by_id:
+                creator_id = article.created_by_id
+                member_order_map[creator_name] = creator_id
+            member = ensure_member(creator_name, creator_id)
             month_key = article.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             member['faq_post_count'] += 1
@@ -1941,7 +1966,11 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
             if self.is_excluded_contributor(creator_name):
                 continue
-            member = ensure_member(creator_name)
+            creator_id = member_order_map.get(creator_name)
+            if creator_id is None and tip.created_by_id:
+                creator_id = tip.created_by_id
+                member_order_map[creator_name] = creator_id
+            member = ensure_member(creator_name, creator_id)
             month_key = tip.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             member['tips_post_count'] += 1
@@ -1953,6 +1982,12 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
         member_summaries = list(member_map.values())
         for item in member_summaries:
+            current_month = member_monthly_map.get(item['name'], {}).get(current_month_key, {})
+            item['current_month_faq_post_count'] = current_month.get('faq_post_count', 0)
+            item['current_month_tips_post_count'] = current_month.get('tips_post_count', 0)
+            item['current_month_post_count_total'] = (
+                item['current_month_faq_post_count'] + item['current_month_tips_post_count']
+            )
             item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
             monthly_totals = list(member_monthly_map.get(item['name'], {}).values())
             for month_item in monthly_totals:
@@ -1960,14 +1995,7 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
             item['monthly_totals'] = monthly_totals
 
-        member_summaries.sort(
-            key=lambda item: (
-                -item['post_count_total'],
-                -item['good_count_total'],
-                -item['view_count_total'],
-                item['name'].lower(),
-            )
-        )
+        member_summaries.sort(key=lambda item: (item['member_id'], item['name'].lower()))
 
         context['selected_period'] = selected_period
         context['member_summaries'] = member_summaries
@@ -1980,6 +2008,8 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         }
         context['chart_labels'] = [item['name'] for item in member_summaries]
         context['chart_post_counts'] = [item['post_count_total'] for item in member_summaries]
+        context['chart_faq_post_counts'] = [item['faq_post_count'] for item in member_summaries]
+        context['chart_tips_post_counts'] = [item['tips_post_count'] for item in member_summaries]
 
         # ── 社内タブ用（旧集計） ──────────────────────────────────────────────
         internal_faq_articles = list(
