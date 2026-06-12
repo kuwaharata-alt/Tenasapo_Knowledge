@@ -190,6 +190,7 @@ SESSION_SAVE_EVERY_REQUEST = True
 USER_ROLES = [
     '管理者',
     'レビュアー',
+    '投稿者',
     'システナ',
     'カスタマー',
 ]

@@ -75,6 +75,11 @@ REVIEWER_GROUP_NAME = getattr(
     'USER_ROLE_REVIEWER_NAME',
     getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー'),
 )
+CONTRIBUTOR_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_CONTRIBUTOR_NAME',
+    getattr(settings, 'USER_GROUP_CONTRIBUTOR_NAME', '投稿者'),
+)
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
 
 
@@ -1896,23 +1901,21 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
         User = get_user_model()
         summary_users = User.objects.filter(
-            Q(is_staff=True)
-            | Q(is_superuser=True)
-            | Q(groups__name=SYSTENA_GROUP_NAME)
-            | Q(groups__name=ADMIN_GROUP_NAME)
-        ).distinct().prefetch_related('knowledge_profile').order_by('id')
+            groups__name=CONTRIBUTOR_GROUP_NAME
+        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
 
         member_map = {}
         member_monthly_map = {}
         member_order_map = {}
 
-        def ensure_member(name, member_id=None):
+        def ensure_member(name, member_id=None, management_uid=''):
             node = member_map.get(name)
             if node is None:
                 if member_id is None:
                     member_id = member_order_map.get(name, 10**9)
                 node = {
                     'member_id': member_id,
+                    'management_uid': management_uid,
                     'name': name,
                     'faq_post_count': 0,
                     'tips_post_count': 0,
@@ -1941,18 +1944,24 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             if self.is_excluded_contributor(display_name):
                 continue
             if display_name not in member_order_map:
-                member_order_map[display_name] = user.id
-            ensure_member(display_name, member_order_map[display_name])
+                profile = getattr(user, 'knowledge_profile', None)
+                uid_value = (getattr(profile, 'uid', '') or '').strip()
+                uid_order = int(uid_value) if uid_value.isdigit() else 10**9 + user.id
+                member_order_map[display_name] = uid_order
+            profile = getattr(user, 'knowledge_profile', None)
+            ensure_member(
+                display_name,
+                user.id,
+                (getattr(profile, 'uid', '') or '').strip(),
+            )
 
         for article in faq_articles:
             creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
             if self.is_excluded_contributor(creator_name):
                 continue
-            creator_id = member_order_map.get(creator_name)
-            if creator_id is None and article.created_by_id:
-                creator_id = article.created_by_id
-                member_order_map[creator_name] = creator_id
-            member = ensure_member(creator_name, creator_id)
+            if creator_name not in member_map:
+                continue
+            member = ensure_member(creator_name)
             month_key = article.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             member['faq_post_count'] += 1
@@ -1966,11 +1975,9 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
             if self.is_excluded_contributor(creator_name):
                 continue
-            creator_id = member_order_map.get(creator_name)
-            if creator_id is None and tip.created_by_id:
-                creator_id = tip.created_by_id
-                member_order_map[creator_name] = creator_id
-            member = ensure_member(creator_name, creator_id)
+            if creator_name not in member_map:
+                continue
+            member = ensure_member(creator_name)
             month_key = tip.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             member['tips_post_count'] += 1
@@ -1995,7 +2002,13 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
             item['monthly_totals'] = monthly_totals
 
-        member_summaries.sort(key=lambda item: (item['member_id'], item['name'].lower()))
+        member_summaries.sort(
+            key=lambda item: (
+                member_order_map.get(item['name'], 10**9),
+                item['management_uid'] or '999999',
+                item['name'].lower(),
+            )
+        )
 
         context['selected_period'] = selected_period
         context['member_summaries'] = member_summaries
