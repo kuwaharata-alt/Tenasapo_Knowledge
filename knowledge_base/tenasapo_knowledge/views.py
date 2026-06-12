@@ -1,6 +1,7 @@
 from collections import Counter
 from datetime import datetime, timedelta
 import json
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
@@ -15,6 +16,7 @@ from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views import View
 from django.views.generic import FormView, ListView, TemplateView
@@ -2809,7 +2811,39 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['is_edit'] = True
         context['user_obj'] = self.user_obj
+        context['return_to'] = self._resolve_return_to_url()
         return context
+
+    def _resolve_return_to_url(self):
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        scroll_value = (self.request.POST.get('scroll') or self.request.GET.get('scroll') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            if scroll_value.isdigit():
+                split_result = urlsplit(candidate)
+                query_items = [
+                    (key, value)
+                    for key, value in parse_qsl(split_result.query, keep_blank_values=True)
+                    if key != 'scroll'
+                ]
+                query_items.append(('scroll', scroll_value))
+                candidate = urlunsplit(
+                    (
+                        split_result.scheme,
+                        split_result.netloc,
+                        split_result.path,
+                        urlencode(query_items, doseq=True),
+                        split_result.fragment,
+                    )
+                )
+            return candidate
+        return str(self.success_url)
+
+    def get_success_url(self):
+        return self._resolve_return_to_url()
 
     def form_valid(self, form):
         User = get_user_model()

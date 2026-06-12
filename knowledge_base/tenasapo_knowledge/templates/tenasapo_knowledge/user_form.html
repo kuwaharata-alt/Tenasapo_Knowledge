@@ -19,6 +19,7 @@
         <form class="card shadow-sm" method="post">
             <div class="card-body p-4">
                 {% csrf_token %}
+                <input type="hidden" name="next" value="{{ return_to }}">
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
@@ -102,7 +103,7 @@
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
-                <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">戻る</a>
+                <a class="btn btn-outline-secondary" href="{{ return_to }}">戻る</a>
                 <button class="btn btn-primary" type="submit">{% if is_edit %}更新{% else %}作成{% endif %}</button>
             </div>
         </form>

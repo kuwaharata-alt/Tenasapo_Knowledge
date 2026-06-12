@@ -112,7 +112,7 @@
                         <td class="text-break">{{ account.knowledge_profile.note|default:"-"|linebreaksbr }}</td>
                         <td class="text-nowrap">
                             <div class="d-flex flex-wrap gap-2" role="group">
-                                <a class="btn btn-outline-primary btn-sm" href="{% url 'user_edit' account.id %}">編集</a>
+                                <a class="btn btn-outline-primary btn-sm js-user-edit-link" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
                                 <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
                                 <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
                             </div>
@@ -220,6 +220,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const currentParams = new URLSearchParams(window.location.search);
+    const restoredScroll = currentParams.get('scroll');
+    if (restoredScroll && /^\d+$/.test(restoredScroll)) {
+        window.scrollTo(0, parseInt(restoredScroll, 10));
+        currentParams.delete('scroll');
+        const replacedQuery = currentParams.toString();
+        const replacedUrl = `${window.location.pathname}${replacedQuery ? `?${replacedQuery}` : ''}${window.location.hash}`;
+        window.history.replaceState({}, '', replacedUrl);
+    }
+
+    document.querySelectorAll('.js-user-edit-link').forEach(link => {
+        link.addEventListener('click', function() {
+            const editUrl = new URL(this.href, window.location.origin);
+            editUrl.searchParams.set('scroll', String(window.scrollY));
+            this.href = editUrl.pathname + editUrl.search + editUrl.hash;
+        });
+    });
+
     // パスワード自動生成ボタン
     document.querySelectorAll('.gen-btn').forEach(btn => {
         btn.addEventListener('click', function() {
