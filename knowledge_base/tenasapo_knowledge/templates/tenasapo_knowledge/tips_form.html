@@ -22,8 +22,9 @@
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12">
-                        <div class="form-section-label">カテゴリ <span class="text-danger">*</span></div>
+                    <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <div class="form-section-label mb-0">カテゴリ <span class="text-danger">*</span></div>
+                        <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>

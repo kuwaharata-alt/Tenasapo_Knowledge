@@ -1394,6 +1394,7 @@ class TipsCreateView(FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'Tips登録'
         context['submit_label'] = '登録'
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
@@ -1481,6 +1482,7 @@ class TipsUpdateView(FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'Tips編集'
         context['submit_label'] = '更新'
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['tip'] = self.tip
         context['tip_approver_display_name'] = resolve_saved_or_user_display_name(
             self.tip.approved_by_name,
@@ -2214,6 +2216,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'FAQ登録'
         context['submit_label'] = '登録'
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['category_groups'] = self.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
@@ -2331,6 +2334,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['article'] = self.article
         context['article_approver_display_name'] = resolve_saved_or_user_display_name(
             self.article.approved_by_name,
@@ -2469,10 +2473,24 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'カテゴリ登録'
         context['submit_label'] = '登録'
+        context['return_to'] = self._resolve_return_to_url()
         context['categories'] = self.categories_with_parent_visibility()
         context['category_browser'] = self.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
         return context
+
+    def _resolve_return_to_url(self):
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return candidate
+        return ''
+
+    def get_success_url(self):
+        return self._resolve_return_to_url() or str(self.success_url)
 
     @staticmethod
     def categories_with_parent_visibility():
