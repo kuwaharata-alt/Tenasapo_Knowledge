@@ -3160,6 +3160,71 @@ class ArticleManagementView(TemplateView):
             except ValueError:
                 pass
 
+        # 閲覧数内訳（システナ/カスタマー）を計算
+        faq_page_names = {
+            f"FAQ回答表示: {item['title']}"[:200]
+            for item in combined
+            if item['type'] == 'faq'
+        }
+        tips_page_names = {
+            f"Tips表示: {item['title']}"[:200]
+            for item in combined
+            if item['type'] == 'tips'
+        }
+        target_page_names = faq_page_names | tips_page_names
+
+        creator_by_page_name = {}
+        for item in combined:
+            page_name = (
+                f"FAQ回答表示: {item['title']}"[:200]
+                if item['type'] == 'faq'
+                else f"Tips表示: {item['title']}"[:200]
+            )
+            creator_by_page_name.setdefault(page_name, item['obj'].created_by)
+
+        view_breakdown_by_page_name = {
+            page_name: {'systena': 0, 'customer': 0}
+            for page_name in target_page_names
+        }
+        if target_page_names:
+            histories = (
+                ViewHistory.objects
+                .filter(page_name__in=target_page_names)
+                .select_related('user')
+                .prefetch_related('user__groups')
+            )
+            for history in histories:
+                user = history.user
+                if not user:
+                    continue
+                page_name = history.page_name
+                if page_name not in view_breakdown_by_page_name:
+                    continue
+                content_creator = creator_by_page_name.get(page_name)
+                if not should_count_content_view(user, content_creator):
+                    continue
+                if in_group(user, SYSTENA_GROUP_NAME):
+                    view_breakdown_by_page_name[page_name]['systena'] += 1
+                else:
+                    view_breakdown_by_page_name[page_name]['customer'] += 1
+
+        for item in combined:
+            page_name = (
+                f"FAQ回答表示: {item['title']}"[:200]
+                if item['type'] == 'faq'
+                else f"Tips表示: {item['title']}"[:200]
+            )
+            breakdown = view_breakdown_by_page_name.get(page_name, {'systena': 0, 'customer': 0})
+            systena_count = breakdown['systena']
+            customer_count = breakdown['customer']
+            total_view_count = item.get('view_count') or 0
+            resolved_total = systena_count + customer_count
+            if total_view_count > resolved_total:
+                customer_count += (total_view_count - resolved_total)
+
+            item['view_count_systena'] = systena_count
+            item['view_count_customer'] = customer_count
+
         # ソート
         reverse = (sort_dir != 'asc')
         if sort_by == 'good_count':

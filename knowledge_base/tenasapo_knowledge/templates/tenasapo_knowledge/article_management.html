@@ -161,7 +161,9 @@
                         <td class="text-center">{{ item.good_count }}</td>
                         <td class="text-center">
                             {% if item.view_count is not None %}
-                                {{ item.view_count }}
+                                <span
+                                    title="システナ: {{ item.view_count_systena|default:0 }} / カスタマー: {{ item.view_count_customer|default:0 }}"
+                                >{{ item.view_count }}</span>
                             {% else %}
                                 <span class="text-muted">-</span>
                             {% endif %}
