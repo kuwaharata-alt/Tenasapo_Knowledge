@@ -239,15 +239,16 @@ GROUP_ROLE_PERMISSIONS = {
 }
 
 # メール設定
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'  # または使用するSMTPサーバー
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'Tenasapo@gmail.com'  # 送信元メールアドレス
-EMAIL_HOST_PASSWORD = 'your-app-password'  # Gmailはアプリパスワード推奨
-DEFAULT_FROM_EMAIL = 'your-email@gmail.com'
-
-# メール設定（開発環境：ファイル出力）
-EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
-EMAIL_FILE_PATH = os.path.join(BASE_DIR, 'sent_emails')
-DEFAULT_FROM_EMAIL = 'tenasapo@systena.co.jp'
+# EMAIL_BACKEND を環境変数で切り替え可能にし、未設定時は開発環境ではファイル出力、
+# 本番環境では SMTP を使う。
+EMAIL_BACKEND = os.getenv(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.filebased.EmailBackend' if DEBUG else 'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'Tenasapo@gmail.com')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your-app-password')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tenasapo@systena.co.jp')
+EMAIL_FILE_PATH = os.getenv('EMAIL_FILE_PATH', os.path.join(BASE_DIR, 'sent_emails'))
