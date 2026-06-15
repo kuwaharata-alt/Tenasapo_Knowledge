@@ -21,8 +21,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             '--username',
-            default='cstest',
-            help='対象ユーザーのログインID。既定値は cstest です。',
+            default='cs-demo',
+            help='対象ユーザーのログインID。既定値は cs-demo です。',
         )
         parser.add_argument(
             '--recipient-email',
@@ -42,7 +42,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        username = (options.get('username') or 'cstest').strip()
+        username = (options.get('username') or 'cs-demo').strip()
         recipient_email = (options.get('recipient_email') or 'kuwaharata@systena.co.jp').strip()
         password_length = options.get('password_length') or 12
         dry_run = options.get('dry_run', False)
@@ -67,6 +67,12 @@ class Command(BaseCommand):
 
         subject = '【Tenasapo Knowledge】パスワード変更通知'
         changed_at = timezone.localtime(timezone.now()).strftime('%Y-%m-%d %H:%M:%S')
+        note_line = f'[{changed_at}] パスワード更新: {new_password}'
+        profile = getattr(user, 'knowledge_profile', None)
+        note_preview = ''
+        if profile:
+            existing_note = (profile.note or '').strip()
+            note_preview = f'{existing_note}\n{note_line}'.strip() if existing_note else note_line
         body = '\n'.join([
             'パスワードを更新しました。',
             '',
@@ -83,6 +89,13 @@ class Command(BaseCommand):
                 )
             )
             self.stdout.write(body)
+            if profile:
+                self.stdout.write('--- 備考欄追記（予定） ---')
+                self.stdout.write(note_line)
+            else:
+                self.stdout.write(
+                    self.style.WARNING('knowledge_profile がないため備考欄への追記はスキップされます。')
+                )
             return
 
         if getattr(settings, 'GITHUB_ACTIONS', False):
@@ -90,6 +103,9 @@ class Command(BaseCommand):
 
         user.set_password(new_password)
         user.save(update_fields=['password'])
+        if profile:
+            profile.note = note_preview
+            profile.save(update_fields=['note'])
 
         send_mail(
             subject=subject,
@@ -104,3 +120,9 @@ class Command(BaseCommand):
                 f'{user.username} のパスワードを更新し、通知メールを送信しました。'
             )
         )
+        if profile:
+            self.stdout.write(self.style.SUCCESS(f'{user.username} の備考欄を更新しました。'))
+        else:
+            self.stdout.write(
+                self.style.WARNING('knowledge_profile がないため備考欄への追記はスキップしました。')
+            )
