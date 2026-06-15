@@ -596,40 +596,47 @@
             </a>
             {% if user.is_authenticated %}
                 <div class="d-flex align-items-center gap-3">
-                    <div class="dropdown">
-                        <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            メニュー
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{% url 'home' %}">ホーム</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header">📚 Knowledge</h6></li>
-                            <li><a class="dropdown-item" href="{% url 'article_list' %}">FAQ</a></li>
-                            <li><a class="dropdown-item" href="{% url 'tip_list' %}">Tips</a></li>
-                            <li><a class="dropdown-item" href="{% url 'convenience_list' %}">QR</a></li>
-                            {% if user.is_staff or user.is_superuser %}
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">✍️ Input</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'article_create' %}">FAQ登録</a></li>
-                                <li><a class="dropdown-item" href="{% url 'tip_create' %}">Tips登録</a></li>
-                                <li><a class="dropdown-item" href="{% url 'convenience_create' %}">QR登録</a></li>
-                                <li><a class="dropdown-item" href="{% url 'category_create' %}">カテゴリ登録</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">📘 Manual</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'manual_list' %}">運用マニュアル</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">👥 User</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'user_list' %}">ユーザー一覧</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">� Management</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'summary' %}">アナライズ</a></li>
-                                <li><a class="dropdown-item" href="{% url 'article_management' %}">記事管理</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">🕒 History</h6></li>
-                                <li><a class="dropdown-item" href="{% url 'login_history_list' %}">ログイン履歴</a></li>
-                                <li><a class="dropdown-item" href="{% url 'view_history_list' %}">閲覧履歴</a></li>
-                            {% endif %}
-                        </ul>
+                    <div class="d-flex align-items-center gap-2">
+                        <a class="btn btn-danger btn-sm" href="{% url 'article_list' %}">FAQ</a>
+                        <a class="btn btn-info btn-sm" href="{% url 'tip_list' %}">Tips</a>
+                        <a class="btn btn-success btn-sm" href="{% url 'convenience_list' %}">QR</a>
+                        {% if not current_user_is_customer %}
+                            <div class="dropdown">
+                                <button class="btn btn-outline-primary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                    メニュー
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'home' %}">ホーム</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><h6 class="dropdown-header">📚 Knowledge</h6></li>
+                                    <li><a class="dropdown-item" href="{% url 'article_list' %}">FAQ</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'tip_list' %}">Tips</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'convenience_list' %}">QR</a></li>
+                                    {% if user.is_staff or user.is_superuser %}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">✍️ Input</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'article_create' %}">FAQ登録</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'tip_create' %}">Tips登録</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'convenience_create' %}">QR登録</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'category_create' %}">カテゴリ登録</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">📘 Manual</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'manual_list' %}">運用マニュアル</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">👥 User</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'user_list' %}">ユーザー一覧</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">� Management</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'summary' %}">アナライズ</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'article_management' %}">記事管理</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">🕒 History</h6></li>
+                                        <li><a class="dropdown-item" href="{% url 'login_history_list' %}">ログイン履歴</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'view_history_list' %}">閲覧履歴</a></li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        {% endif %}
                     </div>
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
