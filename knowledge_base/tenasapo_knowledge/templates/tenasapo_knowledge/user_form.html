@@ -26,9 +26,9 @@
 
                 <div class="row g-3">
                     <div class="col-12 col-md-4">
-                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号</label>
-                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
-                        <div class="form-text">数字6桁（省略可）</div>
+                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号<span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456" required>
+                        <div class="form-text">数字6桁</div>
                         {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     {% if is_edit %}
@@ -38,18 +38,18 @@
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
-                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}" required>
+                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}">
                             {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                     {% else %}
                         <div class="col-12 col-md-4">
-                            <label class="form-label" for="{{ form.username.id_for_label }}">ログインID</label>
+                            <label class="form-label" for="{{ form.username.id_for_label }}">ログインID<span class="text-danger">*</span></label>
                             <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
                             {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                         <div class="col-12 col-md-4">
                             <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
-                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}" required>
+                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}">
                             {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
                     {% endif %}
@@ -60,13 +60,22 @@
                         {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.role.id_for_label }}">権限</label>
+                        <label class="form-label" for="{{ form.role.id_for_label }}">権限<span class="text-danger">*</span></label>
                         <select class="form-select{% if form.role.errors %} is-invalid{% endif %}" name="{{ form.role.html_name }}" id="{{ form.role.id_for_label }}" required>
                             {% for value, label in form.fields.role.choices %}
                                 <option value="{{ value }}"{% if form.role.value == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                         {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.user_type.id_for_label }}">ユーザー区分<span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.user_type.errors %} is-invalid{% endif %}" name="{{ form.user_type.html_name }}" id="{{ form.user_type.id_for_label }}" required>
+                            {% for value, label in form.fields.user_type.choices %}
+                                <option value="{{ value }}"{% if form.user_type.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.user_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">所属役割</label>
@@ -85,7 +94,7 @@
                         {% for error in form.groups.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名</label>
+                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名<span class="text-danger">*</span></label>
                         <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
                         {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
@@ -109,4 +118,34 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const userTypeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
+    const companyInput = document.getElementById('{{ form.company_name.id_for_label }}');
+    if (!userTypeSelect || !companyInput) {
+        return;
+    }
+
+    function updateCompanyFieldByUserType() {
+        if (userTypeSelect.value === 'systena') {
+            companyInput.value = 'システナ';
+            companyInput.setAttribute('readonly', 'readonly');
+            companyInput.classList.add('bg-light');
+        } else {
+            companyInput.removeAttribute('readonly');
+            companyInput.classList.remove('bg-light');
+            if (companyInput.value === 'システナ') {
+                companyInput.value = '';
+            }
+        }
+    }
+
+    userTypeSelect.addEventListener('change', updateCompanyFieldByUserType);
+    updateCompanyFieldByUserType();
+});
+</script>
 {% endblock %}

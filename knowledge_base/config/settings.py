@@ -187,18 +187,16 @@ SESSION_COOKIE_AGE = 60 * 30
 SESSION_SAVE_EVERY_REQUEST = True
 
 # 業務上のユーザー役割
+# 注: 管理者は権限フィールドで管理、システナ/カスタマーはユーザー区分で管理
 USER_ROLES = [
-    '管理者',
-    'レビュアー',
     '投稿者',
-    'システナ',
-    'カスタマー',
+    '承認者',
 ]
 
 # 後方互換（既存コード/運用向け）
 USER_GROUPS = USER_ROLES
 
-USER_GROUP_REVIEWER_NAME = 'レビュアー'
+USER_GROUP_REVIEWER_NAME = '承認者'
 
 FAQ_APPROVAL_ENABLED = True
 
@@ -219,7 +217,7 @@ GROUP_ROLE_PERMISSIONS = {
         'tenasapo_knowledge.delete_manual',
         'tenasapo_knowledge.view_manual',
     ],
-    'レビュアー': [
+    '承認者': [
         'tenasapo_knowledge.view_knowledgearticle',
         'tenasapo_knowledge.change_knowledgearticle',
         'tenasapo_knowledge.view_tipsarticle',

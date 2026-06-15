@@ -67,6 +67,10 @@ SYSTENA_GROUP_NAME = getattr(
     'USER_ROLE_SYSTENA_NAME',
     getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ'),
 )
+PASSWORD_MANAGER_USERNAMES = {
+    username.lower()
+    for username in getattr(settings, 'PASSWORD_MANAGER_USERNAMES', ['Admin', 'SystenaAdmin'])
+}
 CUSTOMER_GROUP_NAME = getattr(
     settings,
     'USER_ROLE_CUSTOMER_NAME',
@@ -1846,6 +1850,39 @@ class StaffRequiredMixin(UserPassesTestMixin):
         return super().handle_no_permission()
 
 
+def _can_manage_all_users(user):
+    """Admin/SystenaAdmin のアカウント名のみ、他ユーザー管理を許可する。"""
+    return user.is_authenticated and user.username.lower() in PASSWORD_MANAGER_USERNAMES
+
+
+def _can_manage_target_user(actor, target_user):
+    return actor.is_authenticated and (
+        _can_manage_all_users(actor) or actor.pk == getattr(target_user, 'pk', None)
+    )
+
+
+class StaffOrSelfRequiredMixin(UserPassesTestMixin):
+    """Admin/SystenaAdmin、またはログイン中の本人のみアクセスを許可するMixin。"""
+
+    raise_exception = True
+
+    def test_func(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return False
+        if _can_manage_all_users(user):
+            return True
+        # URLに pk が含まれる場合のみ本人チェックを行う
+        pk = self.kwargs.get('pk')
+        return pk is not None and user.pk == pk
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'このページを閲覧する権限がありません。')
+            return redirect('article_list')
+        return super().handle_no_permission()
+
+
 class SummaryView(StaffRequiredMixin, TemplateView):
     template_name = 'tenasapo_knowledge/summary.html'
     excluded_contributor_names = {'admin'}
@@ -2624,6 +2661,9 @@ class UserCreateView(StaffRequiredMixin, FormView):
         User = get_user_model()
         emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
         selected_group_names = list(form.cleaned_data['groups'])
+        user_type = form.cleaned_data['user_type']
+        display_name = form.cleaned_data['display_name'] or form.cleaned_data['username']
+        company_name = 'システナ' if user_type == 'systena' else form.cleaned_data['company_name']
         is_admin = (
             form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
             or ADMIN_GROUP_NAME in selected_group_names
@@ -2646,14 +2686,14 @@ class UserCreateView(StaffRequiredMixin, FormView):
         UserProfile.objects.create(
             user=user,
             uid=form.cleaned_data.get('uid') or None,
-            display_name=form.cleaned_data['display_name'],
-            company_name=form.cleaned_data['company_name'],
-            user_type=profile_user_type_from_groups(selected_group_names),
+            display_name=display_name,
+            company_name=company_name,
+            user_type=user_type,
             email_addresses='\n'.join(emails),
             note=form.cleaned_data['note'],
         )
 
-        customer, _ = Customer.objects.get_or_create(name=form.cleaned_data['company_name'])
+        customer, _ = Customer.objects.get_or_create(name=company_name)
         customer.users.add(user)
 
         messages.success(self.request, f'{resolve_user_display_name(user)}（{user.username}）を作成しました。')
@@ -2685,20 +2725,55 @@ class UserListView(StaffRequiredMixin, ListView):
         elif role:
             queryset = queryset.filter(groups__name=role)
 
+        authority = self.request.GET.get('authority', '').strip()
+        if authority == 'admin':
+            queryset = queryset.filter(Q(is_staff=True) | Q(is_superuser=True))
+        elif authority == 'user':
+            queryset = queryset.filter(is_staff=False, is_superuser=False)
+
+        user_type = self.request.GET.get('user_type', '').strip()
+        if user_type:
+            queryset = queryset.filter(knowledge_profile__user_type=user_type)
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
         context['selected_role'] = self.request.GET.get('role', '')
+        context['selected_authority'] = self.request.GET.get('authority', '')
+        context['selected_user_type'] = self.request.GET.get('user_type', '')
         context['roles'] = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
+        context['can_manage_all_users'] = _can_manage_all_users(self.request.user)
         return context
 
 
-class UserPasswordResetView(StaffRequiredMixin, View):
+class UserDetailView(StaffRequiredMixin, TemplateView):
+    template_name = 'tenasapo_knowledge/user_detail.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        User = get_user_model()
+        self.user_obj = get_object_or_404(User, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        role_names = list(getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', [])))
+        user_group_names = set(self.user_obj.groups.values_list('name', flat=True))
+        context['user_obj'] = self.user_obj
+        context['profile'] = getattr(self.user_obj, 'knowledge_profile', None)
+        context['visible_roles'] = [name for name in role_names if name in user_group_names]
+        context['can_edit'] = _can_manage_all_users(self.request.user) or self.user_obj.pk == self.request.user.pk
+        return context
+
+
+class UserPasswordResetView(StaffOrSelfRequiredMixin, View):
     def post(self, request, pk):
         User = get_user_model()
         user = get_object_or_404(User, pk=pk)
+        if not _can_manage_target_user(request.user, user):
+            messages.error(request, '他のユーザーのパスワードを変更する権限がありません。')
+            return redirect('user_list')
         reset_mode = request.POST.get('reset_mode', 'random')
 
         if reset_mode == 'manual':
@@ -2797,7 +2872,7 @@ class ViewHistoryListView(StaffRequiredMixin, ListView):
         return context
 
 
-class UserUpdateView(StaffRequiredMixin, FormView):
+class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
     template_name = 'tenasapo_knowledge/user_form.html'
     form_class = UserUpdateForm
     success_url = reverse_lazy('user_list')
@@ -2805,6 +2880,9 @@ class UserUpdateView(StaffRequiredMixin, FormView):
     def dispatch(self, request, *args, **kwargs):
         User = get_user_model()
         self.user_obj = get_object_or_404(User, pk=kwargs['pk'])
+        if not _can_manage_target_user(request.user, self.user_obj):
+            messages.error(request, '他のユーザーを編集する権限がありません。')
+            return redirect('user_list')
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
@@ -2815,6 +2893,7 @@ class UserUpdateView(StaffRequiredMixin, FormView):
             'display_name': profile.display_name if profile else self.user_obj.username,
             'company_name': profile.company_name if profile else '',
             'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
+            'user_type': profile.user_type if profile else 'customer',
             'groups': list(self.user_obj.groups.values_list('name', flat=True)),
             'email_addresses': profile.email_addresses if profile else '',
             'note': profile.note if profile else '',
@@ -2867,6 +2946,9 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         User = get_user_model()
         emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
         selected_group_names = list(form.cleaned_data['groups'])
+        user_type = form.cleaned_data['user_type']
+        display_name = form.cleaned_data['display_name'] or self.user_obj.username
+        company_name = 'システナ' if user_type == 'systena' else form.cleaned_data['company_name']
         is_admin = (
             form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
             or ADMIN_GROUP_NAME in selected_group_names
@@ -2895,15 +2977,15 @@ class UserUpdateView(StaffRequiredMixin, FormView):
         # プロフィールを更新
         profile, _ = UserProfile.objects.get_or_create(user=self.user_obj)
         profile.uid = form.cleaned_data.get('uid') or None
-        profile.display_name = form.cleaned_data['display_name']
-        profile.company_name = form.cleaned_data['company_name']
-        profile.user_type = profile_user_type_from_groups(selected_group_names)
+        profile.display_name = display_name
+        profile.company_name = company_name
+        profile.user_type = user_type
         profile.email_addresses = '\n'.join(emails)
         profile.note = form.cleaned_data['note']
         profile.save()
 
         # 顧客を更新
-        customer, _ = Customer.objects.get_or_create(name=form.cleaned_data['company_name'])
+        customer, _ = Customer.objects.get_or_create(name=company_name)
         if self.user_obj not in customer.users.all():
             customer.users.add(self.user_obj)
 
@@ -2915,6 +2997,11 @@ class UserDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         User = get_user_model()
         user = get_object_or_404(User, pk=pk)
+        
+        # Admin/SystenaAdminのみ削除可能
+        if not _can_manage_all_users(request.user):
+            messages.error(request, '他のユーザーを削除する権限がありません。')
+            return redirect('user_list')
         
         # 削除対象がリクエスト者本人でないことを確認
         if user == request.user:

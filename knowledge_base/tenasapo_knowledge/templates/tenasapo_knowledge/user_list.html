@@ -21,11 +21,11 @@
 {% endfor %}
 
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
-    <div class="col-12 col-md-5">
+    <div class="col-12 col-md-3">
         <label class="form-label" for="q">検索</label>
         <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
     </div>
-    <div class="col-12 col-md-3">
+    <div class="col-12 col-md-2">
         <label class="form-label" for="role">所属役割</label>
         <select class="form-select" id="role" name="role">
             <option value="">すべて</option>
@@ -35,106 +35,127 @@
             <option value="__none__" {% if selected_role == '__none__' %}selected{% endif %}>（役割なし）</option>
         </select>
     </div>
+    <div class="col-12 col-md-2">
+        <label class="form-label" for="authority">権限</label>
+        <select class="form-select" id="authority" name="authority">
+            <option value="">すべて</option>
+            <option value="admin" {% if selected_authority == 'admin' %}selected{% endif %}>管理者</option>
+            <option value="user" {% if selected_authority == 'user' %}selected{% endif %}>ユーザー</option>
+        </select>
+    </div>
+    <div class="col-12 col-md-2">
+        <label class="form-label" for="user_type">ユーザー区分</label>
+        <select class="form-select" id="user_type" name="user_type">
+            <option value="">すべて</option>
+            <option value="systena" {% if selected_user_type == 'systena' %}selected{% endif %}>システナ</option>
+            <option value="customer" {% if selected_user_type == 'customer' %}selected{% endif %}>カスタマー</option>
+        </select>
+    </div>
     <div class="col-12 col-md-auto">
         <button class="btn btn-outline-primary" type="submit">検索</button>
-        {% if query or selected_role %}
+        {% if query or selected_role or selected_authority or selected_user_type %}
             <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
         {% endif %}
     </div>
 </form>
 
-<div style="width: 100vw; position: relative; left: 50%; margin-left: -50vw;">
-    <div class="card shadow-sm mx-auto" style="width: min(1800px, calc(100vw - 1rem)); max-width: none;">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
-            <colgroup>
-                <col style="width: 7%">
-                <col style="width: 11%">
-                <col style="width: 11%">
-                <col style="width: 13%">
-                <col style="width: 8%">
-                <col style="width: 13%">
-                <col style="width: 15%">
-                <col style="width: 16%">
-                <col style="width: 6%">
-            </colgroup>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
+        <colgroup>
+            <col style="width: 11%">
+            <col style="width: 12%">
+            <col style="width: 15%">
+            <col style="width: 10%">
+            <col style="width: 10%">
+            <col style="width: 17%">
+            <col style="width: 25%">
+        </colgroup>
             <thead class="table-light">
                 <tr>
                     <th scope="col">管理番号</th>
                     <th scope="col">ログインID</th>
                     <th scope="col">ユーザー名</th>
-                    <th scope="col">会社名</th>
-                    <th scope="col">権限</th>
+                    <th scope="col" class="text-center">権限</th>
+                    <th scope="col" class="text-center">ユーザー区分</th>
                     <th scope="col">所属役割</th>
-                    <th scope="col">メールアドレス</th>
-                    <th scope="col">備考</th>
                     <th scope="col">操作</th>
                 </tr>
             </thead>
             <tbody>
                 {% for account in users %}
                     <tr>
-                        <td class="fw-semibold text-center">
+                        <td>
                             {% if account.knowledge_profile.uid %}
-                                <span class="badge faq-meta-badge">{{ account.knowledge_profile.uid }}</span>
+                                {{ account.knowledge_profile.uid }}
                             {% else %}
                                 <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
                         <td class="fw-semibold">{{ account.username }}</td>
-                        <td class="fw-semibold">{{ account.knowledge_profile.display_name|default:account.username }}</td>
-                        <td>{{ account.knowledge_profile.company_name|default:"-" }}</td>
-                        <td>
+                        <td>{{ account.knowledge_profile.display_name|default:account.username }}</td>
+                        <td class="text-center">
                             {% if account.is_staff or account.is_superuser %}
                                 <span class="badge text-bg-primary">管理者</span>
                             {% else %}
                                 <span class="badge text-bg-secondary">ユーザー</span>
                             {% endif %}
                         </td>
+                        <td class="text-center">
+                            {% if account.knowledge_profile %}
+                                {% if account.knowledge_profile.user_type == 'systena' %}
+                                    <span class="badge text-bg-warning">システナ</span>
+                                {% elif account.knowledge_profile.user_type == 'customer' %}
+                                    <span class="badge text-bg-info">カスタマー</span>
+                                {% else %}
+                                    <span class="text-secondary">-</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
                         <td>
                             {% if account.groups.all %}
                                 {% for group in account.groups.all %}
-                                    <span class="badge text-bg-light me-1">{{ group.name }}</span>
+                                    {% if group.name in roles %}
+                                        <span class="badge text-bg-light">{{ group.name }}</span>
+                                    {% endif %}
                                 {% endfor %}
                             {% else %}
                                 <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
-                        <td class="text-break">
-                            {% if account.knowledge_profile.email_addresses %}
-                                {{ account.knowledge_profile.email_addresses|linebreaksbr }}
-                            {% elif account.email %}
-                                {{ account.email }}
-                            {% else %}
-                                <span class="text-secondary">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-break">{{ account.knowledge_profile.note|default:"-"|linebreaksbr }}</td>
                         <td class="text-nowrap">
                             <div class="d-flex flex-wrap gap-2" role="group">
-                                <a class="btn btn-outline-primary btn-sm js-user-edit-link" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
-                                <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
-                                <button class="btn btn-outline-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
+                                <a class="btn btn-outline-primary btn-sm" href="{% url 'user_detail' account.id %}">詳細</a>
+                                {% if can_manage_all_users or account.id == request.user.id %}
+                                <a class="btn btn-primary btn-sm" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
+                                {% endif %}
+                                {% if can_manage_all_users or account.id == request.user.id %}
+                                <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
+                                {% endif %}
+                                {% if can_manage_all_users or account.id == request.user.id %}
+                                <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="9">ユーザーが見つかりません。</td>
+                        <td class="text-center text-secondary py-4" colspan="7">ユーザーが見つかりません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
             </table>
         </div>
     </div>
-</div>
 
 {% if is_paginated %}
     <nav class="mt-4" aria-label="ページネーション">
         <ul class="pagination">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&role={{ selected_role }}">前へ</a>
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">前へ</a>
                 </li>
             {% endif %}
             <li class="page-item active" aria-current="page">
@@ -142,7 +163,7 @@
             </li>
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&role={{ selected_role }}">次へ</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">次へ</a>
                 </li>
             {% endif %}
         </ul>

@@ -569,14 +569,22 @@ class UserCreateForm(forms.Form):
     uid = forms.CharField(
         label='管理番号',
         max_length=6,
-        required=False,
-        help_text='数字6桁で入力してください（省略可）。',
+        required=True,
+        help_text='数字6桁で入力してください。',
     )
     username = forms.CharField(label='ログインID', max_length=150)
-    display_name = forms.CharField(label='ユーザー名', max_length=150)
+    display_name = forms.CharField(label='ユーザー名', max_length=150, required=False)
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput)
-    company_name = forms.CharField(label='会社名', max_length=120)
+    company_name = forms.CharField(label='会社名', max_length=120, required=False)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
+    user_type = forms.ChoiceField(
+        label='ユーザー区分',
+        required=True,
+        choices=[
+            ('systena', 'システナ'),
+            ('customer', 'カスタマー'),
+        ],
+    )
     groups = forms.MultipleChoiceField(
         label='所属役割',
         required=False,
@@ -604,12 +612,12 @@ class UserCreateForm(forms.Form):
     def clean_uid(self):
         value = self.cleaned_data.get('uid', '').strip()
         if not value:
-            return None
+            raise forms.ValidationError('この項目は必須です。')
         if not value.isdigit() or len(value) != 6:
-            raise forms.ValidationError('管理番号は数字6桁で入力してください。')
+            raise forms.ValidationError('数字6桁で入力してください。')
         from .models import UserProfile
         if UserProfile.objects.filter(uid=value).exists():
-            raise forms.ValidationError('この管理番号はすでに使われています。')
+            raise forms.ValidationError('この管理番号は既に使用されています。')
         return value
 
     def clean_username(self):
@@ -620,7 +628,19 @@ class UserCreateForm(forms.Form):
         return username
 
     def clean_display_name(self):
-        return self.cleaned_data['display_name'].strip()
+        display_name = (self.cleaned_data.get('display_name') or '').strip()
+        if display_name:
+            return display_name
+        return self.cleaned_data.get('username', '').strip()
+
+    def clean_company_name(self):
+        user_type = self.cleaned_data.get('user_type')
+        company_name = (self.cleaned_data.get('company_name') or '').strip()
+        if user_type == 'systena':
+            return 'システナ'
+        if not company_name:
+            raise forms.ValidationError('この項目は必須です。')
+        return company_name
 
     def clean_email_addresses(self):
         value = self.cleaned_data.get('email_addresses', '')
@@ -657,14 +677,22 @@ class UserUpdateForm(forms.Form):
     uid = forms.CharField(
         label='管理番号',
         max_length=6,
-        required=False,
-        help_text='数字6桁で入力してください（省略可）。',
+        required=True,
+        help_text='数字6桁で入力してください。',
     )
     username = forms.CharField(label='ログインID', max_length=150, disabled=True)
-    display_name = forms.CharField(label='ユーザー名', max_length=150)
+    display_name = forms.CharField(label='ユーザー名', max_length=150, required=False)
     password = forms.CharField(label='パスワード', widget=forms.PasswordInput, required=False)
-    company_name = forms.CharField(label='会社名', max_length=120)
+    company_name = forms.CharField(label='会社名', max_length=120, required=False)
     role = forms.ChoiceField(label='権限', choices=ROLE_CHOICES)
+    user_type = forms.ChoiceField(
+        label='ユーザー区分',
+        required=True,
+        choices=[
+            ('systena', 'システナ'),
+            ('customer', 'カスタマー'),
+        ],
+    )
     groups = forms.MultipleChoiceField(
         label='所属役割',
         required=False,
@@ -692,16 +720,16 @@ class UserUpdateForm(forms.Form):
     def clean_uid(self):
         value = self.cleaned_data.get('uid', '').strip()
         if not value:
-            return None
+            raise forms.ValidationError('この項目は必須です。')
         if not value.isdigit() or len(value) != 6:
-            raise forms.ValidationError('管理番号は数字6桁で入力してください。')
+            raise forms.ValidationError('数字6桁で入力してください。')
         from .models import UserProfile
         # 自分自身のIDは除外してユニーク確認
         qs = UserProfile.objects.filter(uid=value)
         if self._current_user_pk:
             qs = qs.exclude(user__pk=self._current_user_pk)
         if qs.exists():
-            raise forms.ValidationError('この管理番号はすでに使われています。')
+            raise forms.ValidationError('この管理番号は既に使用されています。')
         return value
 
     def clean_email_addresses(self):
@@ -720,7 +748,19 @@ class UserUpdateForm(forms.Form):
         return '\n'.join(emails)
 
     def clean_display_name(self):
-        return self.cleaned_data['display_name'].strip()
+        display_name = (self.cleaned_data.get('display_name') or '').strip()
+        if display_name:
+            return display_name
+        return (self.cleaned_data.get('username') or '').strip()
+
+    def clean_company_name(self):
+        user_type = self.cleaned_data.get('user_type')
+        company_name = (self.cleaned_data.get('company_name') or '').strip()
+        if user_type == 'systena':
+            return 'システナ'
+        if not company_name:
+            raise forms.ValidationError('この項目は必須です。')
+        return company_name
 
 
 class ManualForm(forms.ModelForm):

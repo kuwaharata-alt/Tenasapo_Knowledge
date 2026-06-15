@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}ユーザー詳細 | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-person-fill"></i></span>ユーザー詳細
+            </h1>
+        </div>
+        <a class="btn btn-secondary" href="{% url 'user_list' %}">一覧に戻る</a>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <h5 class="text-muted mb-3">基本情報</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 30%;">ログインID</th>
+                        <td>{{ user_obj.username }}</td>
+                    </tr>
+                    <tr>
+                        <th>ユーザー名</th>
+                        <td>{{ profile.display_name|default:user_obj.username }}</td>
+                    </tr>
+                    <tr>
+                        <th>管理番号</th>
+                        <td>
+                            {% if profile.uid %}
+                                {{ profile.uid }}
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>権限</th>
+                        <td>
+                            {% if user_obj.is_staff or user_obj.is_superuser %}
+                                <span class="badge text-bg-primary">管理者</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary">ユーザー</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>ユーザー区分</th>
+                        <td>
+                            {% if profile %}
+                                {% if profile.user_type == 'systena' %}
+                                    <span class="badge text-bg-warning">システナ</span>
+                                {% elif profile.user_type == 'customer' %}
+                                    <span class="badge text-bg-info">カスタマー</span>
+                                {% else %}
+                                    <span class="text-secondary">-</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>所属役割</th>
+                        <td>
+                            {% if visible_roles %}
+                                {% for role_name in visible_roles %}
+                                    <span class="badge text-bg-light">{{ role_name }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h5 class="text-muted mb-3">その他の情報</h5>
+                <table class="table table-sm">
+                    <tr>
+                        <th style="width: 30%;">会社名</th>
+                        <td>{{ profile.company_name|default:"-" }}</td>
+                    </tr>
+                    <tr>
+                        <th>メールアドレス</th>
+                        <td>
+                            {% if profile.email_addresses %}
+                                <div class="text-break">{{ profile.email_addresses|linebreaksbr }}</div>
+                            {% elif user_obj.email %}
+                                {{ user_obj.email }}
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>備考</th>
+                        <td>
+                            {% if profile.note %}
+                                <div class="text-break">{{ profile.note|linebreaksbr }}</div>
+                            {% else %}
+                                <span class="text-secondary">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <div class="d-flex gap-2">
+            {% if can_edit %}
+            <a class="btn btn-primary" href="{% url 'user_edit' user_obj.id %}">編集</a>
+            {% endif %}
+            <a class="btn btn-secondary" href="{% url 'user_list' %}">一覧に戻る</a>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

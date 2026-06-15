@@ -833,6 +833,16 @@ class UserCreateViewTests(TestCase):
             password='password',
             is_staff=True,
         )
+        self.admin_account = User.objects.create_user(
+            username='Admin',
+            password='password',
+            is_staff=True,
+        )
+        self.systena_admin_account = User.objects.create_user(
+            username='SystenaAdmin',
+            password='password',
+            is_staff=True,
+        )
         self.member = User.objects.create_user(username='member', password='password')
 
     def test_staff_can_view_user_create_page(self):
@@ -916,8 +926,8 @@ class UserCreateViewTests(TestCase):
         self.assertTrue(created_user.is_superuser)
         self.assertTrue(UserProfile.objects.filter(user=created_user).exists())
 
-    def test_staff_can_reset_user_password(self):
-        self.client.force_login(self.staff)
+    def test_admin_account_can_reset_user_password(self):
+        self.client.force_login(self.admin_account)
 
         response = self.client.post(
             reverse('user_password_reset', args=[self.member.id]),
@@ -928,8 +938,8 @@ class UserCreateViewTests(TestCase):
         self.member.refresh_from_db()
         self.assertFalse(self.member.check_password('password'))
 
-    def test_staff_can_manually_set_user_password(self):
-        self.client.force_login(self.staff)
+    def test_systena_admin_account_can_manually_set_user_password(self):
+        self.client.force_login(self.systena_admin_account)
 
         response = self.client.post(
             reverse('user_password_reset', args=[self.member.id]),
@@ -970,6 +980,15 @@ class UserCreateViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.staff.refresh_from_db()
         self.assertTrue(self.staff.check_password('password'))
+
+    def test_staff_account_cannot_reset_other_user_password(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(reverse('user_password_reset', args=[self.member.id]))
+
+        self.assertEqual(response.status_code, 403)
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password('password'))
 
 
 class LoginHistorySignalTests(TestCase):

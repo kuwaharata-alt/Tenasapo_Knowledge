@@ -84,6 +84,26 @@
             --bs-btn-active-bg: var(--tk-primary-dark);
             --bs-btn-active-border-color: var(--tk-primary-dark);
         }
+        .btn {
+            transition: transform 0.08s ease, box-shadow 0.08s ease;
+            box-shadow: 0 3px 0 rgba(59, 49, 41, 0.18);
+        }
+        .btn:hover:not(:disabled):not(.disabled) {
+            transform: translateY(-1px);
+        }
+        .btn:focus-visible {
+            box-shadow:
+                0 0 0 0.2rem rgba(232, 117, 36, 0.18),
+                0 3px 0 rgba(59, 49, 41, 0.18);
+        }
+        .btn:not(:disabled):not(.disabled):active,
+        .btn.active,
+        .show > .btn.dropdown-toggle {
+            transform: translateY(2px);
+            box-shadow:
+                0 1px 0 rgba(59, 49, 41, 0.2),
+                inset 0 2px 4px rgba(0, 0, 0, 0.18);
+        }
         .text-bg-primary {
             background-color: var(--tk-primary) !important;
         }
