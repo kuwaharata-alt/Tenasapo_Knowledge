@@ -40,12 +40,18 @@ class Command(BaseCommand):
             action='store_true',
             help='実際には更新・送信せず、内容だけ表示します。',
         )
+        parser.add_argument(
+            '--no-email',
+            action='store_true',
+            help='メール送信をスキップします。パスワード更新と備考欄への記録のみ行います。',
+        )
 
     def handle(self, *args, **options):
         username = (options.get('username') or 'cs-demo').strip()
-        recipient_email = (options.get('recipient_email') or 'kuwaharata@systena.co.jp').strip()
+        recipient_email = (options.get('recipient_email') or '').strip()
         password_length = options.get('password_length') or 12
         dry_run = options.get('dry_run', False)
+        no_email = options.get('no_email', False)
 
         if password_length < 8:
             raise CommandError('password-length は 8 以上を指定してください。')
@@ -62,8 +68,8 @@ class Command(BaseCommand):
         display_name = resolve_user_display_name(user) or user.username
         recipients = self.parse_email_addresses(recipient_email)
 
-        if not recipients:
-            raise CommandError('通知先メールアドレスが指定されていません。')
+        if not no_email and not recipients:
+            raise CommandError('通知先メールアドレスが指定されていません。--no-email を使うとメール送信をスキップできます。')
 
         subject = '【Tenasapo Knowledge】パスワード変更通知'
         changed_at = timezone.localtime(timezone.now()).strftime('%Y-%m-%d %H:%M:%S')
@@ -83,9 +89,10 @@ class Command(BaseCommand):
         ])
 
         if dry_run:
+            mail_label = 'スキップ（--no-email）' if no_email else (', '.join(recipients) if recipients else '（未指定）')
             self.stdout.write(
                 self.style.WARNING(
-                    f'[dry-run] {user.username} のパスワードを更新予定。通知先: {", ".join(recipients)}'
+                    f'[dry-run] {user.username} のパスワードを更新予定。通知先: {mail_label}'
                 )
             )
             self.stdout.write(body)
@@ -107,17 +114,20 @@ class Command(BaseCommand):
             profile.note = note_preview
             profile.save(update_fields=['note'])
 
-        send_mail(
-            subject=subject,
-            message=body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
-            recipient_list=recipients,
-            fail_silently=False,
-        )
+        if no_email:
+            self.stdout.write(self.style.WARNING('メール送信をスキップしました（--no-email）。'))
+        else:
+            send_mail(
+                subject=subject,
+                message=body,
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@example.com'),
+                recipient_list=recipients,
+                fail_silently=False,
+            )
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'{user.username} のパスワードを更新し、通知メールを送信しました。'
+                f'{user.username} のパスワードを更新しました。' if no_email else f'{user.username} のパスワードを更新し、通知メールを送信しました。'
             )
         )
         if profile:

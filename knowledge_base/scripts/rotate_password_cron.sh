@@ -25,12 +25,18 @@ DRY_RUN="${ROTATE_DRY_RUN:-false}"
 ARGS=(
   manage.py rotate_user_password
   --username "$USERNAME"
-  --recipient-email "$RECIPIENT_EMAIL"
   --password-length "$PASSWORD_LENGTH"
 )
 
 if [ "$DRY_RUN" = "true" ]; then
   ARGS+=(--dry-run)
+fi
+
+# メール送信：ROTATE_SEND_EMAIL=true の場合のみ送信。既定はスキップ。
+if [ "${ROTATE_SEND_EMAIL:-false}" = "true" ]; then
+  ARGS+=(--recipient-email "$RECIPIENT_EMAIL")
+else
+  ARGS+=(--no-email)
 fi
 
 "$PYTHON_BIN" "${ARGS[@]}"
