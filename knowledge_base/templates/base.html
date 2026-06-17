@@ -129,15 +129,73 @@
         .faq-toggle {
             width: 2rem;
             height: 2rem;
+            padding: 0;
             line-height: 1;
-            background: var(--tk-surface-warm);
+            border: 1px solid var(--tk-primary) !important;
+            background: var(--tk-primary) !important;
+            color: #fff !important;
+            border-radius: 0.5rem !important;
         }
         .faq-toggle::before {
-            content: "+";
-            font-size: 1.25rem;
+            content: "V";
+            display: inline-block;
+            font-size: 1rem;
+            font-weight: 500;
+            transform: scaleX(1.35);
         }
         .faq-toggle:not(.collapsed)::before {
-            content: "-";
+            content: "Λ";
+        }
+        .faq-toggle:hover,
+        .faq-toggle:focus,
+        .faq-toggle:active {
+            border-color: var(--tk-primary) !important;
+            background: var(--tk-primary) !important;
+            color: #fff !important;
+            box-shadow: none !important;
+        }
+        .faq-favorite-btn,
+        .tips-favorite-btn {
+            width: 2rem;
+            height: 2rem;
+            padding: 0;
+            border: 1px solid var(--tk-primary) !important;
+            background: var(--tk-primary) !important;
+            color: #fff !important;
+            box-shadow: none !important;
+            border-radius: 0.5rem !important;
+        }
+        .faq-favorite-btn:hover,
+        .faq-favorite-btn:focus,
+        .faq-favorite-btn:active,
+        .tips-favorite-btn:hover,
+        .tips-favorite-btn:focus,
+        .tips-favorite-btn:active {
+            background: var(--tk-primary) !important;
+            color: #fff !important;
+            box-shadow: none !important;
+        }
+        .faq-favorite-btn.btn-outline-warning,
+        .tips-favorite-btn.btn-outline-warning {
+            color: var(--bs-body-color) !important;
+            border-color: var(--tk-primary) !important;
+            background: transparent !important;
+        }
+        .faq-favorite-btn.btn-outline-warning:hover,
+        .faq-favorite-btn.btn-outline-warning:focus,
+        .faq-favorite-btn.btn-outline-warning:active,
+        .tips-favorite-btn.btn-outline-warning:hover,
+        .tips-favorite-btn.btn-outline-warning:focus,
+        .tips-favorite-btn.btn-outline-warning:active {
+            color: var(--bs-body-color) !important;
+            border-color: var(--tk-primary) !important;
+            background: transparent !important;
+        }
+        .faq-favorite-btn.btn-warning,
+        .tips-favorite-btn.btn-warning {
+            color: #fff !important;
+            border-color: var(--tk-primary) !important;
+            background: var(--tk-primary) !important;
         }
         .home-panel {
             background: linear-gradient(135deg, #fff5e8 0%, #ffffff 62%);

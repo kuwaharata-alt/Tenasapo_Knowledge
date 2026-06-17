@@ -87,23 +87,40 @@
                                             <td class="text-center text-secondary">{{ feature.usage_frequency_stars }}</td>
                                             <td class="text-center">
                                                 <div class="d-inline-flex align-items-center gap-1">
-                                                    {% if can_use_convenience_favorite %}
+                                                    {% if user.is_staff or user.is_superuser %}
+                                                        {% if can_edit_convenience %}
+                                                            <a class="btn btn-outline-secondary btn-sm rounded-2" href="{% url 'convenience_edit' feature.id %}">編集</a>
+                                                        {% endif %}
+                                                        {% if can_use_convenience_favorite %}
+                                                            <button
+                                                                class="btn btn-sm rounded-2 faq-favorite-btn {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
+                                                                type="button"
+                                                                data-feature-id="{{ feature.id }}"
+                                                                data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
+                                                            >{% if feature.is_favorited %}★{% else %}☆{% endif %}</button>
+                                                        {% endif %}
                                                         <button
-                                                            class="btn btn-sm {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
                                                             type="button"
-                                                            data-feature-id="{{ feature.id }}"
-                                                            data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
-                                                        >☆</button>
+                                                            class="btn btn-sm rounded-2 faq-toggle qr-detail-toggle collapsed"
+                                                            data-target-id="qrDetail{{ feature.id }}"
+                                                            aria-expanded="false"
+                                                        ></button>
+                                                    {% else %}
+                                                        {% if can_use_convenience_favorite %}
+                                                            <button
+                                                                class="btn btn-sm rounded-2 faq-favorite-btn {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
+                                                                type="button"
+                                                                data-feature-id="{{ feature.id }}"
+                                                                data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
+                                                            >{% if feature.is_favorited %}★{% else %}☆{% endif %}</button>
+                                                        {% endif %}
+                                                        <button
+                                                            type="button"
+                                                            class="btn btn-sm rounded-2 faq-toggle qr-detail-toggle collapsed"
+                                                            data-target-id="qrDetail{{ feature.id }}"
+                                                            aria-expanded="false"
+                                                        ></button>
                                                     {% endif %}
-                                                    {% if can_edit_convenience %}
-                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'convenience_edit' feature.id %}">編集</a>
-                                                    {% endif %}
-                                                    <button
-                                                        type="button"
-                                                        class="btn btn-outline-primary btn-sm qr-detail-toggle"
-                                                        data-target-id="qrDetail{{ feature.id }}"
-                                                        aria-expanded="false"
-                                                    >▽</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -171,6 +188,7 @@
             button.dataset.favorited = favorited ? '1' : '0';
             button.classList.toggle('btn-warning', favorited);
             button.classList.toggle('btn-outline-warning', !favorited);
+            button.textContent = favorited ? '★' : '☆';
         });
     });
 
@@ -182,7 +200,7 @@
             const isHidden = row.classList.contains('d-none');
             row.classList.toggle('d-none', !isHidden);
             button.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-            button.textContent = isHidden ? '△' : '▽';
+            button.classList.toggle('collapsed', !isHidden);
         });
     });
 })();
