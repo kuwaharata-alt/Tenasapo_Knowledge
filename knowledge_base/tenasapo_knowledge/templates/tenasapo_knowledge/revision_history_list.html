@@ -25,15 +25,15 @@
                     <!-- 登録日・カテゴリ・登録者を1行で表示 -->
                     <div class="d-flex" style="border-bottom: 1px solid #dee2e6;">
                         <div style="flex: 1; display: flex; border-right: 1px solid #dee2e6;">
-                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0;">登録日</div>
+                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center;">登録日</div>
                             <div style="padding: 0.75rem 1rem; flex-grow: 1;">{{ history.update_date|date:"Y/m/d H:i:s" }}</div>
                         </div>
                         <div style="flex: 1; display: flex; border-right: 1px solid #dee2e6;">
-                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0;">カテゴリ</div>
+                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center;">カテゴリ</div>
                             <div style="padding: 0.75rem 1rem; flex-grow: 1;">{{ history.get_category_display }}</div>
                         </div>
                         <div style="flex: 1; display: flex; border-right: 1px solid #dee2e6;">
-                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0;">登録者</div>
+                            <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center;">登録者</div>
                             <div style="padding: 0.75rem 1rem; flex-grow: 1;">{{ history.updated_by_name }}</div>
                         </div>
                         <div style="padding: 0.5rem; width: 86px; display: flex; align-items: center; justify-content: center;">
@@ -42,12 +42,12 @@
                     </div>
                     <!-- タイトル -->
                     <div class="d-flex" style="border-bottom: 1px solid #dee2e6;">
-                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0;">タイトル</div>
+                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; text-align: center;">タイトル</div>
                         <div style="padding: 0.75rem 1rem; flex-grow: 1;">{{ history.title|default:"-" }}</div>
                     </div>
                     <!-- 更新内容 -->
                     <div class="d-flex">
-                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: flex-start;">更新内容</div>
+                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 700; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; text-align: center;">更新内容</div>
                         <div style="padding: 0.75rem 1rem; flex-grow: 1; white-space: pre-wrap; word-break: break-word;">{{ history.update_content|default:"-" }}</div>
                     </div>
                 </div>
