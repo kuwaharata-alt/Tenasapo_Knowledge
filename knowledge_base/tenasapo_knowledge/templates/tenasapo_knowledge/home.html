@@ -9,6 +9,32 @@
     </h1>
 </div>
 
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <a href="{% url 'article_list' %}" class="btn btn-danger w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 FAQ</strong>
+            <small class="mt-2">疑問やトラブルの解消</small>
+        </a>
+    </div>
+    <div class="col-12 col-md-4">
+        <a href="{% url 'tip_list' %}" class="btn btn-info text-white w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">💡 Tips</strong>
+            <small class="mt-2">より便利に使いこなすためのヒント</small>
+        </a>
+    </div>
+    <div class="col-12 col-md-4">
+        <a href="{% url 'convenience_list' %}" class="btn btn-success w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">⚡ クイックリファレンス</strong>
+            <small class="mt-2">よく使用するショートカット・コマンド集</small>
+        </a>
+    </div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+    <i class="bi bi-megaphone-fill text-muted"></i>
+    <h2 class="h5 mb-0 fw-bold">最新情報</h2>
+</div>
+
 {% if recent_faqs or recent_tips %}
 <div class="row g-3 mb-4">
     {% if recent_faqs %}
@@ -46,30 +72,16 @@
     </div>
     {% endif %}
 </div>
+{% else %}
+<div class="alert alert-info mb-4" role="status">最新情報はありません。</div>
 {% endif %}
 
-<div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-        <a href="{% url 'article_list' %}" class="btn btn-danger w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 FAQ</strong>
-            <small class="mt-2">疑問やトラブルの解消</small>
-        </a>
-    </div>
-    <div class="col-12 col-md-4">
-        <a href="{% url 'tip_list' %}" class="btn btn-info text-white w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">💡 Tips</strong>
-            <small class="mt-2">より便利に使いこなすためのヒント</small>
-        </a>
-    </div>
-    <div class="col-12 col-md-4">
-        <a href="{% url 'convenience_list' %}" class="btn btn-success w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">⚡ クイックリファレンス</strong>
-            <small class="mt-2">よく使用するショートカット・コマンド集</small>
-        </a>
-    </div>
+{% if not is_customer_home %}
+<div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
+    <i class="bi bi-grid-1x2-fill text-muted"></i>
+    <h2 class="h5 mb-0 fw-bold">メニュー</h2>
 </div>
 
-{% if not is_customer_home %}
 <div class="row g-3">
     {% for group in menu_groups %}
         <div class="col-12 col-md-6 col-xl-4">
