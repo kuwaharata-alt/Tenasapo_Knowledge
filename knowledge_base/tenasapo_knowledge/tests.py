@@ -203,6 +203,35 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, self.hidden_article.title)
         self.assertContains(response, 'FAQ登録')
 
+    def test_article_list_shows_new_badge_only_for_recent_published_articles(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+        KnowledgeArticle.objects.all().update(published_at=timezone.now() - timedelta(days=30))
+
+        KnowledgeArticle.objects.create(
+            title='新着FAQ',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+        KnowledgeArticle.objects.create(
+            title='旧FAQ',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=15),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, '新着FAQ')
+        self.assertContains(response, '旧FAQ')
+        self.assertContains(response, 'New', count=1)
+
     def test_hidden_for_all_article_is_not_shown_even_to_staff(self):
         self.user.is_staff = True
         self.user.save()
@@ -1145,6 +1174,34 @@ class TipsListTests(TestCase):
         self.assertContains(response, '☆表示解除')
         self.assertContains(response, favorited_tip.title)
         self.assertNotContains(response, other_tip.title)
+
+    def test_tip_list_shows_new_badge_only_for_recent_published_tips(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        TipsArticle.objects.create(
+            title='新着Tips',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+        TipsArticle.objects.create(
+            title='旧Tips',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=15),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertContains(response, '新着Tips')
+        self.assertContains(response, '旧Tips')
+        self.assertContains(response, 'New', count=1)
 
 
 class TipsFormTests(TestCase):

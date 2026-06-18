@@ -161,7 +161,12 @@
                                             <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
                                                 {% if article.is_approved and article.visible_to_customer %}
                                                     {% if user.is_staff or user.is_superuser %}
-                                                        <span class="badge bg-success flex-shrink-0" style="font-size: 0.65rem;">公開中</span>
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            {% if article.is_new_badge %}
+                                                                <span class="badge text-bg-danger flex-shrink-0" style="font-size: 0.65rem;">New</span>
+                                                            {% endif %}
+                                                            <span class="badge bg-success flex-shrink-0" style="font-size: 0.65rem;">公開中</span>
+                                                        </div>
                                                     {% endif %}
                                                 {% endif %}
                                                 <div class="d-flex align-items-center gap-1">

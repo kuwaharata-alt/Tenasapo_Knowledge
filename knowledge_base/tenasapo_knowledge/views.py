@@ -352,6 +352,13 @@ def active_until_filter(base_date=None):
     return Q(expires_on__isnull=True) | Q(expires_on__gte=target_date)
 
 
+def is_recently_published(published_at, *, now=None, days=14):
+    if not published_at:
+        return False
+    current_time = now or timezone.now()
+    return published_at >= (current_time - timedelta(days=days))
+
+
 def hidden_parent_category_names_for_customer():
     return set(
         FAQParentCategorySetting.objects.filter(visible_to_customer=False)
@@ -970,6 +977,7 @@ class ArticleListView(ListView):
         for article in visible_articles:
             article.is_gooded = article.id in liked_article_ids
             article.is_favorited = article.id in favorite_article_ids
+            article.is_new_badge = is_recently_published(article.published_at)
             article.creator_display_name = resolve_saved_or_user_display_name(
                 article.created_by_name,
                 article.created_by,
@@ -1243,6 +1251,7 @@ class TipsListView(ListView):
         for tip in visible_tips:
             tip.is_gooded = tip.id in liked_tip_ids
             tip.is_favorited = tip.id in favorite_tip_ids
+            tip.is_new_badge = is_recently_published(tip.published_at)
             tip.creator_display_name = resolve_saved_or_user_display_name(
                 tip.created_by_name,
                 tip.created_by,
