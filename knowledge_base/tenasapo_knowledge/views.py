@@ -640,7 +640,7 @@ class HomeView(TemplateView):
             )
             menu_groups[5]['items'].extend(
                 [
-                    {'label': '改訂履歴', 'url_name': 'revision_history_list'},
+                    {'label': '更新履歴', 'url_name': 'revision_history_list'},
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
                     {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
@@ -2833,7 +2833,7 @@ class RevisionHistoryCreateView(StaffRequiredMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form_title'] = '改訂履歴登録'
+        context['form_title'] = '更新履歴登録'
         context['submit_label'] = '登録'
         context['is_edit'] = False
         return context
@@ -2843,7 +2843,7 @@ class RevisionHistoryCreateView(StaffRequiredMixin, FormView):
         revision.updated_by_user = self.request.user
         revision.updated_by_name = self.request.user.username
         revision.save()
-        messages.success(self.request, '改訂履歴を登録しました。')
+        messages.success(self.request, '更新履歴を登録しました。')
         return super().form_valid(form)
 
 
@@ -2855,7 +2855,7 @@ class RevisionHistoryUpdateView(StaffRequiredMixin, UpdateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form_title'] = '改訂履歴修正'
+        context['form_title'] = '更新履歴修正'
         context['submit_label'] = '修正'
         context['is_edit'] = True
         return context
@@ -2865,7 +2865,7 @@ class RevisionHistoryUpdateView(StaffRequiredMixin, UpdateView):
         revision.updated_by_user = self.request.user
         revision.updated_by_name = self.request.user.username
         revision.save()
-        messages.success(self.request, '改訂履歴を修正しました。')
+        messages.success(self.request, '更新履歴を修正しました。')
         return super().form_valid(form)
 
 
@@ -2873,7 +2873,7 @@ class RevisionHistoryDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         revision = get_object_or_404(RevisionHistory, pk=pk)
         revision.delete()
-        messages.success(request, '改訂履歴を削除しました。')
+        messages.success(request, '更新履歴を削除しました。')
         return redirect('revision_history_list')
 
 
@@ -2884,7 +2884,7 @@ class RevisionHistoryListView(StaffRequiredMixin, ListView):
     paginate_by = 50
 
     def dispatch(self, request, *args, **kwargs):
-        record_view_history(request, '改訂履歴')
+        record_view_history(request, '更新履歴')
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):

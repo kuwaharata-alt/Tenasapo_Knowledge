@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 
-{% block title %}改訂履歴 | Tenasapo Knowledge{% endblock %}
+{% block title %}更新履歴 | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
 <div class="page-title-panel mb-4">
     <div class="d-flex align-items-center justify-content-between">
         <div>
             <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-clock-history"></i></span>改訂履歴
+                <span class="page-title-icon"><i class="bi bi-clock-history"></i></span>更新履歴
             </h1>
-            <p class="page-title-sub">改訂履歴の一覧と登録ができます。</p>
+            <p class="page-title-sub">更新履歴の一覧と登録ができます。</p>
         </div>
         <div>
-            <a class="btn btn-primary" href="{% url 'revision_history_create' %}"><i class="bi bi-plus-circle"></i> 改訂履歴を登録</a>
+            <a class="btn btn-primary" href="{% url 'revision_history_create' %}"><i class="bi bi-plus-circle"></i> 更新履歴を登録</a>
         </div>
     </div>
 </div>
@@ -46,8 +46,8 @@
                         <div style="padding: 0.75rem 1rem; flex-grow: 1;">{{ history.title|default:"-" }}</div>
                     </div>
                     <!-- 更新内容 -->
-                    <div class="d-flex" style="align-items: flex-start;">
-                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0;">更新内容</div>
+                    <div class="d-flex">
+                        <div style="background-color: #e9ecef; padding: 0.75rem 1rem; font-weight: 500; font-size: 0.875rem; width: 120px; flex-shrink: 0; display: flex; align-items: flex-start;">更新内容</div>
                         <div style="padding: 0.75rem 1rem; flex-grow: 1; white-space: pre-wrap; word-break: break-word;">{{ history.update_content|default:"-" }}</div>
                     </div>
                 </div>
@@ -76,7 +76,7 @@
     {% endif %}
 {% else %}
     <div class="card shadow-sm">
-        <div class="card-body text-center text-secondary py-5">改訂履歴がありません。</div>
+        <div class="card-body text-center text-secondary py-5">更新履歴がありません。</div>
     </div>
 {% endif %}
 {% endblock %}

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}改訂履歴登録 | Tenasapo Knowledge{% endblock %}
+{% block title %}更新履歴登録 | Tenasapo Knowledge{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
@@ -53,7 +53,7 @@
                 <a class="btn btn-outline-secondary" href="{% url 'revision_history_list' %}">戻る</a>
                 <button class="btn btn-primary" type="submit">{{ submit_label|default:'登録' }}</button>
                 {% if is_edit %}
-                    <button class="btn btn-outline-danger" type="submit" formaction="{% url 'revision_history_delete' object.pk %}" formmethod="post" formnovalidate onclick="return confirm('この改訂履歴を削除しますか？');">削除</button>
+                    <button class="btn btn-outline-danger" type="submit" formaction="{% url 'revision_history_delete' object.pk %}" formmethod="post" formnovalidate onclick="return confirm('この更新履歴を削除しますか？');">削除</button>
                 {% endif %}
             </div>
         </form>

@@ -478,8 +478,8 @@ class RevisionHistory(models.Model):
     update_content = models.TextField('更新内容', blank=True)
 
     class Meta:
-        verbose_name = '改訂履歴'
-        verbose_name_plural = '改訂履歴'
+        verbose_name = '更新履歴'
+        verbose_name_plural = '更新履歴'
         ordering = ['-update_date', '-id']
 
     def __str__(self):
