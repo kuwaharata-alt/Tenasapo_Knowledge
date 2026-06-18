@@ -11,9 +11,21 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, F, Q
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
+
+from io import BytesIO
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm, inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib import colors
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
+import sys
 from django.urls import reverse_lazy
 from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -2385,7 +2397,399 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         return context
 
 
+class SummaryPDFView(StaffRequiredMixin, View):
+    """アナライズレポートをPDFで出力するビュー"""
+    
+    # クラス変数：フォント名
+    japanese_font_name = 'Helvetica'  # デフォルト
+
+    @classmethod
+    def register_japanese_font(cls):
+        """日本語フォント登録"""
+        if cls.japanese_font_name != 'Helvetica':
+            return  # 既に登録済み
+        
+        # Windows フォントパス
+        font_paths = [
+            'C:\\Windows\\Fonts\\msgothic.ttc',  # MS Pゴシック
+            'C:\\Windows\\Fonts\\meiryo.ttc',    # メイリオ
+            '/System/Library/Fonts/ヒラギノ角ゴシック W9.ttc',  # macOS
+            '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',  # Linux
+        ]
+        
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    font_name = 'Japanese'
+                    pdfmetrics.registerFont(TTFont(font_name, font_path))
+                    cls.japanese_font_name = font_name
+                    return
+                except Exception as e:
+                    continue
+    
+    @classmethod
+    def resolve_contributor_name(cls, saved_name='', user=None):
+        return resolve_saved_or_user_display_name(saved_name, user, default='').strip()
+
+    @classmethod
+    def is_excluded_contributor(cls, contributor_name):
+        excluded = {'admin'}
+        return not contributor_name or contributor_name.lower() in excluded
+
+    def get_summary_data(self):
+        """SummaryViewと同じロジックでデータを生成"""
+        selected_period = 'all'
+        from_date = None
+        to_date = None
+        today = timezone.localdate()
+        current_month_start = today.replace(day=1)
+
+        base_faq_qs = (
+            KnowledgeArticle.objects.select_related('created_by')
+            .filter(visible_to_any_account_filter())
+            .annotate(good_count=Count('goods'))
+        )
+        base_tips_qs = (
+            TipsArticle.objects.select_related('created_by')
+            .filter(visible_to_any_account_filter())
+            .annotate(good_count=Count('goods'))
+        )
+
+        faq_qs = base_faq_qs
+        tips_qs = base_tips_qs
+
+        if from_date:
+            faq_qs = faq_qs.filter(created_at__date__gte=from_date)
+            tips_qs = tips_qs.filter(created_at__date__gte=from_date)
+        if to_date:
+            faq_qs = faq_qs.filter(created_at__date__lte=to_date)
+            tips_qs = tips_qs.filter(created_at__date__lte=to_date)
+
+        faq_articles = list(faq_qs.order_by('-created_at'))
+        tips_articles = list(tips_qs.order_by('-created_at'))
+        current_month_faq_articles = list(
+            base_faq_qs.filter(
+                created_at__date__gte=current_month_start,
+                created_at__date__lte=today,
+            ).order_by('-created_at')
+        )
+        current_month_tips_articles = list(
+            base_tips_qs.filter(
+                created_at__date__gte=current_month_start,
+                created_at__date__lte=today,
+            ).order_by('-created_at')
+        )
+
+        User = get_user_model()
+        summary_users = User.objects.filter(
+            groups__name=CONTRIBUTOR_GROUP_NAME
+        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
+
+        member_map = {}
+        member_current_month_map = {}
+        member_order_map = {}
+
+        def ensure_member(name, member_id=None, management_uid=''):
+            node = member_map.get(name)
+            if node is None:
+                if member_id is None:
+                    member_id = member_order_map.get(name, 10**9)
+                node = {
+                    'member_id': member_id,
+                    'management_uid': management_uid,
+                    'name': name,
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
+                    'faq_post_count': 0,
+                    'tips_approved_count': 0,
+                    'tips_post_count': 0,
+                    'good_count_total': 0,
+                    'view_count_total': 0,
+                }
+                member_map[name] = node
+            return node
+
+        def ensure_current_month(name):
+            node = member_current_month_map.get(name)
+            if node is None:
+                node = {
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
+                    'faq_post_count': 0,
+                    'tips_approved_count': 0,
+                    'tips_post_count': 0,
+                }
+                member_current_month_map[name] = node
+            return node
+
+        for user in summary_users:
+            display_name = resolve_user_display_name(user).strip()
+            if self.is_excluded_contributor(display_name):
+                continue
+            if display_name not in member_order_map:
+                profile = getattr(user, 'knowledge_profile', None)
+                uid_value = (getattr(profile, 'uid', '') or '').strip()
+                uid_order = int(uid_value) if uid_value.isdigit() else 10**9 + user.id
+                member_order_map[display_name] = uid_order
+            profile = getattr(user, 'knowledge_profile', None)
+            ensure_member(
+                display_name,
+                user.id,
+                (getattr(profile, 'uid', '') or '').strip(),
+            )
+
+        for article in faq_articles:
+            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            member = ensure_member(creator_name)
+            member['faq_post_count'] += 1
+            if article.is_approved:
+                member['approved_count_total'] += 1
+                member['faq_approved_count'] += 1
+            member['good_count_total'] += article.good_count
+            member['view_count_total'] += article.answer_view_count
+
+        for tip in tips_articles:
+            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            member = ensure_member(creator_name)
+            member['tips_post_count'] += 1
+            if tip.is_approved:
+                member['approved_count_total'] += 1
+                member['tips_approved_count'] += 1
+            member['good_count_total'] += tip.good_count
+            member['view_count_total'] += tip.view_count
+
+        for article in current_month_faq_articles:
+            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            current_month = ensure_current_month(creator_name)
+            current_month['faq_post_count'] += 1
+            if article.is_approved:
+                current_month['approved_count_total'] += 1
+                current_month['faq_approved_count'] += 1
+
+        for tip in current_month_tips_articles:
+            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            current_month = ensure_current_month(creator_name)
+            current_month['tips_post_count'] += 1
+            if tip.is_approved:
+                current_month['approved_count_total'] += 1
+                current_month['tips_approved_count'] += 1
+
+        member_summaries = list(member_map.values())
+        for item in member_summaries:
+            current_month = ensure_current_month(item['name'])
+            item['current_month_faq_approved_count'] = current_month.get('faq_approved_count', 0)
+            item['current_month_faq_post_count'] = current_month.get('faq_post_count', 0)
+            item['current_month_tips_approved_count'] = current_month.get('tips_approved_count', 0)
+            item['current_month_tips_post_count'] = current_month.get('tips_post_count', 0)
+            item['current_month_post_count_total'] = (
+                item['current_month_faq_post_count'] + item['current_month_tips_post_count']
+            )
+            item['current_month_approved_count_total'] = current_month.get('approved_count_total', 0)
+            item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
+
+        member_summaries.sort(
+            key=lambda item: (
+                member_order_map.get(item['name'], 10**9),
+                item['management_uid'] or '999999',
+                item['name'].lower(),
+            )
+        )
+
+        summary_totals = {
+            'approved_count_total': sum(item['approved_count_total'] for item in member_summaries),
+            'faq_approved_count': sum(item['faq_approved_count'] for item in member_summaries),
+            'faq_post_count': sum(item['faq_post_count'] for item in member_summaries),
+            'tips_approved_count': sum(item['tips_approved_count'] for item in member_summaries),
+            'tips_post_count': sum(item['tips_post_count'] for item in member_summaries),
+            'good_count_total': sum(item['good_count_total'] for item in member_summaries),
+            'view_count_total': sum(item['view_count_total'] for item in member_summaries),
+            'current_month_faq_approved_count': sum(
+                item['current_month_faq_approved_count'] for item in member_summaries
+            ),
+            'current_month_faq_post_count': sum(item['current_month_faq_post_count'] for item in member_summaries),
+            'current_month_tips_approved_count': sum(
+                item['current_month_tips_approved_count'] for item in member_summaries
+            ),
+            'current_month_tips_post_count': sum(item['current_month_tips_post_count'] for item in member_summaries),
+            'current_month_approved_count_total': sum(
+                item['current_month_approved_count_total'] for item in member_summaries
+            ),
+            'current_month_post_count_total': sum(item['current_month_post_count_total'] for item in member_summaries),
+            'post_count_total': sum(item['post_count_total'] for item in member_summaries),
+        }
+
+        return {
+            'member_summaries': member_summaries,
+            'summary_totals': summary_totals,
+        }
+
+    def get(self, request, *args, **kwargs):
+        """PDFレポートを生成"""
+        # 日本語フォント登録
+        self.register_japanese_font()
+        
+        data = self.get_summary_data()
+        member_summaries = data['member_summaries']
+        summary_totals = data['summary_totals']
+
+        # PDFを生成（縦向きA4）
+        buffer = BytesIO()
+        page_size = A4
+        doc = SimpleDocTemplate(buffer, pagesize=page_size, rightMargin=1*cm, leftMargin=1*cm, topMargin=1.5*cm, bottomMargin=1*cm)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        font_name = self.japanese_font_name  # ローカル変数として保存
+        
+        # タイトル
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=20,
+            textColor=colors.HexColor('#1a1a1a'),
+            spaceAfter=6,
+            alignment=1,  # 中央揃え
+            fontName=font_name,
+        )
+        title = Paragraph('データ分析レポート', title_style)
+        elements.append(title)
+
+        today = timezone.localdate()
+        date_style = ParagraphStyle(
+            'DateStyle',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#666666'),
+            alignment=1,  # 中央揃え
+            spaceAfter=8,
+            fontName=font_name,
+        )
+        date_para = Paragraph(f'出力日: {today.strftime("%Y年%m月%d日")}', date_style)
+        elements.append(date_para)
+        elements.append(Spacer(1, 0.2*cm))
+
+        # サマリセクション
+        summary_heading_style = ParagraphStyle(
+            'SummaryHeading',
+            parent=styles['Heading2'],
+            fontSize=12,
+            textColor=colors.HexColor('#000000'),
+            spaceAfter=6,
+            fontName=font_name,
+        )
+        summary_heading = Paragraph('総数サマリ', summary_heading_style)
+        elements.append(summary_heading)
+
+        # サマリテーブル
+        summary_data = [
+            ['項目', '総数'],
+            ['投稿数（合計）', str(summary_totals['post_count_total'])],
+            ['FAQ投稿数', str(summary_totals['faq_post_count'])],
+            ['FAQ承認数', str(summary_totals['faq_approved_count'])],
+            ['Tips投稿数', str(summary_totals['tips_post_count'])],
+            ['Tips承認数', str(summary_totals['tips_approved_count'])],
+            ['承認数（合計）', str(summary_totals['approved_count_total'])],
+            ['Good総数', str(summary_totals['good_count_total'])],
+            ['閲覧数', str(summary_totals['view_count_total'])],
+            ['当月投稿数', str(summary_totals['current_month_post_count_total'])],
+            ['当月承認数', str(summary_totals['current_month_approved_count_total'])],
+        ]
+
+        summary_table = Table(summary_data, colWidths=[4.5*cm, 2*cm])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTNAME', (0, 1), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')]),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 0.3*cm))
+
+        # メンバー別セクション
+        member_heading = Paragraph('メンバー別投稿数', summary_heading_style)
+        elements.append(member_heading)
+
+        # メンバーテーブル
+        member_data = [
+            ['メンバー', '投稿数', 'FAQ', 'Tips', '承認数', 'Good数', '閲覧数'],
+        ]
+
+        for member in member_summaries:
+            member_data.append([
+                member['name'],
+                str(member['post_count_total']),
+                str(member['faq_post_count']),
+                str(member['tips_post_count']),
+                str(member['approved_count_total']),
+                str(member['good_count_total']),
+                str(member['view_count_total']),
+            ])
+
+        member_table = Table(member_data, colWidths=[3.2*cm, 1.6*cm, 1.6*cm, 1.6*cm, 1.6*cm, 1.6*cm, 1.6*cm])
+        member_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4472C4')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), font_name),
+            ('FONTNAME', (0, 1), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F0F0F0')]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 2),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        ]))
+        elements.append(member_table)
+
+        # PDFを構築
+        doc.build(elements)
+        
+        # レスポンスを返す
+        buffer.seek(0)
+        response = HttpResponse(buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="analysis_report_{today.strftime("%Y%m%d")}.pdf"'
+        return response
+
+
 class ArticleEditorRequiredMixin(UserPassesTestMixin):
+    raise_exception = True
+
+    def test_func(self):
+        return can_edit_article(self.request.user)
+
+    def handle_no_permission(self):
+        if self.request.user.is_authenticated:
+            messages.error(self.request, 'この操作を実行する権限がありません。')
+            return redirect('article_list')
+        return super().handle_no_permission()
+
+
+
     raise_exception = True
 
     def test_func(self):

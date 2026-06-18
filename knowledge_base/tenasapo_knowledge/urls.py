@@ -32,6 +32,7 @@ from .views import (
     RevisionHistoryListView,
     RevisionHistoryUpdateView,
     SummaryView,
+    SummaryPDFView,
     TipsApproveView,
     TipsRemandView,
     TipsCreateView,
@@ -97,6 +98,7 @@ urlpatterns = [
     path('histories/revisions/', RevisionHistoryListView.as_view(), name='revision_history_list'),
     path('histories/views/', ViewHistoryListView.as_view(), name='view_history_list'),
     path('summary/', SummaryView.as_view(), name='summary'),
+    path('summary/pdf/', SummaryPDFView.as_view(), name='summary_pdf'),
     path(
         'users/<int:pk>/reset-password/',
         UserPasswordResetView.as_view(),
