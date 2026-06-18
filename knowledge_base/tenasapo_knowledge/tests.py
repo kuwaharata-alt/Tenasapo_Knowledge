@@ -210,7 +210,7 @@ class KnowledgeArticleListTests(TestCase):
         KnowledgeArticle.objects.all().update(published_at=timezone.now() - timedelta(days=30))
 
         KnowledgeArticle.objects.create(
-            title='新着FAQ',
+            title='新着承認済みFAQ',
             category='PC/設定',
             body='本文',
             published_at=timezone.now() - timedelta(days=7),
@@ -228,9 +228,37 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertContains(response, '新着FAQ')
+        self.assertContains(response, '新着承認済みFAQ')
         self.assertContains(response, '旧FAQ')
         self.assertContains(response, 'New', count=1)
+
+    def test_article_list_shows_new_badge_regardless_of_approval_status(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        KnowledgeArticle.objects.create(
+            title='新着未承認FAQ',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        KnowledgeArticle.objects.create(
+            title='新着承認済みFAQ',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, '新着未承認FAQ')
+        self.assertContains(response, '新着承認済みFAQ')
+        self.assertContains(response, 'New', count=2)
 
     def test_hidden_for_all_article_is_not_shown_even_to_staff(self):
         self.user.is_staff = True
@@ -796,6 +824,34 @@ class KnowledgeArticleListTests(TestCase):
         article.refresh_from_db()
         self.assertTrue(article.is_approved)
 
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_remand_article_with_reason_from_list(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='reviewer_remand', password='password')
+        reviewer.groups.add(reviewer_group)
+        article = KnowledgeArticle.objects.create(
+            title='差し戻し対象FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        remand_response = self.client.post(
+            reverse('article_remand', args=[article.id]),
+            {'remand_reason': '記載内容を修正してください。'},
+        )
+
+        self.assertRedirects(remand_response, reverse('article_list'))
+        article.refresh_from_db()
+        self.assertFalse(article.is_approved)
+        self.assertEqual(article.remand_reason, '記載内容を修正してください。')
+
+        list_response = self.client.get(reverse('article_list'))
+        self.assertContains(list_response, '差戻し')
+        self.assertContains(list_response, 'レビュー')
+
     def test_reviewer_cannot_republish_hidden_for_all_article(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(username='reviewer_republish', password='password')
@@ -1181,7 +1237,7 @@ class TipsListTests(TestCase):
         self.client.force_login(self.user)
 
         TipsArticle.objects.create(
-            title='新着Tips',
+            title='新着承認済みTips',
             category='PC/設定',
             body='本文',
             published_at=timezone.now() - timedelta(days=7),
@@ -1199,9 +1255,65 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'))
 
-        self.assertContains(response, '新着Tips')
+        self.assertContains(response, '新着承認済みTips')
         self.assertContains(response, '旧Tips')
         self.assertContains(response, 'New', count=1)
+
+    def test_tip_list_shows_new_badge_regardless_of_approval_status(self):
+        self.user.is_staff = True
+        self.user.save()
+        self.client.force_login(self.user)
+
+        TipsArticle.objects.create(
+            title='新着未承認Tips',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        TipsArticle.objects.create(
+            title='新着承認済みTips',
+            category='PC/設定',
+            body='本文',
+            published_at=timezone.now() - timedelta(days=7),
+            visible_to_customer=True,
+            is_approved=True,
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertContains(response, '新着未承認Tips')
+        self.assertContains(response, '新着承認済みTips')
+        self.assertContains(response, 'New', count=2)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_remand_tip_with_reason_from_list(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='tips_reviewer_remand', password='password')
+        reviewer.groups.add(reviewer_group)
+        tip = TipsArticle.objects.create(
+            title='差し戻し対象Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        remand_response = self.client.post(
+            reverse('tip_remand', args=[tip.id]),
+            {'remand_reason': '表現を見直してください。'},
+        )
+
+        self.assertRedirects(remand_response, reverse('tip_list'))
+        tip.refresh_from_db()
+        self.assertFalse(tip.is_approved)
+        self.assertEqual(tip.remand_reason, '表現を見直してください。')
+
+        list_response = self.client.get(reverse('tip_list'))
+        self.assertContains(list_response, '差戻し')
+        self.assertContains(list_response, 'レビュー')
 
 
 class TipsFormTests(TestCase):

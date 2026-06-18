@@ -258,18 +258,23 @@ class PreviewRenderView(View):
         return JsonResponse({'ok': False, 'error': 'invalid type'}, status=400)
 
 
+def is_reviewer_user(user):
+    reviewer_group_names = {group_name for group_name in {REVIEWER_GROUP_NAME, 'レビュアー', '承認者'} if group_name}
+    return user.is_authenticated and user.groups.filter(name__in=reviewer_group_names).exists()
+
+
 def can_user_access_article(user, article):
     if is_hidden_for_all_accounts(article):
         return False
 
     is_staff_user = user.is_staff or user.is_superuser
-    is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-    is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+    is_systena = in_group(user, SYSTENA_GROUP_NAME)
+    is_reviewer = is_reviewer_user(user)
     if is_staff_user:
         return True
-    if is_reviewer_user:
+    if is_reviewer:
         return True
-    if is_systena_user:
+    if is_systena:
         return article.visible_to_systena
     if FAQ_APPROVAL_ENABLED and not article.is_approved:
         return False
@@ -281,13 +286,13 @@ def can_user_access_tip(user, tip):
         return False
 
     is_staff_user = user.is_staff or user.is_superuser
-    is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-    is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+    is_systena = in_group(user, SYSTENA_GROUP_NAME)
+    is_reviewer = is_reviewer_user(user)
     if is_staff_user:
         return True
-    if is_reviewer_user:
+    if is_reviewer:
         return True
-    if is_systena_user:
+    if is_systena:
         return tip.visible_to_systena
     if FAQ_APPROVAL_ENABLED and not tip.is_approved:
         return False
@@ -295,10 +300,7 @@ def can_user_access_tip(user, tip):
 
 
 def can_approve_article(user):
-    return (
-        user.is_authenticated
-        and in_group(user, REVIEWER_GROUP_NAME)
-    )
+    return is_reviewer_user(user)
 
 
 def can_edit_article(user):
@@ -308,7 +310,7 @@ def can_edit_article(user):
             user.is_staff
             or user.is_superuser
             or in_group(user, ADMIN_GROUP_NAME)
-            or in_group(user, REVIEWER_GROUP_NAME)
+            or is_reviewer_user(user)
         )
     )
 
@@ -335,6 +337,14 @@ def can_use_favorite(user):
 
 def can_use_convenience_favorite(user):
     return can_use_favorite(user)
+
+
+def approval_status_value(item):
+    if item.is_approved:
+        return 'approved'
+    if (item.remand_reason or '').strip():
+        return 'remanded'
+    return 'registered'
 
 
 def should_count_content_view(user, content_creator=None):
@@ -592,7 +602,7 @@ class HomeView(TemplateView):
             .filter(visible_to_any_account_filter())
         )
         is_systena = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer = in_group(user, REVIEWER_GROUP_NAME)
+        is_reviewer = is_reviewer_user(user)
         if not is_admin and not is_systena and not is_reviewer:
             faq_qs = faq_qs.filter(visible_to_customer=True)
             tips_qs = tips_qs.filter(visible_to_customer=True)
@@ -888,11 +898,11 @@ class ArticleListView(ListView):
 
         user = self.request.user
         is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+        is_reviewer_group_user = is_reviewer_user(user)
         if (
             not (user.is_authenticated and (user.is_staff or user.is_superuser))
             and not is_systena_user
-            and not is_reviewer_user
+            and not is_reviewer_group_user
         ):
             queryset = queryset.filter(visible_to_customer=True)
             if FAQ_APPROVAL_ENABLED:
@@ -904,14 +914,6 @@ class ArticleListView(ListView):
             self.split_categories,
             self.parent_category_name,
         )
-
-        query = self.request.GET.get('q')
-        if query:
-            queryset = queryset.filter(
-                Q(title__icontains=query)
-                | Q(summary__icontains=query)
-                | Q(target_os__icontains=query)
-            )
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
@@ -941,10 +943,12 @@ class ArticleListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
+        can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_article'] = can_edit_article(self.request.user)
+        context['can_approve_article'] = can_approve_article(self.request.user)
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_view_approval_meta'] = can_view_approval_meta
 
         visible_articles = list(context['articles'])
@@ -986,6 +990,7 @@ class ArticleListView(ListView):
                 article.approved_by_name,
                 article.approved_by,
             )
+            article.approval_status = approval_status_value(article)
             article.category_chips = list(dict.fromkeys(self.split_categories(article.category)))
             article.target_os_chips = parse_target_os_values(article.target_os)
             ordered_attachments = sorted(
@@ -1162,11 +1167,11 @@ class TipsListView(ListView):
 
         user = self.request.user
         is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer_user = in_group(user, REVIEWER_GROUP_NAME)
+        is_reviewer_group_user = is_reviewer_user(user)
         if (
             not (user.is_authenticated and (user.is_staff or user.is_superuser))
             and not is_systena_user
-            and not is_reviewer_user
+            and not is_reviewer_group_user
         ):
             queryset = queryset.filter(visible_to_customer=True)
             if FAQ_APPROVAL_ENABLED:
@@ -1214,10 +1219,12 @@ class TipsListView(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        can_view_approval_meta = in_group(self.request.user, SYSTENA_GROUP_NAME)
+        can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_tip'] = can_edit_article(self.request.user)
+        context['can_approve_tip'] = can_approve_article(self.request.user)
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_view_approval_meta'] = can_view_approval_meta
 
         visible_tips = list(context['tips_list'])
@@ -1260,6 +1267,7 @@ class TipsListView(ListView):
                 tip.approved_by_name,
                 tip.approved_by,
             )
+            tip.approval_status = approval_status_value(tip)
             tip.category_chips = list(dict.fromkeys(self.split_categories(tip.category)))
             tip.target_os_chips = parse_target_os_values(tip.target_os)
             tip.inline_images = sorted(
@@ -1508,6 +1516,8 @@ class TipsUpdateView(FormView):
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_tip'] = can_approve_article(self.request.user)
+        context['can_remand_tip'] = can_approve_article(self.request.user)
+        context['tip_approval_status'] = approval_status_value(self.tip)
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
@@ -1591,8 +1601,30 @@ class TipsApproveView(View):
         tip.is_approved = True
         tip.approved_by = request.user
         tip.approved_by_name = resolve_user_display_name(request.user)
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
+        tip.remand_reason = ''
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
+        return redirect('tip_list')
+
+
+class TipsRemandView(View):
+    def post(self, request, pk):
+        if not can_approve_article(request.user):
+            messages.error(request, '承認操作を実行する権限がありません。')
+            return redirect('tip_list')
+        tip = get_object_or_404(TipsArticle, pk=pk)
+        if not FAQ_APPROVAL_ENABLED:
+            messages.info(request, '承認機能は無効です。')
+            return redirect('tip_list')
+
+        reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
+
+        tip.is_approved = False
+        tip.approved_by = None
+        tip.approved_by_name = ''
+        tip.remand_reason = reason
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        messages.success(request, f'Tips「{tip.title}」を差し戻しました。')
         return redirect('tip_list')
 
 
@@ -2393,6 +2425,8 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         )
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_article'] = can_approve_article(self.request.user)
+        context['can_remand_article'] = can_approve_article(self.request.user)
+        context['article_approval_status'] = approval_status_value(self.article)
         context['question_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_QUESTION
         ).order_by('uploaded_at', 'id')
@@ -2477,8 +2511,27 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article.is_approved = True
         article.approved_by = request.user
         article.approved_by_name = resolve_user_display_name(request.user)
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'updated_at'])
+        article.remand_reason = ''
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
+        return redirect('article_list')
+
+
+class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
+    def post(self, request, pk):
+        article = get_object_or_404(KnowledgeArticle, pk=pk)
+        if not FAQ_APPROVAL_ENABLED:
+            messages.info(request, '承認機能は無効です。')
+            return redirect('article_list')
+
+        reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
+
+        article.is_approved = False
+        article.approved_by = None
+        article.approved_by_name = ''
+        article.remand_reason = reason
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        messages.success(request, f'FAQ「{article.title}」を差し戻しました。')
         return redirect('article_list')
 
 

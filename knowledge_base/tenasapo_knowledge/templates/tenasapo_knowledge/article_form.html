@@ -304,25 +304,68 @@
 
         {% if article and approval_enabled %}
             <section class="card shadow-sm mt-4">
-                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                    <div>
-                        <div class="fw-bold">承認状態</div>
-                        {% if article.is_approved %}
-                            <div class="text-success small">承認済み</div>
-                            <div class="mt-2">
-                                <span class="badge faq-meta-badge">承認者 {{ article_approver_display_name|default:"-" }}</span>
+                <div class="card-body d-flex flex-column gap-3">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                        <div>
+                            <div class="fw-bold">承認状態</div>
+                            <div class="mt-2 d-flex align-items-center gap-2 flex-wrap">
+                                {% if article_approval_status == 'approved' %}
+                                    <span class="badge text-bg-success">承認</span>
+                                    <span class="badge faq-meta-badge">承認者 {{ article_approver_display_name|default:"-" }}</span>
+                                {% elif article_approval_status == 'remanded' %}
+                                    <span class="badge text-bg-warning">差し戻し</span>
+                                    <button
+                                        class="btn btn-outline-warning btn-sm py-0 px-2"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#articleRemandReasonBlock"
+                                        aria-expanded="false"
+                                        aria-controls="articleRemandReasonBlock"
+                                    >理由表示</button>
+                                {% else %}
+                                    <span class="badge text-bg-secondary">登録</span>
+                                {% endif %}
                             </div>
-                        {% else %}
-                            <div class="mt-2">
-                                <span class="badge text-bg-secondary">未承認</span>
+                        </div>
+                        {% if can_approve_article or can_remand_article %}
+                            <div class="d-flex align-items-center gap-2">
+                                {% if can_approve_article and not article.is_approved %}
+                                    <form method="post" action="{% url 'article_approve' article.id %}" onsubmit="return confirm('このFAQを承認しますか？');">
+                                        {% csrf_token %}
+                                        <button class="btn btn-success" type="submit">承認</button>
+                                    </form>
+                                {% endif %}
+                                {% if can_remand_article %}
+                                    <button
+                                        class="btn btn-outline-warning"
+                                        type="button"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#articleRemandFormBlock"
+                                        aria-expanded="false"
+                                        aria-controls="articleRemandFormBlock"
+                                    >差し戻し</button>
+                                {% endif %}
                             </div>
                         {% endif %}
                     </div>
-                    {% if can_approve_article and not article.is_approved %}
-                        <form method="post" action="{% url 'article_approve' article.id %}" onsubmit="return confirm('このFAQを承認しますか？');">
-                            {% csrf_token %}
-                            <button class="btn btn-success" type="submit">承認</button>
-                        </form>
+                    {% if article_approval_status == 'remanded' and article.remand_reason %}
+                        <div class="collapse" id="articleRemandReasonBlock">
+                            <div class="alert alert-warning mb-0">{{ article.remand_reason|linebreaksbr }}</div>
+                        </div>
+                    {% endif %}
+                    {% if can_remand_article %}
+                        <div class="collapse" id="articleRemandFormBlock">
+                            <div class="card card-body">
+                                <form method="post" action="{% url 'article_remand' article.id %}" class="d-flex flex-column gap-2">
+                                    {% csrf_token %}
+                                    <label class="form-label mb-0" for="articleRemandReasonInput">差し戻し理由</label>
+                                    <textarea id="articleRemandReasonInput" name="remand_reason" class="form-control" rows="3" required>{% if article_approval_status == 'remanded' %}{{ article.remand_reason }}{% endif %}</textarea>
+                                    <div>
+                                        <button class="btn btn-warning" type="submit">差し戻し確定</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
                     {% endif %}
                 </div>
             </section>

@@ -157,18 +157,35 @@
                                                 {% endif %}
                                             </div>
                                             <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
-                                                {% if tip.is_approved and tip.visible_to_customer %}
-                                                    {% if user.is_staff or user.is_superuser %}
-                                                        <div class="d-flex align-items-center gap-1">
-                                                            {% if tip.is_new_badge %}
-                                                                <span class="badge text-bg-danger flex-shrink-0" style="font-size: 0.65rem;">New</span>
-                                                            {% endif %}
+                                                {% if can_edit_tip %}
+                                                    <div class="d-flex align-items-center gap-1">
+                                                        {% if tip.is_new_badge %}
+                                                            <span class="badge text-bg-danger flex-shrink-0" style="font-size: 0.65rem;">New</span>
+                                                        {% endif %}
+                                                        {% if tip.is_approved and tip.visible_to_customer %}
                                                             <span class="badge bg-success flex-shrink-0" style="font-size: 0.65rem;">公開中</span>
-                                                        </div>
-                                                    {% endif %}
+                                                        {% endif %}
+                                                        {% if approval_enabled and can_view_approval_meta %}
+                                                            {% if tip.approval_status == 'approved' %}
+                                                                <span class="badge text-bg-success flex-shrink-0" style="font-size: 0.65rem;">承認済</span>
+                                                            {% elif tip.approval_status == 'remanded' %}
+                                                                <span class="badge text-bg-warning flex-shrink-0" style="font-size: 0.65rem;">差戻し</span>
+                                                            {% else %}
+                                                                <span class="badge text-bg-secondary flex-shrink-0" style="font-size: 0.65rem;">登録</span>
+                                                            {% endif %}
+                                                        {% endif %}
+                                                    </div>
                                                 {% endif %}
                                                 <div class="d-flex align-items-center gap-1">
-                                                    {% if user.is_staff or user.is_superuser %}
+                                                    {% if can_edit_tip %}
+                                                        <button
+                                                            class="btn btn-outline-primary btn-sm flex-shrink-0"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                            aria-expanded="false"
+                                                            aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                        >レビュー</button>
                                                         {% if can_edit_tip %}
                                                             <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
                                                         {% endif %}
@@ -183,15 +200,6 @@
                                                                 {% if tip.is_favorited %}★{% else %}☆{% endif %}
                                                             </button>
                                                         {% endif %}
-                                                        <button
-                                                            class="btn btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
-                                                            type="button"
-                                                            data-bs-toggle="collapse"
-                                                            data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
-                                                            aria-expanded="false"
-                                                            aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
-                                                            aria-label="内容を表示"
-                                                        ></button>
                                                     {% else %}
                                                         {% if can_use_good %}
                                                             <button
@@ -248,7 +256,7 @@
                                                 {% if user.is_staff or user.is_superuser %}
                                                     <span class="badge faq-meta-badge">投稿者 {{ tip.creator_display_name|default:"-" }}</span>
                                                 {% endif %}
-                                                {% if can_view_approval_meta %}
+                                                {% if can_view_approval_meta and approval_enabled %}
                                                     <span class="badge text-bg-secondary">
                                                         {% if tip.is_approved %}
                                                             承認者 {{ tip.approver_display_name|default:"-" }}
@@ -258,6 +266,19 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
+                                            {% if approval_enabled and can_approve_tip %}
+                                                <div class="d-flex justify-content-end gap-2 mb-3">
+                                                    <form method="post" action="{% url 'tip_approve' tip.id %}" onsubmit="return confirm('このTipsを承認しますか？');">
+                                                        {% csrf_token %}
+                                                        <button class="btn btn-success btn-sm" type="submit">承認</button>
+                                                    </form>
+                                                    <form id="remandFormTip{{ tip.id }}" method="post" action="{% url 'tip_remand' tip.id %}">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="remand_reason" id="remandReasonTip{{ tip.id }}" value="">
+                                                        <button class="btn btn-warning btn-sm remand-btn-tip" type="button" data-tip-id="{{ tip.id }}">差戻し</button>
+                                                    </form>
+                                                </div>
+                                            {% endif %}
                                             {% if tip.pdf_file %}
                                                 <div class="d-flex justify-content-end mb-3">
                                                     <button
@@ -288,6 +309,14 @@
                                                     </div>
                                                 </div>
                                             {% endif %}
+                                            {% if tip.remand_reason %}
+                                                <div class="border-top pt-3 mt-3">
+                                                    <div class="fw-semibold small mb-2 text-warning">差し戻し理由</div>
+                                                    <div class="alert alert-warning mb-0">
+                                                        {{ tip.remand_reason }}
+                                                    </div>
+                                                </div>
+                                            {% endif %}
                                         </div>
                                     </div>
                                 </article>
@@ -300,6 +329,25 @@
             <div class="alert alert-info" role="status">表示できるTipsがありません。</div>
         {% endif %}
     </section>
+</div>
+
+<!-- 差戻し理由入力モーダル -->
+<div class="modal fade" id="remandReasonModalTip" tabindex="-1" aria-labelledby="remandReasonModalLabelTip" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="remandReasonModalLabelTip">差し戻し理由を入力</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <textarea id="remandReasonInputTip" class="form-control" rows="4" placeholder="差し戻し理由を入力してください"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-warning" id="remandReasonConfirmBtnTip">確定</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
@@ -502,6 +550,63 @@ document.querySelectorAll('.tips-favorite-btn[data-tip-id]').forEach(button => {
             })
             .catch(() => {});
     });
+});
+
+// 差戻し理由モーダル処理
+document.addEventListener('DOMContentLoaded', function() {
+    (function() {
+        let currentTipId = null;
+        const remandModalTip = new bootstrap.Modal(document.getElementById('remandReasonModalTip'));
+        const remandReasonInputTip = document.getElementById('remandReasonInputTip');
+        const remandReasonConfirmBtnTip = document.getElementById('remandReasonConfirmBtnTip');
+
+        // 差戻しボタンをクリック時の処理（イベントデリゲーション）
+        document.addEventListener('click', function(e) {
+            const button = e.target.closest('.remand-btn-tip[data-tip-id]');
+            if (button) {
+                e.preventDefault();
+                e.stopPropagation();
+                currentTipId = button.dataset.tipId;
+                remandReasonInputTip.value = '';
+                console.log('Modal showing for tip:', currentTipId);
+                remandModalTip.show();
+            }
+        });
+
+        // 差戻し理由確定ボタンをクリック時の処理
+        remandReasonConfirmBtnTip.addEventListener('click', function() {
+            if (!currentTipId) return;
+            
+            const reason = remandReasonInputTip.value.trim();
+            if (!reason) {
+                alert('差し戻し理由を入力してください');
+                return;
+            }
+
+            // 隠し入力フィールドに値を設定
+            const reasonField = document.getElementById(`remandReasonTip${currentTipId}`);
+            if (reasonField) {
+                reasonField.value = reason;
+            }
+
+            // フォーム送信
+            const form = document.getElementById(`remandFormTip${currentTipId}`);
+            if (form) {
+                if (confirm('このTipsを差戻しにしますか？')) {
+                    form.submit();
+                }
+            }
+
+            remandModalTip.hide();
+        });
+
+        // モーダル内でCtrl+Enterキーで確定
+        remandReasonInputTip.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                remandReasonConfirmBtnTip.click();
+            }
+        });
+    })();
 });
 </script>
 {% endblock %}

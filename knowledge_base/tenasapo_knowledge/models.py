@@ -168,6 +168,7 @@ class KnowledgeArticle(models.Model):
         verbose_name='承認者',
     )
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
+    remand_reason = models.TextField('差し戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
@@ -233,6 +234,7 @@ class TipsArticle(models.Model):
         verbose_name='承認者',
     )
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
+    remand_reason = models.TextField('差し戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
