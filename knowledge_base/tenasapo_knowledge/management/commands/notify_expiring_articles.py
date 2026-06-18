@@ -64,7 +64,7 @@ class Command(BaseCommand):
                 )
                 continue
 
-            subject = f'【Tenasapo Knowledge】{label}「{item.title}」の掲載期限が近づいています'
+            subject = f'【Nexus】{label}「{item.title}」の掲載期限が近づいています'
             body = '\n'.join(
                 [
                     f'{label}の掲載期限が1週間後に到来します。',

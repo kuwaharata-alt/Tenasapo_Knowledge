@@ -71,7 +71,7 @@ class Command(BaseCommand):
         if not no_email and not recipients:
             raise CommandError('通知先メールアドレスが指定されていません。--no-email を使うとメール送信をスキップできます。')
 
-        subject = '【Tenasapo Knowledge】パスワード変更通知'
+        subject = '【Nexus】パスワード変更通知'
         changed_at = timezone.localtime(timezone.now()).strftime('%Y-%m-%d %H:%M:%S')
         note_line = f'[{changed_at}] パスワード更新: {new_password}'
         profile = getattr(user, 'knowledge_profile', None)
