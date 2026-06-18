@@ -453,6 +453,40 @@ class ViewHistory(models.Model):
         return f'{self.username} - {self.page_name} - {self.viewed_at:%Y-%m-%d %H:%M:%S}'
 
 
+class RevisionHistory(models.Model):
+    CATEGORY_NEW_FEATURE = 'new_feature'
+    CATEGORY_UPDATE = 'update'
+    CATEGORY_DELETE = 'delete'
+    CATEGORY_CHOICES = (
+        (CATEGORY_NEW_FEATURE, '新規機能追加'),
+        (CATEGORY_UPDATE, '更新/改修'),
+        (CATEGORY_DELETE, '削除'),
+    )
+
+    updated_by_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='revision_histories',
+        verbose_name='更新者ユーザー',
+    )
+    updated_by_name = models.CharField('更新者', max_length=150)
+    update_date = models.DateTimeField('更新日', auto_now_add=True)
+    category = models.CharField('カテゴリ', max_length=20, choices=CATEGORY_CHOICES)
+    title = models.CharField('タイトル', max_length=200, blank=True)
+    update_content = models.TextField('更新内容', blank=True)
+
+    class Meta:
+        verbose_name = '改訂履歴'
+        verbose_name_plural = '改訂履歴'
+        ordering = ['-update_date', '-id']
+
+    def __str__(self):
+        category_label = dict(self.CATEGORY_CHOICES).get(self.category, self.category)
+        return f'{self.update_date:%Y-%m-%d} {category_label} {self.title}'.strip()
+
+
 class ArticleGood(models.Model):
     article = models.ForeignKey(
         KnowledgeArticle,

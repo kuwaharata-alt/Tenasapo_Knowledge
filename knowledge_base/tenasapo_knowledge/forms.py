@@ -6,7 +6,14 @@ from django.contrib.auth import get_user_model
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
-from .models import ConvenienceFeature, FAQCategory, FAQParentCategorySetting, Manual, default_expires_on
+from .models import (
+    ConvenienceFeature,
+    FAQCategory,
+    FAQParentCategorySetting,
+    Manual,
+    RevisionHistory,
+    default_expires_on,
+)
 
 
 TARGET_OS_VERSION_MAP = {
@@ -298,6 +305,20 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+class RevisionHistoryForm(forms.ModelForm):
+    class Meta:
+        model = RevisionHistory
+        fields = ('category', 'title', 'update_content')
+        labels = {
+            'category': 'カテゴリ',
+            'title': 'タイトル',
+            'update_content': '更新内容',
+        }
+        widgets = {
+            'update_content': forms.Textarea(attrs={'rows': 4}),
+        }
 
 
 class KnowledgeArticleCreateForm(forms.Form):

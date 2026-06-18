@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}改訂履歴登録 | Tenasapo Knowledge{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-clock-history"></i></span>{{ form_title }}
+            </h1>
+        </div>
+
+        <form class="card shadow-sm" method="post">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">登録者</label>
+                        <input class="form-control" type="text" value="{{ request.user.username }}" readonly>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label">登録日</label>
+                        <input class="form-control" type="text" value="{% if is_edit %}{{ object.update_date|date:'Y/m/d H:i:s' }}{% else %}{% now 'Y/m/d H:i:s' %}{% endif %}" readonly>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.category.id_for_label }}">カテゴリ</label>
+                        <select class="form-select{% if form.category.errors %} is-invalid{% endif %}" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" required>
+                            <option value="">選択してください</option>
+                            {% for value, label in form.fields.category.choices %}
+                                <option value="{{ value }}"{% if form.category.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.title.id_for_label }}">タイトル</label>
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" placeholder="任意で入力">
+                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.update_content.id_for_label }}">更新内容</label>
+                        <textarea class="form-control{% if form.update_content.errors %} is-invalid{% endif %}" name="{{ form.update_content.html_name }}" id="{{ form.update_content.id_for_label }}" rows="6" placeholder="任意で入力">{{ form.update_content.value|default_if_none:'' }}</textarea>
+                        {% for error in form.update_content.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'revision_history_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:'登録' }}</button>
+                {% if is_edit %}
+                    <button class="btn btn-outline-danger" type="submit" formaction="{% url 'revision_history_delete' object.pk %}" formmethod="post" formnovalidate onclick="return confirm('この改訂履歴を削除しますか？');">削除</button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

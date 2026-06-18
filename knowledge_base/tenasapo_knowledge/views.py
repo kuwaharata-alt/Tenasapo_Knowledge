@@ -19,13 +19,14 @@ from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views import View
-from django.views.generic import FormView, ListView, TemplateView
+from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
     ConvenienceFeatureCreateForm,
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
+    RevisionHistoryForm,
     parse_target_os_entries_json,
     parse_target_os_value,
     parse_target_os_values,
@@ -47,6 +48,7 @@ from .models import (
     KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
+    RevisionHistory,
     TipsFavorite,
     TipsGood,
     TipsArticle,
@@ -638,6 +640,7 @@ class HomeView(TemplateView):
             )
             menu_groups[5]['items'].extend(
                 [
+                    {'label': '改訂履歴', 'url_name': 'revision_history_list'},
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
                     {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
@@ -2821,6 +2824,71 @@ class LoginHistoryListView(StaffRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
         return context
+
+
+class RevisionHistoryCreateView(StaffRequiredMixin, FormView):
+    template_name = 'tenasapo_knowledge/revision_history_form.html'
+    form_class = RevisionHistoryForm
+    success_url = reverse_lazy('revision_history_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = '改訂履歴登録'
+        context['submit_label'] = '登録'
+        context['is_edit'] = False
+        return context
+
+    def form_valid(self, form):
+        revision = form.save(commit=False)
+        revision.updated_by_user = self.request.user
+        revision.updated_by_name = self.request.user.username
+        revision.save()
+        messages.success(self.request, '改訂履歴を登録しました。')
+        return super().form_valid(form)
+
+
+class RevisionHistoryUpdateView(StaffRequiredMixin, UpdateView):
+    template_name = 'tenasapo_knowledge/revision_history_form.html'
+    model = RevisionHistory
+    form_class = RevisionHistoryForm
+    success_url = reverse_lazy('revision_history_list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = '改訂履歴修正'
+        context['submit_label'] = '修正'
+        context['is_edit'] = True
+        return context
+
+    def form_valid(self, form):
+        revision = form.save(commit=False)
+        revision.updated_by_user = self.request.user
+        revision.updated_by_name = self.request.user.username
+        revision.save()
+        messages.success(self.request, '改訂履歴を修正しました。')
+        return super().form_valid(form)
+
+
+class RevisionHistoryDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        revision = get_object_or_404(RevisionHistory, pk=pk)
+        revision.delete()
+        messages.success(request, '改訂履歴を削除しました。')
+        return redirect('revision_history_list')
+
+
+class RevisionHistoryListView(StaffRequiredMixin, ListView):
+    template_name = 'tenasapo_knowledge/revision_history_list.html'
+    model = RevisionHistory
+    context_object_name = 'revision_histories'
+    paginate_by = 50
+
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(request, '改訂履歴')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        return RevisionHistory.objects.select_related('updated_by_user').all()
 
 
 class ViewHistoryListView(StaffRequiredMixin, ListView):
