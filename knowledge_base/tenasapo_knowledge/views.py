@@ -1963,18 +1963,21 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             last_day_previous_month = first_day_this_month - timedelta(days=1)
             from_date = last_day_previous_month.replace(day=1)
             to_date = last_day_previous_month
-        current_month_key = today.strftime('%Y-%m')
+        current_month_start = today.replace(day=1)
 
-        faq_qs = (
+        base_faq_qs = (
             KnowledgeArticle.objects.select_related('created_by')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
         )
-        tips_qs = (
+        base_tips_qs = (
             TipsArticle.objects.select_related('created_by')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
         )
+
+        faq_qs = base_faq_qs
+        tips_qs = base_tips_qs
 
         if from_date:
             faq_qs = faq_qs.filter(created_at__date__gte=from_date)
@@ -1985,6 +1988,18 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
         faq_articles = list(faq_qs.order_by('-created_at'))
         tips_articles = list(tips_qs.order_by('-created_at'))
+        current_month_faq_articles = list(
+            base_faq_qs.filter(
+                created_at__date__gte=current_month_start,
+                created_at__date__lte=today,
+            ).order_by('-created_at')
+        )
+        current_month_tips_articles = list(
+            base_tips_qs.filter(
+                created_at__date__gte=current_month_start,
+                created_at__date__lte=today,
+            ).order_by('-created_at')
+        )
 
         User = get_user_model()
         summary_users = User.objects.filter(
@@ -1994,6 +2009,8 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         member_map = {}
         member_monthly_map = {}
         member_order_map = {}
+        member_current_month_map = {}
+        summary_monthly_map = {}
 
         def ensure_member(name, member_id=None, management_uid=''):
             node = member_map.get(name)
@@ -2004,7 +2021,10 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                     'member_id': member_id,
                     'management_uid': management_uid,
                     'name': name,
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
                     'faq_post_count': 0,
+                    'tips_approved_count': 0,
                     'tips_post_count': 0,
                     'good_count_total': 0,
                     'view_count_total': 0,
@@ -2018,13 +2038,45 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             if month_node is None:
                 month_node = {
                     'month': month_key,
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
                     'faq_post_count': 0,
+                    'tips_approved_count': 0,
                     'tips_post_count': 0,
                     'good_count_total': 0,
                     'view_count_total': 0,
                 }
                 monthly[month_key] = month_node
             return month_node
+
+        def ensure_current_month(name):
+            node = member_current_month_map.get(name)
+            if node is None:
+                node = {
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
+                    'faq_post_count': 0,
+                    'tips_approved_count': 0,
+                    'tips_post_count': 0,
+                }
+                member_current_month_map[name] = node
+            return node
+
+        def ensure_summary_month(month_key):
+            node = summary_monthly_map.get(month_key)
+            if node is None:
+                node = {
+                    'month': month_key,
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
+                    'faq_post_count': 0,
+                    'tips_approved_count': 0,
+                    'tips_post_count': 0,
+                    'good_count_total': 0,
+                    'view_count_total': 0,
+                }
+                summary_monthly_map[month_key] = node
+            return node
 
         for user in summary_users:
             display_name = resolve_user_display_name(user).strip()
@@ -2051,12 +2103,23 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             member = ensure_member(creator_name)
             month_key = article.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
+            summary_month = ensure_summary_month(month_key)
             member['faq_post_count'] += 1
+            if article.is_approved:
+                member['approved_count_total'] += 1
+                member['faq_approved_count'] += 1
+                month_node['approved_count_total'] += 1
+                month_node['faq_approved_count'] += 1
+                summary_month['approved_count_total'] += 1
+                summary_month['faq_approved_count'] += 1
             member['good_count_total'] += article.good_count
             member['view_count_total'] += article.answer_view_count
             month_node['faq_post_count'] += 1
             month_node['good_count_total'] += article.good_count
             month_node['view_count_total'] += article.answer_view_count
+            summary_month['faq_post_count'] += 1
+            summary_month['good_count_total'] += article.good_count
+            summary_month['view_count_total'] += article.answer_view_count
 
         for tip in tips_articles:
             creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
@@ -2067,21 +2130,59 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             member = ensure_member(creator_name)
             month_key = tip.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
+            summary_month = ensure_summary_month(month_key)
             member['tips_post_count'] += 1
+            if tip.is_approved:
+                member['approved_count_total'] += 1
+                member['tips_approved_count'] += 1
+                month_node['approved_count_total'] += 1
+                month_node['tips_approved_count'] += 1
+                summary_month['approved_count_total'] += 1
+                summary_month['tips_approved_count'] += 1
             member['good_count_total'] += tip.good_count
             member['view_count_total'] += tip.view_count
             month_node['tips_post_count'] += 1
             month_node['good_count_total'] += tip.good_count
             month_node['view_count_total'] += tip.view_count
+            summary_month['tips_post_count'] += 1
+            summary_month['good_count_total'] += tip.good_count
+            summary_month['view_count_total'] += tip.view_count
+
+        for article in current_month_faq_articles:
+            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            current_month = ensure_current_month(creator_name)
+            current_month['faq_post_count'] += 1
+            if article.is_approved:
+                current_month['approved_count_total'] += 1
+                current_month['faq_approved_count'] += 1
+
+        for tip in current_month_tips_articles:
+            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
+            if self.is_excluded_contributor(creator_name):
+                continue
+            if creator_name not in member_map:
+                continue
+            current_month = ensure_current_month(creator_name)
+            current_month['tips_post_count'] += 1
+            if tip.is_approved:
+                current_month['approved_count_total'] += 1
+                current_month['tips_approved_count'] += 1
 
         member_summaries = list(member_map.values())
         for item in member_summaries:
-            current_month = member_monthly_map.get(item['name'], {}).get(current_month_key, {})
+            current_month = ensure_current_month(item['name'])
+            item['current_month_faq_approved_count'] = current_month.get('faq_approved_count', 0)
             item['current_month_faq_post_count'] = current_month.get('faq_post_count', 0)
+            item['current_month_tips_approved_count'] = current_month.get('tips_approved_count', 0)
             item['current_month_tips_post_count'] = current_month.get('tips_post_count', 0)
             item['current_month_post_count_total'] = (
                 item['current_month_faq_post_count'] + item['current_month_tips_post_count']
             )
+            item['current_month_approved_count_total'] = current_month.get('approved_count_total', 0)
             item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
             monthly_totals = list(member_monthly_map.get(item['name'], {}).values())
             for month_item in monthly_totals:
@@ -2099,12 +2200,32 @@ class SummaryView(StaffRequiredMixin, TemplateView):
 
         context['selected_period'] = selected_period
         context['member_summaries'] = member_summaries
+        summary_monthly_totals = list(summary_monthly_map.values())
+        for month_item in summary_monthly_totals:
+            month_item['post_count_total'] = month_item['faq_post_count'] + month_item['tips_post_count']
+        summary_monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
         context['summary_totals'] = {
+            'approved_count_total': sum(item['approved_count_total'] for item in member_summaries),
+            'faq_approved_count': sum(item['faq_approved_count'] for item in member_summaries),
             'faq_post_count': sum(item['faq_post_count'] for item in member_summaries),
+            'tips_approved_count': sum(item['tips_approved_count'] for item in member_summaries),
             'tips_post_count': sum(item['tips_post_count'] for item in member_summaries),
             'good_count_total': sum(item['good_count_total'] for item in member_summaries),
             'view_count_total': sum(item['view_count_total'] for item in member_summaries),
+            'current_month_faq_approved_count': sum(
+                item['current_month_faq_approved_count'] for item in member_summaries
+            ),
+            'current_month_faq_post_count': sum(item['current_month_faq_post_count'] for item in member_summaries),
+            'current_month_tips_approved_count': sum(
+                item['current_month_tips_approved_count'] for item in member_summaries
+            ),
+            'current_month_tips_post_count': sum(item['current_month_tips_post_count'] for item in member_summaries),
+            'current_month_approved_count_total': sum(
+                item['current_month_approved_count_total'] for item in member_summaries
+            ),
+            'current_month_post_count_total': sum(item['current_month_post_count_total'] for item in member_summaries),
             'post_count_total': sum(item['post_count_total'] for item in member_summaries),
+            'monthly_totals': summary_monthly_totals,
         }
         context['chart_labels'] = [item['name'] for item in member_summaries]
         context['chart_post_counts'] = [item['post_count_total'] for item in member_summaries]

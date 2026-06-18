@@ -54,61 +54,202 @@
 
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <h2 class="h5 faq-group-title">メンバー別サマリ</h2>
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                    <div class="d-flex justify-content-end mb-3">
+                        <div class="small text-muted text-md-end">
+                            <div>※ かっこ内は承認済み</div>
+                        </div>
+                    </div>
+
+                    <h2 class="h5 faq-group-title">総件数サマリ</h2>
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-hover align-middle mb-0 small">
+                            <colgroup>
+                                <col style="width: 11rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 6rem;">
+                            </colgroup>
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 12rem;">メンバー</th>
-                                    <th class="text-end">全件（今月）</th>
-                                    <th class="text-end">FAQ（今月）</th>
-                                    <th class="text-end">Tips（今月）</th>
-                                    <th class="text-end">Good総数</th>
-                                    <th class="text-end">閲覧数総数</th>
-                                    <th style="width: 7rem;"></th>
+                                    <th style="width: 12rem;" rowspan="2">区分</th>
+                                    <th class="text-center border-start" colspan="3">総投稿数</th>
+                                    <th class="text-center border-start" colspan="3">FAQ</th>
+                                    <th class="text-center border-start" colspan="3">Tips</th>
+                                    <th class="text-end border-start" rowspan="2">Good総数</th>
+                                    <th class="text-end border-start" rowspan="2">閲覧数総数</th>
+                                    <th class="border-start text-center" style="width: 7rem;" rowspan="2"></th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="fw-semibold">総件数</td>
+                                    <td class="text-end border-start">{{ summary_totals.post_count_total }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.approved_count_total }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_post_count_total %}+{{ summary_totals.current_month_post_count_total }}{% else %}{{ summary_totals.current_month_post_count_total }}{% endif %}（{% if summary_totals.current_month_approved_count_total %}+{{ summary_totals.current_month_approved_count_total }}{% else %}{{ summary_totals.current_month_approved_count_total }}{% endif %}）</td>
+                                    <td class="text-end border-start">{{ summary_totals.faq_post_count }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.faq_approved_count }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_faq_post_count %}+{{ summary_totals.current_month_faq_post_count }}{% else %}{{ summary_totals.current_month_faq_post_count }}{% endif %}（{% if summary_totals.current_month_faq_approved_count %}+{{ summary_totals.current_month_faq_approved_count }}{% else %}{{ summary_totals.current_month_faq_approved_count }}{% endif %}）</td>
+                                    <td class="text-end border-start">{{ summary_totals.tips_post_count }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.tips_approved_count }}</td>
+                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_tips_post_count %}+{{ summary_totals.current_month_tips_post_count }}{% else %}{{ summary_totals.current_month_tips_post_count }}{% endif %}（{% if summary_totals.current_month_tips_approved_count %}+{{ summary_totals.current_month_tips_approved_count }}{% else %}{{ summary_totals.current_month_tips_approved_count }}{% endif %}）</td>
+                                    <td class="text-end border-start">{{ summary_totals.good_count_total }}</td>
+                                    <td class="text-end border-start">{{ summary_totals.view_count_total }}</td>
+                                    <td class="text-center border-start">
+                                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#summaryMonthly" aria-expanded="false" aria-controls="summaryMonthly">
+                                            月別
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="collapse" id="summaryMonthly">
+                                    <td colspan="13" class="bg-light-subtle">
+                                        <div class="small fw-semibold mb-2">総件数の月別総数</div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0 small">
+                                                <thead>
+                                                    <tr>
+                                                        <th style="width: 8rem;">年月</th>
+                                                        <th class="text-end border-start">総投稿数</th>
+                                                        <th class="text-end border-start">FAQ承認数/投稿数</th>
+                                                        <th class="text-end border-start">Tips承認数/投稿数</th>
+                                                        <th class="text-end border-start">Good総数</th>
+                                                        <th class="text-end border-start">閲覧数総数</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for month_item in summary_totals.monthly_totals %}
+                                                        <tr>
+                                                            <td>{{ month_item.month }}</td>
+                                                            <td class="text-end border-start">{{ month_item.post_count_total }}</td>
+                                                            <td class="text-end border-start">{{ month_item.faq_approved_count }}/{{ month_item.faq_post_count }}</td>
+                                                            <td class="text-end border-start">{{ month_item.tips_approved_count }}/{{ month_item.tips_post_count }}</td>
+                                                            <td class="text-end border-start">{{ month_item.good_count_total }}</td>
+                                                            <td class="text-end border-start">{{ month_item.view_count_total }}</td>
+                                                        </tr>
+                                                    {% empty %}
+                                                        <tr>
+                                                            <td colspan="6" class="text-center text-muted">データがありません。</td>
+                                                        </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h2 class="h5 faq-group-title">メンバー別サマリ</h2>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0 small">
+                            <colgroup>
+                                <col style="width: 11rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 7rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 8rem;">
+                                <col style="width: 6rem;">
+                            </colgroup>
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 12rem;" rowspan="2">メンバー</th>
+                                    <th class="text-center border-start" colspan="3">総投稿数</th>
+                                    <th class="text-center border-start" colspan="3">FAQ</th>
+                                    <th class="text-center border-start" colspan="3">Tips</th>
+                                    <th class="text-end border-start" rowspan="2">Good総数</th>
+                                    <th class="text-end border-start" rowspan="2">閲覧数総数</th>
+                                    <th class="border-start text-center" style="width: 7rem;" rowspan="2"></th>
+                                </tr>
+                                <tr>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th class="text-center border-start">総数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
+                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in member_summaries %}
                                     <tr>
                                         <td class="fw-semibold">{{ item.name }}</td>
-                                        <td class="text-end">{{ item.post_count_total }}(+{{ item.current_month_post_count_total }})</td>
-                                        <td class="text-end {% if item.faq_post_count <= 2 %}text-danger fw-semibold{% endif %}">{{ item.faq_post_count }}(+{{ item.current_month_faq_post_count }})</td>
-                                        <td class="text-end {% if item.tips_post_count <= 1 %}text-danger fw-semibold{% endif %}">{{ item.tips_post_count }}(+{{ item.current_month_tips_post_count }})</td>
-                                        <td class="text-end">{{ item.good_count_total }}</td>
-                                        <td class="text-end">{{ item.view_count_total }}</td>
-                                        <td class="text-end">
+                                        <td class="text-end border-start">{{ item.post_count_total }}</td>
+                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.approved_count_total }}</td>
+                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_post_count_total %}+{{ item.current_month_post_count_total }}{% else %}{{ item.current_month_post_count_total }}{% endif %}（{% if item.current_month_approved_count_total %}+{{ item.current_month_approved_count_total }}{% else %}{{ item.current_month_approved_count_total }}{% endif %}）</td>
+                                        <td class="text-end border-start">{{ item.faq_post_count }}</td>
+                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.faq_approved_count }}</td>
+                                        <td class="text-end {% if item.faq_post_count <= 2 %}bg-danger-subtle text-danger fw-semibold{% endif %}" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_faq_post_count %}+{{ item.current_month_faq_post_count }}{% else %}{{ item.current_month_faq_post_count }}{% endif %}（{% if item.current_month_faq_approved_count %}+{{ item.current_month_faq_approved_count }}{% else %}{{ item.current_month_faq_approved_count }}{% endif %}）</td>
+                                        <td class="text-end border-start">{{ item.tips_post_count }}</td>
+                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.tips_approved_count }}</td>
+                                        <td class="text-end {% if item.tips_post_count <= 1 %}bg-danger-subtle text-danger fw-semibold{% endif %}" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_tips_post_count %}+{{ item.current_month_tips_post_count }}{% else %}{{ item.current_month_tips_post_count }}{% endif %}（{% if item.current_month_tips_approved_count %}+{{ item.current_month_tips_approved_count }}{% else %}{{ item.current_month_tips_approved_count }}{% endif %}）</td>
+                                        <td class="text-end border-start">{{ item.good_count_total }}</td>
+                                        <td class="text-end border-start">{{ item.view_count_total }}</td>
+                                        <td class="text-center border-start">
                                             <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#memberMonthly{{ forloop.counter }}" aria-expanded="false" aria-controls="memberMonthly{{ forloop.counter }}">
                                                 月別
                                             </button>
                                         </td>
                                     </tr>
                                     <tr class="collapse" id="memberMonthly{{ forloop.counter }}">
-                                        <td colspan="7" class="bg-light-subtle">
+                                        <td colspan="13" class="bg-light-subtle">
                                             <div class="small fw-semibold mb-2">{{ item.name }} の月別総数</div>
                                             <div class="table-responsive">
-                                                <table class="table table-sm align-middle mb-0">
+                                                    <table class="table table-sm align-middle mb-0 small">
                                                     <thead>
                                                         <tr>
                                                             <th style="width: 8rem;">年月</th>
-                                                            <th class="text-end">FAQ投稿数</th>
-                                                            <th class="text-end">Tips投稿数</th>
-                                                            <th class="text-end">Good総数</th>
-                                                            <th class="text-end">閲覧数総数</th>
+                                                            <th class="text-end border-start">総投稿数</th>
+                                                            <th class="text-end border-start">FAQ承認数/投稿数</th>
+                                                            <th class="text-end border-start">Tips承認数/投稿数</th>
+                                                            <th class="text-end border-start">Good総数</th>
+                                                            <th class="text-end border-start">閲覧数総数</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
                                                         {% for month_item in item.monthly_totals %}
                                                             <tr>
                                                                 <td>{{ month_item.month }}</td>
-                                                                <td class="text-end">{{ month_item.faq_post_count }}</td>
-                                                                <td class="text-end">{{ month_item.tips_post_count }}</td>
-                                                                <td class="text-end">{{ month_item.good_count_total }}</td>
-                                                                <td class="text-end">{{ month_item.view_count_total }}</td>
+                                                                <td class="text-end border-start">{{ month_item.post_count_total }}</td>
+                                                                <td class="text-end border-start">{{ month_item.faq_approved_count }}/{{ month_item.faq_post_count }}</td>
+                                                                <td class="text-end border-start">{{ month_item.tips_approved_count }}/{{ month_item.tips_post_count }}</td>
+                                                                <td class="text-end border-start">{{ month_item.good_count_total }}</td>
+                                                                <td class="text-end border-start">{{ month_item.view_count_total }}</td>
                                                             </tr>
                                                         {% empty %}
                                                             <tr>
-                                                                <td colspan="5" class="text-center text-muted">データがありません。</td>
+                                                                <td colspan="6" class="text-center text-muted">データがありません。</td>
                                                             </tr>
                                                         {% endfor %}
                                                     </tbody>
