@@ -571,6 +571,7 @@ class HomeView(TemplateView):
         user = self.request.user
         is_admin = user.is_staff or user.is_superuser
         can_edit = can_edit_article(user)
+        is_customer_home = is_customer_user(user)
 
         # 最新FAQ（権限に応じてフィルタ）
         faq_qs = (
@@ -605,6 +606,7 @@ class HomeView(TemplateView):
         )
         context['recent_faqs'] = faq_qs.order_by('-updated_at')[:3]
         context['recent_tips'] = tips_qs.order_by('-updated_at')[:3]
+        context['is_customer_home'] = is_customer_home
         menu_groups = [
             {
                 'name': 'Knowledge',

@@ -84,6 +84,14 @@
             --bs-btn-active-bg: var(--tk-primary-dark);
             --bs-btn-active-border-color: var(--tk-primary-dark);
         }
+        .btn-info {
+            --bs-btn-bg: #0077cc;
+            --bs-btn-border-color: #0077cc;
+            --bs-btn-hover-bg: #0056a3;
+            --bs-btn-hover-border-color: #0056a3;
+            --bs-btn-active-bg: #00408a;
+            --bs-btn-active-border-color: #00408a;
+        }
         .btn {
             transition: transform 0.08s ease, box-shadow 0.08s ease;
             box-shadow: 0 3px 0 rgba(59, 49, 41, 0.18);
@@ -656,7 +664,7 @@
                 <div class="d-flex align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
                         <a class="btn btn-danger btn-sm" href="{% url 'article_list' %}">FAQ</a>
-                        <a class="btn btn-info btn-sm" href="{% url 'tip_list' %}">Tips</a>
+                        <a class="btn btn-info btn-sm text-white" href="{% url 'tip_list' %}">Tips</a>
                         <a class="btn btn-success btn-sm" href="{% url 'convenience_list' %}">QR</a>
                         {% if not current_user_is_customer %}
                             <div class="dropdown">
