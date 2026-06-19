@@ -445,17 +445,9 @@ def ordered_parent_category_names(parent_choices):
 def build_parent_category_groups(
     *,
     user,
-    category_texts,
-    split_categories,
-    split_category_parts,
-    parent_choices,
 ):
     hidden_parent_names = hidden_parent_category_names_for_customer() if is_customer_user(user) else set()
-    parent_map = {
-        parent_name: {'direct_children': {}, 'middle_groups': {}}
-        for parent_name in ordered_parent_category_names(parent_choices)
-        if parent_name not in hidden_parent_names
-    }
+    parent_map = {}
 
     for category in FAQCategory.objects.order_by('parent_name', 'middle_name', 'child_name'):
         parent_name = category.parent_name.strip()
@@ -474,27 +466,6 @@ def build_parent_category_groups(
                 'name': category.child_name,
                 'full_name': category.full_name,
             }
-
-    for category_text in category_texts:
-        for category_name in split_categories(category_text):
-            parent_name, middle_name, child_name = split_category_parts(category_name)
-            if not parent_name or parent_name in hidden_parent_names:
-                continue
-
-            node = parent_map.setdefault(parent_name, {'direct_children': {}, 'middle_groups': {}})
-            if not child_name:
-                continue
-            if middle_name:
-                middle_node = node['middle_groups'].setdefault(middle_name, {})
-                middle_node[category_name] = {
-                    'name': child_name,
-                    'full_name': category_name,
-                }
-            else:
-                node['direct_children'][category_name] = {
-                    'name': child_name,
-                    'full_name': category_name,
-                }
 
     groups = []
     for parent_name, node in parent_map.items():
@@ -1124,10 +1095,6 @@ class ArticleListView(ListView):
     def available_parent_category_groups(self):
         return build_parent_category_groups(
             user=self.request.user,
-            category_texts=self.navigation_category_texts(),
-            split_categories=self.split_categories,
-            split_category_parts=self.split_category_parts,
-            parent_choices=FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES,
         )
 
     @classmethod
@@ -1387,10 +1354,6 @@ class TipsListView(ListView):
     def available_parent_category_groups(self):
         return build_parent_category_groups(
             user=self.request.user,
-            category_texts=self.navigation_category_texts(),
-            split_categories=self.split_categories,
-            split_category_parts=self.split_category_parts,
-            parent_choices=FAQCategoryCreateForm.PARENT_CATEGORY_CHOICES,
         )
 
     @classmethod
