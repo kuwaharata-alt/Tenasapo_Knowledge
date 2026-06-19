@@ -4070,6 +4070,62 @@ class ReviewListView(TemplateView):
 
         review_items = []
 
+        # フィルター条件を取得
+        # 作成者リストを構築（フィルター用）
+        creator_list = []
+        seen_creator_ids = set()
+        
+        # FAQの作成者を取得
+        faq_creators = KnowledgeArticle.objects.filter(
+            created_by__isnull=False
+        ).values_list('created_by__id', 'created_by__first_name', 'created_by__last_name', 
+                      'created_by__username', 'created_by_name').distinct()
+        for creator_id, first_name, last_name, username, saved_name in faq_creators:
+            if creator_id not in seen_creator_ids:
+                display_name = saved_name if saved_name else f"{first_name} {last_name}".strip() or username
+                creator_list.append({'id': creator_id, 'name': display_name})
+                seen_creator_ids.add(creator_id)
+        
+        # Tipsの作成者を取得
+        tips_creators = TipsArticle.objects.filter(
+            created_by__isnull=False
+        ).values_list('created_by__id', 'created_by__first_name', 'created_by__last_name',
+                      'created_by__username', 'created_by_name').distinct()
+        for creator_id, first_name, last_name, username, saved_name in tips_creators:
+            if creator_id not in seen_creator_ids:
+                display_name = saved_name if saved_name else f"{first_name} {last_name}".strip() or username
+                creator_list.append({'id': creator_id, 'name': display_name})
+                seen_creator_ids.add(creator_id)
+        
+        # 作成者リストをソート
+        creator_list.sort(key=lambda x: x['name'])
+
+        status_filter = (self.request.GET.get('status') or '').strip().lower()
+        creator_filter = (self.request.GET.get('creator_id') or '').strip()
+        date_from = (self.request.GET.get('date_from') or '').strip()
+        date_to = (self.request.GET.get('date_to') or '').strip()
+        sort_by = (self.request.GET.get('sort') or 'created_at').strip().lower()
+        sort_dir = (self.request.GET.get('sort_dir') or 'desc').strip().lower()
+
+        date_from_value = None
+        date_to_value = None
+        if date_from:
+            try:
+                date_from_value = datetime.strptime(date_from, '%Y-%m-%d').date()
+            except ValueError:
+                date_from = ''
+        if date_to:
+            try:
+                date_to_value = datetime.strptime(date_to, '%Y-%m-%d').date()
+            except ValueError:
+                date_to = ''
+        
+        # ソート条件の検証
+        if sort_by not in {'created_at', 'updated_at', 'title'}:
+            sort_by = 'created_at'
+        if sort_dir not in {'asc', 'desc'}:
+            sort_dir = 'desc'
+        
         if review_type != 'tips':
             faq_qs = (
                 KnowledgeArticle.objects
@@ -4097,6 +4153,7 @@ class ReviewListView(TemplateView):
                         'type': 'faq',
                         'id': article.id,
                         'title': article.title,
+                        'creator_id': article.created_by_id,
                         'creator_display_name': resolve_saved_or_user_display_name(
                             article.created_by_name,
                             article.created_by,
@@ -4128,6 +4185,7 @@ class ReviewListView(TemplateView):
                         'type': 'tips',
                         'id': tip.id,
                         'title': tip.title,
+                        'creator_id': tip.created_by_id,
                         'creator_display_name': resolve_saved_or_user_display_name(
                             tip.created_by_name,
                             tip.created_by,
@@ -4147,9 +4205,45 @@ class ReviewListView(TemplateView):
                     }
                 )
 
-        review_items.sort(key=lambda item: item['created_at'], reverse=True)
+        # フィルター処理
+        filtered_items = []
+        for item in review_items:
+            if status_filter and item['approval_status'] != status_filter:
+                continue
+            if creator_filter and str(item.get('creator_id') or '') != creator_filter:
+                continue
+            created_date = item['created_at'].date()
+            if date_from_value and created_date < date_from_value:
+                continue
+            if date_to_value and created_date > date_to_value:
+                continue
+            filtered_items.append(item)
+
+        # ソート処理
+        reverse = (sort_dir == 'desc')
+        filtered_items.sort(key=lambda item: item.get(sort_by, ''), reverse=reverse)
+
+        review_items = filtered_items
+
+        def build_sort_url(target_sort):
+            params = self.request.GET.copy()
+            if sort_by == target_sort:
+                params['sort_dir'] = 'asc' if sort_dir == 'desc' else 'desc'
+            else:
+                params['sort_dir'] = 'desc' if target_sort == 'created_at' else 'asc'
+            params['sort'] = target_sort
+            return f"?{params.urlencode()}"
 
         context['review_type'] = review_type
+        context['status_filter'] = status_filter
+        context['creator_filter'] = creator_filter
+        context['date_from'] = date_from
+        context['date_to'] = date_to
+        context['sort_by'] = sort_by
+        context['sort_dir'] = sort_dir
+        context['sort_title_url'] = build_sort_url('title')
+        context['sort_created_at_url'] = build_sort_url('created_at')
+        context['creator_list'] = creator_list
         context['review_items'] = review_items
         context['can_approve_review'] = can_approve_article(self.request.user)
         context['return_to'] = self.request.get_full_path()
@@ -4411,3 +4505,4 @@ class ArticleManagementView(TemplateView):
         context['sort_dir'] = sort_dir
         context['can_edit'] = can_edit_article(self.request.user)
         return context
+

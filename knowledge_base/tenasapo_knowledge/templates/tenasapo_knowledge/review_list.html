@@ -19,15 +19,79 @@
     </div>
 </div>
 
+<!-- フィルターとソート区間 -->
+<div class="card mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">フィルター・ソート</h5>
+        <form method="get" class="row g-3">
+            <!-- 非表示フィールド（type）を保持 -->
+            {% if review_type %}<input type="hidden" name="type" value="{{ review_type }}">{% endif %}
+            <input type="hidden" name="sort" value="{{ sort_by }}">
+            <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+            
+            <div class="col-md-3">
+                <label for="statusFilter" class="form-label">承認状態</label>
+                <select class="form-select" id="statusFilter" name="status">
+                    <option value="">すべて</option>
+                    <option value="registered" {% if status_filter == 'registered' %}selected{% endif %}>登録</option>
+                    <option value="remanded" {% if status_filter == 'remanded' %}selected{% endif %}>差し戻し</option>
+                    <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>承認済</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="creatorFilter" class="form-label">作成者</label>
+                <select class="form-select" id="creatorFilter" name="creator_id">
+                    <option value="">すべて</option>
+                    {% for creator in creator_list %}
+                        <option value="{{ creator.id }}" {% if creator_filter == creator.id|stringformat:'s' %}selected{% endif %}>{{ creator.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label for="dateFrom" class="form-label">開始日</label>
+                <input type="date" class="form-control" id="dateFrom" name="date_from" value="{{ date_from }}">
+            </div>
+
+            <div class="col-md-2">
+                <label for="dateTo" class="form-label">終了日</label>
+                <input type="date" class="form-control" id="dateTo" name="date_to" value="{{ date_to }}">
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+                <div class="d-flex flex-nowrap gap-2 w-100">
+                    <button type="submit" class="btn btn-primary text-nowrap flex-fill">フィルター</button>
+                    <a href="{% url 'review_list' %}{% if review_type %}?type={{ review_type }}{% endif %}" class="btn btn-secondary text-nowrap flex-fill">リセット</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">
                 <tr>
                     <th style="width: 5rem;">種別</th>
-                    <th>タイトル</th>
+                    <th>
+                        <a href="{{ sort_title_url }}" class="link-dark text-decoration-none">
+                            タイトル
+                            {% if sort_by == 'title' %}
+                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
+                            {% endif %}
+                        </a>
+                    </th>
                     <th style="width: 9rem;" class="text-nowrap">作成者</th>
-                    <th style="width: 8rem;" class="text-nowrap">作成日</th>
+                    <th style="width: 8rem;" class="text-nowrap">
+                        <a href="{{ sort_created_at_url }}" class="link-dark text-decoration-none">
+                            作成日
+                            {% if sort_by == 'created_at' %}
+                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
+                            {% endif %}
+                        </a>
+                    </th>
                     <th style="width: 8rem;" class="text-nowrap">承認状態</th>
                     <th style="width: 7rem;"></th>
                 </tr>
