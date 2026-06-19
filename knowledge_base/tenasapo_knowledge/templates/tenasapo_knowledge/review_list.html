@@ -49,7 +49,15 @@
                             {% if item.approval_status == 'approved' %}
                                 <span class="badge text-bg-success">承認済</span>
                             {% elif item.approval_status == 'remanded' %}
-                                <span class="badge text-bg-warning">差し戻し</span>
+                                {% if item.remand_reason %}
+                                    <button
+                                        class="btn badge text-bg-warning border-0 remand-reason-badge"
+                                        type="button"
+                                        data-remand-reason="{{ item.remand_reason|escape }}"
+                                    >差し戻し</button>
+                                {% else %}
+                                    <span class="badge text-bg-warning">差し戻し</span>
+                                {% endif %}
                             {% else %}
                                 <span class="badge text-bg-secondary">登録</span>
                             {% endif %}
@@ -137,14 +145,30 @@
     </div>
 </div>
 
+<div class="modal fade" id="remandCommentModal" tabindex="-1" aria-labelledby="remandCommentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="remandCommentModalLabel">差し戻しコメント</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <div id="remandCommentText" class="mb-0"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if can_approve_review %}
     <form id="reviewApproveForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="standard_contract_only" id="reviewStandardOnlyValue" value="0">
+        <input type="hidden" name="next" value="{{ return_to }}">
     </form>
     <form id="reviewRemandForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="remand_reason" id="reviewRemandReason" value="">
+        <input type="hidden" name="next" value="{{ return_to }}">
     </form>
 {% endif %}
 
@@ -153,6 +177,16 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentApproveUrl = '';
     let currentRemandUrl = '';
     const previewBody = document.getElementById('reviewPreviewBody');
+    const remandCommentModal = new bootstrap.Modal(document.getElementById('remandCommentModal'));
+    const remandCommentText = document.getElementById('remandCommentText');
+
+    document.querySelectorAll('.remand-reason-badge').forEach(button => {
+        button.addEventListener('click', function() {
+            const reason = this.dataset.remandReason || '';
+            remandCommentText.textContent = reason || 'コメントはありません。';
+            remandCommentModal.show();
+        });
+    });
 
     document.querySelectorAll('.review-open-btn').forEach(button => {
         button.addEventListener('click', function() {

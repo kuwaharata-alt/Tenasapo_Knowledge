@@ -153,6 +153,17 @@ def in_group(user, group_name):
     return user.is_authenticated and user.groups.filter(name=group_name).exists()
 
 
+def resolve_next_path(request, fallback_url_name):
+    candidate = (request.POST.get('next') or request.GET.get('next') or '').strip()
+    if candidate and url_has_allowed_host_and_scheme(
+        url=candidate,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return candidate
+    return reverse_lazy(fallback_url_name)
+
+
 def target_os_entries_for_form(form):
     raw_entries = form['target_os_entries'].value() if 'target_os_entries' in form.fields else ''
     entries = parse_target_os_entries_json(raw_entries)
@@ -1845,15 +1856,15 @@ class TipsApproveView(View):
     def post(self, request, pk):
         if not can_approve_article(request.user):
             messages.error(request, '承認操作を実行する権限がありません。')
-            return redirect('tip_list')
+            return redirect(resolve_next_path(request, 'tip_list'))
         tip = get_object_or_404(TipsArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('tip_list')
+            return redirect(resolve_next_path(request, 'tip_list'))
 
         if tip.is_approved:
             messages.info(request, f'Tips「{tip.title}」は既に承認済みです。')
-            return redirect('tip_list')
+            return redirect(resolve_next_path(request, 'tip_list'))
 
         standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
@@ -1865,18 +1876,18 @@ class TipsApproveView(View):
         tip.remand_reason = ''
         tip.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
-        return redirect('tip_list')
+        return redirect(resolve_next_path(request, 'tip_list'))
 
 
 class TipsRemandView(View):
     def post(self, request, pk):
         if not can_approve_article(request.user):
             messages.error(request, '承認操作を実行する権限がありません。')
-            return redirect('tip_list')
+            return redirect(resolve_next_path(request, 'tip_list'))
         tip = get_object_or_404(TipsArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('tip_list')
+            return redirect(resolve_next_path(request, 'tip_list'))
 
         reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
 
@@ -1886,7 +1897,7 @@ class TipsRemandView(View):
         tip.remand_reason = reason
         tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を差し戻しました。')
-        return redirect('tip_list')
+        return redirect(resolve_next_path(request, 'tip_list'))
 
 
 class TipsDeleteView(View):
@@ -3277,11 +3288,11 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article = get_object_or_404(KnowledgeArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('article_list')
+            return redirect(resolve_next_path(request, 'article_list'))
 
         if article.is_approved:
             messages.info(request, f'FAQ「{article.title}」は既に承認済みです。')
-            return redirect('article_list')
+            return redirect(resolve_next_path(request, 'article_list'))
 
         standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
@@ -3293,7 +3304,7 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article.remand_reason = ''
         article.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
-        return redirect('article_list')
+        return redirect(resolve_next_path(request, 'article_list'))
 
 
 class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
@@ -3301,7 +3312,7 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         article = get_object_or_404(KnowledgeArticle, pk=pk)
         if not FAQ_APPROVAL_ENABLED:
             messages.info(request, '承認機能は無効です。')
-            return redirect('article_list')
+            return redirect(resolve_next_path(request, 'article_list'))
 
         reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
 
@@ -3311,7 +3322,7 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         article.remand_reason = reason
         article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を差し戻しました。')
-        return redirect('article_list')
+        return redirect(resolve_next_path(request, 'article_list'))
 
 
 class KnowledgeArticleImageAttachmentDeleteView(StaffRequiredMixin, View):
@@ -4093,6 +4104,7 @@ class ReviewListView(TemplateView):
                         'created_at': article.created_at,
                         'updated_at': article.updated_at,
                         'approval_status': approval_status_value(article),
+                        'remand_reason': article.remand_reason,
                         'standard_contract_only': article.standard_contract_only,
                         'approve_url_name': 'article_approve',
                         'remand_url_name': 'article_remand',
@@ -4123,6 +4135,7 @@ class ReviewListView(TemplateView):
                         'created_at': tip.created_at,
                         'updated_at': tip.updated_at,
                         'approval_status': approval_status_value(tip),
+                        'remand_reason': tip.remand_reason,
                         'standard_contract_only': tip.standard_contract_only,
                         'approve_url_name': 'tip_approve',
                         'remand_url_name': 'tip_remand',
@@ -4139,6 +4152,7 @@ class ReviewListView(TemplateView):
         context['review_type'] = review_type
         context['review_items'] = review_items
         context['can_approve_review'] = can_approve_article(self.request.user)
+        context['return_to'] = self.request.get_full_path()
         return context
 
 
