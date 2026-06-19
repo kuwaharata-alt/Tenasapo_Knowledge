@@ -19,6 +19,7 @@
         <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
             {% if user.is_staff or user.is_superuser %}
                 <a class="btn btn-primary" href="{% url 'tip_create' %}">Tips登録</a>
+                <a class="btn btn-outline-primary" href="{% url 'review_list' %}?type=tips">レビュー</a>
             {% endif %}
         </div>
     </div>
