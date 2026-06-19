@@ -191,6 +191,7 @@ SESSION_SAVE_EVERY_REQUEST = True
 USER_ROLES = [
     '投稿者',
     '承認者',
+    'demo',
 ]
 
 # 後方互換（既存コード/運用向け）

@@ -60,6 +60,9 @@
                     </div>
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
+                        {% if is_demo_user %}
+                            <div class="alert alert-warning py-2 mb-2">デモ環境のため、一部の機能が制限されています</div>
+                        {% endif %}
                         <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
                         {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
@@ -325,6 +328,11 @@
                                 {% if can_approve_article and not article.is_approved %}
                                     <form method="post" action="{% url 'article_approve' article.id %}" onsubmit="return confirm('このFAQを承認しますか？');">
                                         {% csrf_token %}
+                                        <input type="hidden" name="standard_contract_only" value="0">
+                                        <div class="form-check form-check-inline me-2">
+                                            <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="articleFormStandardOnly{{ article.id }}" checked>
+                                            <label class="form-check-label small" for="articleFormStandardOnly{{ article.id }}">demoアカウント制限</label>
+                                        </div>
                                         <button class="btn btn-success" type="submit">承認</button>
                                     </form>
                                 {% endif %}

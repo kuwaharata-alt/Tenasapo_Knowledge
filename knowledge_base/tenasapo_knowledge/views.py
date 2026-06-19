@@ -102,6 +102,12 @@ CONTRIBUTOR_GROUP_NAME = getattr(
     'USER_ROLE_CONTRIBUTOR_NAME',
     getattr(settings, 'USER_GROUP_CONTRIBUTOR_NAME', '投稿者'),
 )
+DEMO_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_DEMO_NAME',
+    getattr(settings, 'USER_GROUP_DEMO_NAME', 'demo'),
+)
+DEMO_GROUP_ALIASES = {'demo', 'デモ'}
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
 
 
@@ -275,6 +281,34 @@ class PreviewRenderView(View):
 def is_reviewer_user(user):
     reviewer_group_names = {group_name for group_name in {REVIEWER_GROUP_NAME, 'レビュアー', '承認者'} if group_name}
     return user.is_authenticated and user.groups.filter(name__in=reviewer_group_names).exists()
+
+
+def is_demo_user(user):
+    demo_group_names = set(DEMO_GROUP_ALIASES)
+    if DEMO_GROUP_NAME:
+        demo_group_names.add(DEMO_GROUP_NAME)
+
+    return (
+        user.is_authenticated
+        and user.groups.filter(name__in=demo_group_names).exists()
+        and not (user.is_staff or user.is_superuser)
+    )
+
+
+def can_view_restricted_knowledge_content(user, article_or_tip):
+    if not getattr(article_or_tip, 'standard_contract_only', False):
+        return True
+
+    if user.is_staff or user.is_superuser:
+        return True
+
+    if can_edit_article(user):
+        return True
+
+    if is_demo_user(user):
+        return False
+
+    return True
 
 
 def can_user_access_article(user, article):
@@ -1072,6 +1106,7 @@ class ArticleListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
+        context['is_demo_user'] = is_demo_user(self.request.user)
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_article'] = can_edit_article(self.request.user)
@@ -1110,6 +1145,7 @@ class ArticleListView(ListView):
             article.is_gooded = article.id in liked_article_ids
             article.is_favorited = article.id in favorite_article_ids
             article.is_new_badge = is_recently_published(article.published_at)
+            article.can_view_content = can_view_restricted_knowledge_content(self.request.user, article)
             article.creator_display_name = resolve_saved_or_user_display_name(
                 article.created_by_name,
                 article.created_by,
@@ -1363,6 +1399,7 @@ class TipsListView(ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
+        context['is_demo_user'] = is_demo_user(self.request.user)
         context['can_use_good'] = is_customer_user(self.request.user)
         context['can_use_favorite'] = can_use_favorite(self.request.user)
         context['can_edit_tip'] = can_edit_article(self.request.user)
@@ -1402,6 +1439,7 @@ class TipsListView(ListView):
             tip.is_gooded = tip.id in liked_tip_ids
             tip.is_favorited = tip.id in favorite_tip_ids
             tip.is_new_badge = is_recently_published(tip.published_at)
+            tip.can_view_content = can_view_restricted_knowledge_content(self.request.user, tip)
             tip.creator_display_name = resolve_saved_or_user_display_name(
                 tip.created_by_name,
                 tip.created_by,
@@ -1588,6 +1626,7 @@ class TipsCreateView(FormView):
         )
         context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
         context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
+        context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
     def form_valid(self, form):
@@ -1688,6 +1727,7 @@ class TipsUpdateView(FormView):
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
         context['tip_images'] = self.tip.images.all().order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
+        context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
     def form_valid(self, form):
@@ -1755,11 +1795,15 @@ class TipsApproveView(View):
             messages.info(request, f'Tips「{tip.title}」は既に承認済みです。')
             return redirect('tip_list')
 
+        standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
+        standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
+
         tip.is_approved = True
+        tip.standard_contract_only = standard_contract_only
         tip.approved_by = request.user
         tip.approved_by_name = resolve_user_display_name(request.user)
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
         return redirect('tip_list')
 
@@ -2979,6 +3023,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         )
         context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
         context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
+        context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
     @staticmethod
@@ -3110,6 +3155,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         )
         context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
         context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
+        context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
     def form_valid(self, form):
@@ -3177,11 +3223,15 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
             messages.info(request, f'FAQ「{article.title}」は既に承認済みです。')
             return redirect('article_list')
 
+        standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
+        standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
+
         article.is_approved = True
+        article.standard_contract_only = standard_contract_only
         article.approved_by = request.user
         article.approved_by_name = resolve_user_display_name(request.user)
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect('article_list')
 

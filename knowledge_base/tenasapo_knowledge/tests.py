@@ -823,6 +823,51 @@ class KnowledgeArticleListTests(TestCase):
         self.assertRedirects(approve_response, reverse('article_list'))
         article.refresh_from_db()
         self.assertTrue(article.is_approved)
+        self.assertTrue(article.standard_contract_only)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_approve_article_without_standard_restriction(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='reviewer_no_limit', password='password')
+        reviewer.groups.add(reviewer_group)
+        article = KnowledgeArticle.objects.create(
+            title='承認待ちFAQ（制限なし）',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        approve_response = self.client.post(
+            reverse('article_approve', args=[article.id]),
+            {'standard_contract_only': '0'},
+        )
+
+        self.assertRedirects(approve_response, reverse('article_list'))
+        article.refresh_from_db()
+        self.assertTrue(article.is_approved)
+        self.assertFalse(article.standard_contract_only)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_user_sees_notice_for_demo_restricted_article(self):
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        self.user.groups.add(demo_group)
+        restricted_article = KnowledgeArticle.objects.create(
+            title='デモ制限FAQ',
+            category='PC/設定',
+            body='非公開本文',
+            visible_to_customer=True,
+            is_approved=True,
+            standard_contract_only=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, restricted_article.title)
+        self.assertContains(response, 'デモ環境のため、一部の機能が制限されています')
+        self.assertNotContains(response, restricted_article.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_remand_article_with_reason_from_list(self):
@@ -1314,6 +1359,71 @@ class TipsListTests(TestCase):
         list_response = self.client.get(reverse('tip_list'))
         self.assertContains(list_response, '差戻し')
         self.assertContains(list_response, 'レビュー')
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_approve_tip_and_default_is_standard_restricted(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='tips_reviewer_approve', password='password')
+        reviewer.groups.add(reviewer_group)
+        tip = TipsArticle.objects.create(
+            title='承認待ちTips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        approve_response = self.client.post(reverse('tip_approve', args=[tip.id]))
+
+        self.assertRedirects(approve_response, reverse('tip_list'))
+        tip.refresh_from_db()
+        self.assertTrue(tip.is_approved)
+        self.assertTrue(tip.standard_contract_only)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_reviewer_can_approve_tip_without_standard_restriction(self):
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        reviewer = get_user_model().objects.create_user(username='tips_reviewer_no_limit', password='password')
+        reviewer.groups.add(reviewer_group)
+        tip = TipsArticle.objects.create(
+            title='承認待ちTips（制限なし）',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            is_approved=False,
+        )
+        self.client.force_login(reviewer)
+
+        approve_response = self.client.post(
+            reverse('tip_approve', args=[tip.id]),
+            {'standard_contract_only': '0'},
+        )
+
+        self.assertRedirects(approve_response, reverse('tip_list'))
+        tip.refresh_from_db()
+        self.assertTrue(tip.is_approved)
+        self.assertFalse(tip.standard_contract_only)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_user_sees_notice_for_demo_restricted_tip(self):
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        self.user.groups.add(demo_group)
+        restricted_tip = TipsArticle.objects.create(
+            title='デモ制限Tips',
+            category='PC/設定',
+            body='非公開Tips本文',
+            visible_to_customer=True,
+            is_approved=True,
+            standard_contract_only=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertContains(response, restricted_tip.title)
+        self.assertContains(response, 'デモ環境のため、一部の機能が制限されています')
+        self.assertNotContains(response, restricted_tip.body)
 
 
 class TipsFormTests(TestCase):
