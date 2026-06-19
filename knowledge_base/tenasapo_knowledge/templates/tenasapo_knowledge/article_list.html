@@ -5,20 +5,20 @@
 
 {% block content %}
 <div class="page-title-panel mb-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-        <div>
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="me-md-auto">
             <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-question-circle-fill"></i></span>FAQ
             </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-center flex-md-grow-1">
             {% if is_demo_user %}
-                <div class="alert alert-warning py-2 mt-2 mb-0">デモ環境のため、一部の機能が制限されています</div>
+                <div class="alert alert-warning py-2 px-3 mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
+            {% endif %}
+            {% if user.is_staff or user.is_superuser %}
+                <a class="btn btn-primary" href="{% url 'article_create' %}">FAQ登録</a>
             {% endif %}
         </div>
-        {% if user.is_staff or user.is_superuser %}
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <a class="btn btn-primary" href="{% url 'article_create' %}">FAQ登録</a>
-            </div>
-        {% endif %}
     </div>
 </div>
 
@@ -299,7 +299,7 @@
                                                         {% csrf_token %}
                                                         <input type="hidden" name="standard_contract_only" value="0">
                                                         <div class="form-check form-check-inline me-2">
-                                                            <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="articleStandardOnly{{ article.id }}" checked>
+                                                            <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="articleStandardOnly{{ article.id }}" {% if article.standard_contract_only %}checked{% endif %}>
                                                             <label class="form-check-label small" for="articleStandardOnly{{ article.id }}">demoアカウント制限</label>
                                                         </div>
                                                         <button class="btn btn-success btn-sm" type="submit">承認</button>
@@ -325,7 +325,7 @@
                                                     </div>
                                                 </div>
                                             {% else %}
-                                                <div class="alert alert-warning mb-0">デモ環境のため、一部の機能が制限されています</div>
+                                                <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
                                             {% endif %}
                                             {% if article.can_view_content and article.reference_links %}
                                                 <div class="border-top pt-3 mt-3">

@@ -866,7 +866,7 @@ class KnowledgeArticleListTests(TestCase):
         response = self.client.get(reverse('article_list'))
 
         self.assertContains(response, restricted_article.title)
-        self.assertContains(response, 'デモ環境のため、一部の機能が制限されています')
+        self.assertContains(response, '現在のアカウントでは、このコンテンツの閲覧が制限されております。')
         self.assertNotContains(response, restricted_article.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
@@ -1422,7 +1422,7 @@ class TipsListTests(TestCase):
         response = self.client.get(reverse('tip_list'))
 
         self.assertContains(response, restricted_tip.title)
-        self.assertContains(response, 'デモ環境のため、一部の機能が制限されています')
+        self.assertContains(response, '現在のアカウントでは、このコンテンツの閲覧が制限されております。')
         self.assertNotContains(response, restricted_tip.body)
 
 
