@@ -272,24 +272,6 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            {% if approval_enabled and can_approve_tip %}
-                                                <div class="d-flex justify-content-end gap-2 mb-3">
-                                                    <form method="post" action="{% url 'tip_approve' tip.id %}" onsubmit="return confirm('このTipsを承認しますか？');">
-                                                        {% csrf_token %}
-                                                        <input type="hidden" name="standard_contract_only" value="0">
-                                                        <div class="form-check form-check-inline me-2">
-                                                            <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="tipStandardOnly{{ tip.id }}" {% if tip.standard_contract_only %}checked{% endif %}>
-                                                            <label class="form-check-label small" for="tipStandardOnly{{ tip.id }}">demoアカウント制限</label>
-                                                        </div>
-                                                        <button class="btn btn-success btn-sm" type="submit">承認</button>
-                                                    </form>
-                                                    <form id="remandFormTip{{ tip.id }}" method="post" action="{% url 'tip_remand' tip.id %}">
-                                                        {% csrf_token %}
-                                                        <input type="hidden" name="remand_reason" id="remandReasonTip{{ tip.id }}" value="">
-                                                        <button class="btn btn-warning btn-sm remand-btn-tip" type="button" data-tip-id="{{ tip.id }}">差戻し</button>
-                                                    </form>
-                                                </div>
-                                            {% endif %}
                                             {% if tip.can_view_content and tip.pdf_file %}
                                                 <div class="d-flex justify-content-end mb-3">
                                                     <button
@@ -344,25 +326,6 @@
             <div class="alert alert-info" role="status">表示できるTipsがありません。</div>
         {% endif %}
     </section>
-</div>
-
-<!-- 差戻し理由入力モーダル -->
-<div class="modal fade" id="remandReasonModalTip" tabindex="-1" aria-labelledby="remandReasonModalLabelTip" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="remandReasonModalLabelTip">差し戻し理由を入力</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
-            </div>
-            <div class="modal-body">
-                <textarea id="remandReasonInputTip" class="form-control" rows="4" placeholder="差し戻し理由を入力してください"></textarea>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
-                <button type="button" class="btn btn-warning" id="remandReasonConfirmBtnTip">確定</button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
@@ -567,61 +530,5 @@ document.querySelectorAll('.tips-favorite-btn[data-tip-id]').forEach(button => {
     });
 });
 
-// 差戻し理由モーダル処理
-document.addEventListener('DOMContentLoaded', function() {
-    (function() {
-        let currentTipId = null;
-        const remandModalTip = new bootstrap.Modal(document.getElementById('remandReasonModalTip'));
-        const remandReasonInputTip = document.getElementById('remandReasonInputTip');
-        const remandReasonConfirmBtnTip = document.getElementById('remandReasonConfirmBtnTip');
-
-        // 差戻しボタンをクリック時の処理（イベントデリゲーション）
-        document.addEventListener('click', function(e) {
-            const button = e.target.closest('.remand-btn-tip[data-tip-id]');
-            if (button) {
-                e.preventDefault();
-                e.stopPropagation();
-                currentTipId = button.dataset.tipId;
-                remandReasonInputTip.value = '';
-                console.log('Modal showing for tip:', currentTipId);
-                remandModalTip.show();
-            }
-        });
-
-        // 差戻し理由確定ボタンをクリック時の処理
-        remandReasonConfirmBtnTip.addEventListener('click', function() {
-            if (!currentTipId) return;
-            
-            const reason = remandReasonInputTip.value.trim();
-            if (!reason) {
-                alert('差し戻し理由を入力してください');
-                return;
-            }
-
-            // 隠し入力フィールドに値を設定
-            const reasonField = document.getElementById(`remandReasonTip${currentTipId}`);
-            if (reasonField) {
-                reasonField.value = reason;
-            }
-
-            // フォーム送信
-            const form = document.getElementById(`remandFormTip${currentTipId}`);
-            if (form) {
-                if (confirm('このTipsを差戻しにしますか？')) {
-                    form.submit();
-                }
-            }
-
-            remandModalTip.hide();
-        });
-
-        // モーダル内でCtrl+Enterキーで確定
-        remandReasonInputTip.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                remandReasonConfirmBtnTip.click();
-            }
-        });
-    })();
-});
 </script>
 {% endblock %}
