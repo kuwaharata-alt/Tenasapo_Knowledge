@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% load article_extras %}
+
+{% block title %}レビュー一覧 | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="me-md-auto">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-clipboard-check"></i></span>レビュー一覧
+            </h1>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn {% if not review_type %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}">すべて</a>
+            <a class="btn {% if review_type == 'faq' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}?type=faq">FAQ</a>
+            <a class="btn {% if review_type == 'tips' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}?type=tips">Tips</a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width: 5rem;">種別</th>
+                    <th>タイトル</th>
+                    <th style="width: 9rem;" class="text-nowrap">作成者</th>
+                    <th style="width: 8rem;" class="text-nowrap">作成日</th>
+                    <th style="width: 8rem;" class="text-nowrap">承認状態</th>
+                    <th style="width: 7rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in review_items %}
+                    <tr>
+                        <td>
+                            {% if item.type == 'faq' %}
+                                <span class="badge text-bg-primary">FAQ</span>
+                            {% else %}
+                                <span class="badge text-bg-info text-white">Tips</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.title }}</td>
+                        <td class="small text-muted">{{ item.creator_display_name|default:"-" }}</td>
+                        <td class="small text-muted">{{ item.created_at|date:"Y/m/d" }}</td>
+                        <td>
+                            {% if item.approval_status == 'approved' %}
+                                <span class="badge text-bg-success">承認済</span>
+                            {% elif item.approval_status == 'remanded' %}
+                                <span class="badge text-bg-warning">差し戻し</span>
+                            {% else %}
+                                <span class="badge text-bg-secondary">登録</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button
+                                class="btn btn-outline-primary btn-sm review-open-btn"
+                                type="button"
+                                data-bs-toggle="modal"
+                                data-bs-target="#reviewModal"
+                                data-review-id="review-content-{{ item.type }}-{{ item.id }}"
+                                data-title="{{ item.title|escape }}"
+                                data-approve-url="{% url item.approve_url_name item.id %}"
+                                data-remand-url="{% url item.remand_url_name item.id %}"
+                                data-standard-only="{% if item.standard_contract_only %}1{% else %}0{% endif %}"
+                            >レビュー</button>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">レビュー対象データがありません。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% for item in review_items %}
+    <div id="review-content-{{ item.type }}-{{ item.id }}" class="d-none">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            {% if item.type == 'faq' %}
+                <span class="badge text-bg-primary">FAQ</span>
+            {% else %}
+                <span class="badge text-bg-info text-white">Tips</span>
+            {% endif %}
+            <span class="badge faq-meta-badge">作成者 {{ item.creator_display_name|default:"-" }}</span>
+            <span class="badge faq-meta-badge">作成日 {{ item.created_at|date:"Y/m/d H:i" }}</span>
+            <span class="badge faq-meta-badge">更新日 {{ item.updated_at|date:"Y/m/d H:i" }}</span>
+        </div>
+
+        {% if item.type == 'faq' %}
+            <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
+                <span class="badge text-bg-primary flex-shrink-0">Q</span>
+                <div class="flex-grow-1 faq-body-indent">
+                    {{ item.question|default:item.title|render_inline_images:item.question_images }}
+                </div>
+            </div>
+            <div class="faq-question d-flex align-items-start gap-3 p-3 rounded">
+                <span class="badge text-bg-secondary flex-shrink-0">A</span>
+                <div class="flex-grow-1 faq-body-indent">
+                    {{ item.answer|render_inline_images:item.answer_images }}
+                </div>
+            </div>
+        {% else %}
+            <div class="faq-body-indent">{{ item.body|render_inline_images:item.inline_images }}</div>
+        {% endif %}
+    </div>
+{% endfor %}
+
+<div class="modal fade" id="reviewModal" tabindex="-1" aria-labelledby="reviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewModalLabel">レビュー</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <div id="reviewPreviewBody" class="mb-3 text-muted">レビュー対象を選択してください。</div>
+                {% if can_approve_review %}
+                    <div class="border-top pt-3 d-flex flex-column gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="reviewStandardOnly" checked>
+                            <label class="form-check-label" for="reviewStandardOnly">Demo制限</label>
+                        </div>
+                        <div class="d-flex flex-nowrap gap-2 align-items-stretch">
+                            <button class="btn btn-success px-4 text-nowrap" type="button" id="reviewApproveBtn">承認</button>
+                            <button class="btn btn-warning px-4 text-nowrap" type="button" id="reviewRemandBtn">差し戻し</button>
+                            <textarea class="form-control" id="reviewComment" rows="2" placeholder="コメント"></textarea>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if can_approve_review %}
+    <form id="reviewApproveForm" method="post" class="d-none">
+        {% csrf_token %}
+        <input type="hidden" name="standard_contract_only" id="reviewStandardOnlyValue" value="0">
+    </form>
+    <form id="reviewRemandForm" method="post" class="d-none">
+        {% csrf_token %}
+        <input type="hidden" name="remand_reason" id="reviewRemandReason" value="">
+    </form>
+{% endif %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let currentApproveUrl = '';
+    let currentRemandUrl = '';
+    const previewBody = document.getElementById('reviewPreviewBody');
+
+    document.querySelectorAll('.review-open-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const reviewId = this.dataset.reviewId;
+            const source = reviewId ? document.getElementById(reviewId) : null;
+            previewBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">プレビューを表示できません。</div>';
+            currentApproveUrl = this.dataset.approveUrl || '';
+            currentRemandUrl = this.dataset.remandUrl || '';
+
+            const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
+            const commentInput = document.getElementById('reviewComment');
+            if (standardOnlyCheckbox) {
+                standardOnlyCheckbox.checked = true;
+            }
+            if (commentInput) {
+                commentInput.value = '';
+            }
+        });
+    });
+
+    const approveBtn = document.getElementById('reviewApproveBtn');
+    if (approveBtn) {
+        approveBtn.addEventListener('click', function() {
+            if (!currentApproveUrl) {
+                return;
+            }
+            if (!confirm('承認しますか？')) {
+                return;
+            }
+
+            const approveForm = document.getElementById('reviewApproveForm');
+            const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
+            const standardOnlyValue = document.getElementById('reviewStandardOnlyValue');
+            approveForm.action = currentApproveUrl;
+            standardOnlyValue.value = standardOnlyCheckbox.checked ? '1' : '0';
+            approveForm.submit();
+        });
+    }
+
+    const remandBtn = document.getElementById('reviewRemandBtn');
+    if (remandBtn) {
+        remandBtn.addEventListener('click', function() {
+            if (!currentRemandUrl) {
+                return;
+            }
+
+            const commentInput = document.getElementById('reviewComment');
+            const reason = (commentInput.value || '').trim();
+            if (!reason) {
+                alert('コメントを入力してください。');
+                return;
+            }
+            if (!confirm('差し戻しにしますか？')) {
+                return;
+            }
+
+            const remandForm = document.getElementById('reviewRemandForm');
+            const remandReason = document.getElementById('reviewRemandReason');
+            remandForm.action = currentRemandUrl;
+            remandReason.value = reason;
+            remandForm.submit();
+        });
+    }
+});
+</script>
+{% endblock %}

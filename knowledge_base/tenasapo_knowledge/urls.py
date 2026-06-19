@@ -31,6 +31,7 @@ from .views import (
     RevisionHistoryDeleteView,
     RevisionHistoryListView,
     RevisionHistoryUpdateView,
+    ReviewListView,
     SummaryView,
     SummaryPDFView,
     TipsApproveView,
@@ -112,4 +113,5 @@ urlpatterns = [
     path('manuals/<int:pk>/edit/', ManualUpdateView.as_view(), name='manual_edit'),
     path('manuals/<int:pk>/delete/', ManualDeleteView.as_view(), name='manual_delete'),
     path('management/articles/', ArticleManagementView.as_view(), name='article_management'),
+    path('management/reviews/', ReviewListView.as_view(), name='review_list'),
 ]

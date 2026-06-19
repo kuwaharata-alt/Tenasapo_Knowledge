@@ -3998,6 +3998,107 @@ class ManualDeleteView(StaffRequiredMixin, View):
         return redirect('manual_list')
 
 
+class ReviewListView(TemplateView):
+    template_name = 'tenasapo_knowledge/review_list.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('home')
+        record_view_history(request, 'レビュー一覧')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        review_type = (self.request.GET.get('type') or '').strip().lower()
+        if review_type not in {'faq', 'tips'}:
+            review_type = ''
+
+        review_items = []
+
+        if review_type != 'tips':
+            faq_qs = (
+                KnowledgeArticle.objects
+                .select_related('created_by', 'approved_by')
+                .prefetch_related('attachments', 'images')
+                .order_by('-created_at')
+            )
+            for article in faq_qs:
+                ordered_attachments = sorted(
+                    article.attachments.all(),
+                    key=lambda attachment: (attachment.uploaded_at, attachment.id),
+                )
+                question_images = [
+                    attachment
+                    for attachment in ordered_attachments
+                    if attachment.placement == ArticleAttachment.PLACEMENT_QUESTION
+                ]
+                answer_images = [
+                    attachment
+                    for attachment in ordered_attachments
+                    if attachment.placement == ArticleAttachment.PLACEMENT_ANSWER
+                ]
+                review_items.append(
+                    {
+                        'type': 'faq',
+                        'id': article.id,
+                        'title': article.title,
+                        'creator_display_name': resolve_saved_or_user_display_name(
+                            article.created_by_name,
+                            article.created_by,
+                        ),
+                        'created_at': article.created_at,
+                        'updated_at': article.updated_at,
+                        'approval_status': approval_status_value(article),
+                        'standard_contract_only': article.standard_contract_only,
+                        'approve_url_name': 'article_approve',
+                        'remand_url_name': 'article_remand',
+                        'question': article.summary,
+                        'answer': article.body,
+                        'question_images': question_images,
+                        'answer_images': answer_images,
+                    }
+                )
+
+        if review_type != 'faq':
+            tips_qs = (
+                TipsArticle.objects
+                .select_related('created_by', 'approved_by')
+                .prefetch_related('images')
+                .order_by('-created_at')
+            )
+            for tip in tips_qs:
+                review_items.append(
+                    {
+                        'type': 'tips',
+                        'id': tip.id,
+                        'title': tip.title,
+                        'creator_display_name': resolve_saved_or_user_display_name(
+                            tip.created_by_name,
+                            tip.created_by,
+                        ),
+                        'created_at': tip.created_at,
+                        'updated_at': tip.updated_at,
+                        'approval_status': approval_status_value(tip),
+                        'standard_contract_only': tip.standard_contract_only,
+                        'approve_url_name': 'tip_approve',
+                        'remand_url_name': 'tip_remand',
+                        'body': tip.body,
+                        'inline_images': sorted(
+                            tip.images.all(),
+                            key=lambda image: (image.uploaded_at, image.id),
+                        ),
+                    }
+                )
+
+        review_items.sort(key=lambda item: item['created_at'], reverse=True)
+
+        context['review_type'] = review_type
+        context['review_items'] = review_items
+        context['can_approve_review'] = can_approve_article(self.request.user)
+        return context
+
+
 class ArticleManagementView(TemplateView):
     template_name = 'tenasapo_knowledge/article_management.html'
 
