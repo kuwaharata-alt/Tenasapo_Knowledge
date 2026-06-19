@@ -27,7 +27,6 @@
                         <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-subsection-label" for="{{ form.registered_category.id_for_label }}">登録済みカテゴリ</label>
                         <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
                         <div class="category-sidebar category-browser{% if form.registered_category.errors %} is-invalid{% endif %}">
                             <div class="category-browser-header">カテゴリブラウザ</div>
@@ -58,12 +57,6 @@
                         </div>
                         {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         <div id="faqCategoryHiddenContainer" style="display:none;"></div>
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label form-subsection-label" for="{{ form.category.id_for_label }}">未登録カテゴリ</label>
-                        <div class="form-text mb-2">{{ form.category.help_text }}</div>
-                        <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}">
-                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
@@ -1658,11 +1651,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         labels.push(lbl.textContent.trim());
                     }
                 });
-            }
-            // 未登録カテゴリ (自由入力)
-            const freeCategory = (document.getElementById('{{ form.category.id_for_label }}') || {}).value || '';
-            if (freeCategory.trim()) {
-                labels.push(freeCategory.trim());
             }
             return labels;
         }

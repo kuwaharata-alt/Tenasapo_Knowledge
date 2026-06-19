@@ -1497,13 +1497,12 @@ class TipsUpdateView(FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
-        registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
+        registered_category_ids, _ = split_registered_and_unregistered_categories(
             self.tip.category
         )
         parsed_target_os = parse_target_os_value(self.tip.target_os)
         return {
             'registered_category': registered_category_ids,
-            'category': unregistered_category_text,
             'title': self.tip.title,
             'target_os_entries': json.dumps(parse_target_os_values(self.tip.target_os), ensure_ascii=False),
             'target_os_name': parsed_target_os['name'],
@@ -2918,13 +2917,12 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_initial(self):
-        registered_category_ids, unregistered_category_text = split_registered_and_unregistered_categories(
+        registered_category_ids, _ = split_registered_and_unregistered_categories(
             self.article.category
         )
         parsed_target_os = parse_target_os_value(self.article.target_os)
         return {
             'registered_category': registered_category_ids,
-            'category': unregistered_category_text,
             'title': self.article.title,
             'target_os_entries': json.dumps(parse_target_os_values(self.article.target_os), ensure_ascii=False),
             'target_os_name': parsed_target_os['name'],

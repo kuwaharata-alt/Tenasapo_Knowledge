@@ -323,17 +323,11 @@ class RevisionHistoryForm(forms.ModelForm):
 
 class KnowledgeArticleCreateForm(forms.Form):
     registered_category = forms.ModelMultipleChoiceField(
-        label='登録済みカテゴリ',
+        label='カテゴリ',
         queryset=FAQCategory.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        help_text='カテゴリ登録済みの場合はこちらから選択してください。',
-    )
-    category = forms.CharField(
-        label='カテゴリ',
-        max_length=180,
-        required=False,
-        help_text='未登録カテゴリを使う場合は「大カテゴリ/中カテゴリ/小カテゴリ」で入力してください。',
+        help_text='カテゴリを選択してください。',
     )
     title = forms.CharField(
         label='タイトル',
@@ -411,29 +405,19 @@ class KnowledgeArticleCreateForm(forms.Form):
         )
         self.fields['target_os_version'].choices = target_os_version_choices()
 
-    def clean_category(self):
-        return self.cleaned_data.get('category', '').strip()
-
     def clean_expires_on(self):
         return self.cleaned_data.get('expires_on') or default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()
         registered_categories = cleaned_data.get('registered_category')
-        category = cleaned_data.get('category')
         categories = []
         if registered_categories:
-            categories.extend(category.full_name for category in registered_categories)
-        if category:
-            categories.extend(
-                category_name.strip()
-                for category_name in category.split(',')
-                if category_name.strip()
-            )
+            categories.extend(cat.full_name for cat in registered_categories)
         if categories:
             cleaned_data['category'] = ','.join(dict.fromkeys(categories))
         else:
-            self.add_error('category', 'カテゴリを選択するか入力してください。')
+            self.add_error('registered_category', 'カテゴリを選択してください。')
 
         target_os_entries = parse_target_os_entries_json(cleaned_data.get('target_os_entries'))
         if target_os_entries:
@@ -453,17 +437,11 @@ class KnowledgeArticleCreateForm(forms.Form):
 
 class TipsCreateForm(forms.Form):
     registered_category = forms.ModelMultipleChoiceField(
-        label='登録済みカテゴリ',
+        label='カテゴリ',
         queryset=FAQCategory.objects.none(),
         required=False,
         widget=forms.CheckboxSelectMultiple,
-        help_text='カテゴリ登録済みの場合はこちらから選択してください。',
-    )
-    category = forms.CharField(
-        label='カテゴリ',
-        max_length=180,
-        required=False,
-        help_text='未登録カテゴリを使う場合は「大カテゴリ/中カテゴリ/小カテゴリ」で入力してください。',
+        help_text='カテゴリを選択してください。',
     )
     title = forms.CharField(
         label='タイトル',
@@ -539,29 +517,19 @@ class TipsCreateForm(forms.Form):
         )
         self.fields['target_os_version'].choices = target_os_version_choices()
 
-    def clean_category(self):
-        return self.cleaned_data.get('category', '').strip()
-
     def clean_expires_on(self):
         return self.cleaned_data.get('expires_on') or default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()
         registered_categories = cleaned_data.get('registered_category')
-        category = cleaned_data.get('category')
         categories = []
         if registered_categories:
-            categories.extend(category.full_name for category in registered_categories)
-        if category:
-            categories.extend(
-                category_name.strip()
-                for category_name in category.split(',')
-                if category_name.strip()
-            )
+            categories.extend(cat.full_name for cat in registered_categories)
         if categories:
             cleaned_data['category'] = ','.join(dict.fromkeys(categories))
         else:
-            self.add_error('category', 'カテゴリを選択するか入力してください。')
+            self.add_error('registered_category', 'カテゴリを選択してください。')
 
         target_os_entries = parse_target_os_entries_json(cleaned_data.get('target_os_entries'))
         if target_os_entries:
