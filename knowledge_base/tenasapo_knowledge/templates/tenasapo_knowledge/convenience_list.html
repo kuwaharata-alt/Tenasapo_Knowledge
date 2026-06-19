@@ -19,14 +19,32 @@
     </div>
 </div>
 
-<div class="d-flex gap-2 mb-3">
-    <a class="btn {% if active_tab == 'shortcut' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'convenience_list' %}?tab=shortcut{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">ショートカットタブ</a>
-    <a class="btn {% if active_tab == 'command' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'convenience_list' %}?tab=command{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">コマンドタブ</a>
-    {% if can_use_convenience_favorite %}
-        <a class="btn {% if sort_mode == 'favorite' %}btn-warning{% else %}btn-outline-warning{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if sort_mode != 'favorite' %}&sort=favorite{% endif %}">
-            {% if sort_mode == 'favorite' %}☆頻度順に戻す{% else %}☆お気に入り順{% endif %}
-        </a>
-    {% endif %}
+<div class="search-panel py-3 mb-4">
+    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+        {% if selected_big %}
+            <input type="hidden" name="big_category" value="{{ selected_big }}">
+        {% endif %}
+        {% if selected_category %}
+            <input type="hidden" name="category" value="{{ selected_category }}">
+        {% endif %}
+        {% if selected_small %}
+            <input type="hidden" name="small_category" value="{{ selected_small }}">
+        {% endif %}
+        <div class="col-12 col-md-7">
+            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
+        </div>
+        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+            <button class="btn btn-primary" type="submit">検索</button>
+            {% if can_use_convenience_favorite %}
+                <a
+                    class="btn {% if sort_mode == 'favorite' %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                    href="?q={{ query|urlencode }}{% if selected_big %}&big_category={{ selected_big|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if selected_small %}&small_category={{ selected_small|urlencode }}{% endif %}{% if sort_mode != 'favorite' %}&sort=favorite{% endif %}"
+                >
+                    {% if sort_mode == 'favorite' %}☆頻度順に戻す{% else %}☆お気に入り順{% endif %}
+                </a>
+            {% endif %}
+        </div>
+    </form>
 </div>
 
 <div class="row g-4 align-items-start">
@@ -34,9 +52,46 @@
         <div class="category-sidebar">
             <div class="category-sidebar-title">カテゴリ</div>
             <div class="list-group list-group-flush">
-                <a class="list-group-item category-sidebar-link {% if not selected_category %}active{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">すべて</a>
-                {% for category in available_categories %}
-                    <a class="list-group-item category-sidebar-link {% if selected_category == category %}active{% endif %}" href="{% url 'convenience_list' %}?tab={{ active_tab }}&category={{ category|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">{{ category }}</a>
+                <a class="list-group-item category-sidebar-link {% if not selected_big and not selected_category and not selected_small %}active{% endif %}" href="{% url 'convenience_list' %}?q={{ query|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">すべて</a>
+                {% for big in sidebar_hierarchy %}
+                    <a class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_big == big.value %}active{% endif %}"
+                        href="{% url 'convenience_list' %}?q={{ query|urlencode }}&big_category={{ big.value|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}"
+                        aria-expanded="{% if selected_big == big.value %}true{% else %}false{% endif %}"
+                        aria-controls="qrMid{{ forloop.counter }}"
+                    >
+                        <span>{{ big.label }}</span>
+                        <span class="category-count">{{ big.count }}件</span>
+                    </a>
+                    <div class="collapse {% if selected_big == big.value %}show{% endif %}" id="qrMid{{ forloop.counter }}">
+                        <div class="category-child-list">
+                            {% for mid in big.children %}
+                                {% if mid.count > 0 %}
+                                    <a class="category-child-link category-sidebar-toggle {% if selected_category == mid.value %}active{% endif %}"
+                                        href="{% url 'convenience_list' %}?q={{ query|urlencode }}&big_category={{ big.value|urlencode }}&category={{ mid.value|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}"
+                                        aria-expanded="{% if selected_category == mid.value %}true{% else %}false{% endif %}"
+                                        aria-controls="qrSmall{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                    >
+                                        <span>{{ mid.label }}</span>
+                                        <span class="category-count">{{ mid.count }}件</span>
+                                    </a>
+                                    <div class="collapse {% if selected_category == mid.value %}show{% endif %}" id="qrSmall{{ forloop.parentloop.counter }}_{{ forloop.counter }}">
+                                        <div class="category-child-list ps-3">
+                                            {% for small in mid.children %}
+                                                {% if small.count > 0 %}
+                                                    <a class="category-child-link {% if selected_small == small.value %}active{% endif %}"
+                                                        href="{% url 'convenience_list' %}?q={{ query|urlencode }}&big_category={{ big.value|urlencode }}&category={{ mid.value|urlencode }}&small_category={{ small.value|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}"
+                                                    >
+                                                        <span>{{ small.label }}</span>
+                                                        <span class="category-count">{{ small.count }}件</span>
+                                                    </a>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
                 {% endfor %}
             </div>
         </div>
@@ -53,11 +108,7 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th class="text-center" style="width: 44%;">内容</th>
-                                        {% if active_tab == 'shortcut' %}
-                                            <th class="text-center" style="width: 24%;">ショートカットキー</th>
-                                        {% else %}
-                                            <th class="text-center" style="width: 24%;">コマンド</th>
-                                        {% endif %}
+                                        <th class="text-center" style="width: 24%;">ショートカットキー</th>
                                         <th class="text-center" style="width: 12%;">頻度</th>
                                         <th class="text-center" style="width: 20%;">操作</th>
                                     </tr>
@@ -67,22 +118,18 @@
                                         <tr>
                                             <td style="font-size: 12pt;">{{ feature.display_text }}</td>
                                             <td class="text-center">
-                                                {% if active_tab == 'shortcut' %}
-                                                    {% with shortcut_parts=feature.shortcut_key|split_plus %}
-                                                        {% if shortcut_parts %}
-                                                            <div class="d-inline-flex align-items-center justify-content-center flex-wrap gap-1">
-                                                                {% for part in shortcut_parts %}
-                                                                    <span class="badge faq-category-chip">{{ part }}</span>
-                                                                    {% if not forloop.last %}<span class="text-muted">+</span>{% endif %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        {% else %}
-                                                            -
-                                                        {% endif %}
-                                                    {% endwith %}
-                                                {% else %}
-                                                    {{ feature.shortcut_key }}
-                                                {% endif %}
+                                                {% with shortcut_parts=feature.shortcut_key|split_plus %}
+                                                    {% if shortcut_parts %}
+                                                        <div class="d-inline-flex align-items-center justify-content-center flex-wrap gap-1">
+                                                            {% for part in shortcut_parts %}
+                                                                <span class="badge faq-category-chip">{{ part }}</span>
+                                                                {% if not forloop.last %}<span class="text-muted">+</span>{% endif %}
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                {% endwith %}
                                             </td>
                                             <td class="text-center text-secondary">{{ feature.usage_frequency_stars }}</td>
                                             <td class="text-center">

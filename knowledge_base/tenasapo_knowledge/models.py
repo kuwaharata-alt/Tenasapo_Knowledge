@@ -334,6 +334,31 @@ class ConvenienceFavorite(models.Model):
         return f'{self.feature_id} - {self.user_id}'
 
 
+class ConvenienceCategory(models.Model):
+    reference_type = models.CharField('大カテゴリ', max_length=20, choices=ConvenienceFeature.TYPE_CHOICES)
+    category = models.CharField('中カテゴリ', max_length=120)
+    middle_category = models.CharField('小カテゴリ', max_length=120, blank=True, default='')
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = 'QRカテゴリ'
+        verbose_name_plural = 'QRカテゴリ'
+        ordering = ['reference_type', 'category', 'middle_category', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['reference_type', 'category', 'middle_category'],
+                name='unique_qr_category_path',
+            ),
+        ]
+
+    def __str__(self):
+        parts = [self.reference_type, self.category]
+        if self.middle_category:
+            parts.append(self.middle_category)
+        return ' / '.join(parts)
+
+
 class ArticleAttachment(models.Model):
     PLACEMENT_ATTACHMENT = 'attachment'
     PLACEMENT_QUESTION = 'question'

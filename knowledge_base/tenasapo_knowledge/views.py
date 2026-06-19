@@ -34,10 +34,12 @@ from django.views import View
 from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
+    ConvenienceCategoryCreateForm,
     ConvenienceFeatureCreateForm,
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
+    get_qr_category_hierarchy,
     RevisionHistoryForm,
     parse_target_os_entries_json,
     parse_target_os_value,
@@ -48,6 +50,7 @@ from .forms import (
     UserUpdateForm,
 )
 from .models import (
+    ConvenienceCategory,
     ConvenienceFeature,
     ConvenienceFavorite,
     ArticleFavorite,
@@ -55,7 +58,6 @@ from .models import (
     ArticleAttachment,
     Customer,
     FAQCategory,
-    FAQParentCategorySetting,
     KnowledgeArticle,
     KnowledgeArticleImageAttachment,
     LoginHistory,
@@ -327,6 +329,10 @@ def can_edit_article(user):
     )
 
 
+def is_admin_account(user):
+    return user.is_authenticated and user.username.lower() == 'admin'
+
+
 def is_customer_user(user):
     return (
         user.is_authenticated
@@ -382,10 +388,7 @@ def is_recently_published(published_at, *, now=None, days=14):
 
 
 def hidden_parent_category_names_for_customer():
-    return set(
-        FAQParentCategorySetting.objects.filter(visible_to_customer=False)
-        .values_list('name', flat=True)
-    )
+    return set()
 
 
 def category_visible_to_customer_parent_settings(
@@ -437,7 +440,6 @@ def filter_queryset_by_customer_parent_settings(
 
 def ordered_parent_category_names(parent_choices):
     parent_names = [parent_name for parent_name, _ in parent_choices]
-    parent_names.extend(FAQParentCategorySetting.objects.values_list('name', flat=True))
     parent_names.extend(FAQCategory.objects.values_list('parent_name', flat=True).distinct())
     return list(dict.fromkeys(parent_name for parent_name in parent_names if parent_name))
 
@@ -660,22 +662,23 @@ class ConvenienceListView(TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        tab = (self.request.GET.get('tab') or ConvenienceFeature.TYPE_SHORTCUT).strip().lower()
-        if tab not in {ConvenienceFeature.TYPE_SHORTCUT, ConvenienceFeature.TYPE_COMMAND}:
-            tab = ConvenienceFeature.TYPE_SHORTCUT
         sort_mode = (self.request.GET.get('sort') or 'frequency').strip().lower()
         if sort_mode not in {'frequency', 'favorite'}:
             sort_mode = 'frequency'
+        query = self.request.GET.get('q', '').strip()
+        selected_big = (self.request.GET.get('big_category') or '').strip()
+        selected_mid = (self.request.GET.get('category') or '').strip()
+        selected_small = (self.request.GET.get('small_category') or '').strip()
 
-        features = list(ConvenienceFeature.objects.filter(reference_type=tab))
+        all_features = list(ConvenienceFeature.objects.all())
         favorite_ids = set()
         can_use_convenience_favorite_flag = can_use_convenience_favorite(self.request.user)
         if can_use_convenience_favorite_flag:
             favorite_ids = set(
-                ConvenienceFavorite.objects.filter(user=self.request.user, feature__in=features)
+                ConvenienceFavorite.objects.filter(user=self.request.user, feature__in=all_features)
                 .values_list('feature_id', flat=True)
             )
-        for feature in features:
+        for feature in all_features:
             try:
                 frequency = int(feature.usage_frequency or '0')
             except (TypeError, ValueError):
@@ -686,59 +689,116 @@ class ConvenienceListView(TemplateView):
             feature.is_favorited = feature.id in favorite_ids
 
         if sort_mode == 'favorite' and can_use_convenience_favorite_flag:
-            features.sort(
-                key=lambda feature: (
-                    not feature.is_favorited,
-                    -feature.usage_frequency_value,
-                    feature.category or '',
-                    feature.display_text or '',
-                    feature.id,
+            all_features.sort(
+                key=lambda f: (
+                    not f.is_favorited,
+                    -f.usage_frequency_value,
+                    f.reference_type or '',
+                    f.category or '',
+                    f.middle_category or '',
+                    f.display_text or '',
+                    f.id,
                 )
             )
         else:
             sort_mode = 'frequency'
-            features.sort(
-                key=lambda feature: (
-                    -feature.usage_frequency_value,
-                    feature.category or '',
-                    feature.display_text or '',
-                    feature.id,
+            all_features.sort(
+                key=lambda f: (
+                    -f.usage_frequency_value,
+                    f.reference_type or '',
+                    f.category or '',
+                    f.middle_category or '',
+                    f.display_text or '',
+                    f.id,
                 )
             )
 
-        available_categories = list(dict.fromkeys(feature.category for feature in features if feature.category))
-        selected_category = (self.request.GET.get('category') or '').strip()
-        if selected_category and selected_category not in available_categories:
-            selected_category = ''
+        # サイドバー階層データを構築（QR_CATEGORY_HIERARCHY を骨格に DB のカウントを付与）
+        existing_big_vals = set(f.reference_type for f in all_features)
+        sidebar_hierarchy = []
+        for big_item in get_qr_category_hierarchy():
+            big_val = big_item['value']
+            big_features = [f for f in all_features if f.reference_type == big_val]
+            # DBに存在するが階層未登録の中カテゴリも追加
+            registered_mid_vals = {c['value'] for c in big_item['children']}
+            extra_mid_vals = set(f.category for f in big_features if f.category and f.category not in registered_mid_vals)
+            mid_list = list(big_item['children']) + [{'value': v, 'label': v, 'children': []} for v in sorted(extra_mid_vals)]
+            mid_entries = []
+            for mid_item in mid_list:
+                mid_val = mid_item['value']
+                mid_features = [f for f in big_features if f.category == mid_val]
+                registered_small_vals = list(mid_item.get('children', []))
+                extra_small_vals = [
+                    v for v in dict.fromkeys(f.middle_category for f in mid_features if f.middle_category)
+                    if v not in registered_small_vals
+                ]
+                small_entries = []
+                for small_val in registered_small_vals + extra_small_vals:
+                    small_features = [f for f in mid_features if f.middle_category == small_val]
+                    small_entries.append({'value': small_val, 'label': small_val, 'count': len(small_features)})
+                mid_entries.append({
+                    'value': mid_val,
+                    'label': mid_item['label'],
+                    'count': len(mid_features),
+                    'children': small_entries,
+                })
+            sidebar_hierarchy.append({
+                'value': big_val,
+                'label': big_item['label'],
+                'count': len(big_features),
+                'children': mid_entries,
+            })
 
-        filtered_features = [
-            feature for feature in features
-            if not selected_category or feature.category == selected_category
-        ]
+        # 選択値のバリデーション
+        all_big_vals = [item['value'] for item in sidebar_hierarchy]
+        if selected_big and selected_big not in all_big_vals:
+            selected_big = ''
+        if selected_big:
+            big_entry = next((b for b in sidebar_hierarchy if b['value'] == selected_big), None)
+            all_mid_vals = [m['value'] for m in big_entry['children']] if big_entry else []
+            if selected_mid and selected_mid not in all_mid_vals:
+                selected_mid = ''
+                selected_small = ''
+        else:
+            if selected_mid:
+                selected_mid = ''
+            selected_small = ''
 
+        # フィルタリング
+        filtered_features = list(all_features)
+        if selected_big:
+            filtered_features = [f for f in filtered_features if f.reference_type == selected_big]
+        if selected_mid:
+            filtered_features = [f for f in filtered_features if f.category == selected_mid]
+        if selected_small:
+            filtered_features = [f for f in filtered_features if f.middle_category == selected_small]
+
+        if query:
+            query_lower = query.lower()
+            filtered_features = [
+                f for f in filtered_features
+                if query_lower in (f.display_text or '').lower()
+                or query_lower in (f.shortcut_key or '').lower()
+                or query_lower in (f.note or '').lower()
+            ]
+
+        # 小カテゴリでグループ化
         group_map = {}
         for feature in filtered_features:
-            group_name = (feature.middle_category or '未分類').strip() or '未分類'
+            group_name = (feature.middle_category or '（なし）').strip() or '（なし）'
             group_map.setdefault(group_name, []).append(feature)
 
-        groups = [
-            {
-                'middle_name': middle_name,
-                'features': items,
-            }
+        category_groups = [
+            {'middle_name': middle_name, 'features': items}
             for middle_name, items in group_map.items()
         ]
 
-        context['category_groups'] = [
-            {
-                'middle_name': group['middle_name'],
-                'features': group['features'],
-            }
-            for group in groups
-        ]
-        context['active_tab'] = tab
-        context['available_categories'] = available_categories
-        context['selected_category'] = selected_category
+        context['category_groups'] = category_groups
+        context['sidebar_hierarchy'] = sidebar_hierarchy
+        context['selected_big'] = selected_big
+        context['selected_category'] = selected_mid
+        context['selected_small'] = selected_small
+        context['query'] = query
         context['can_create_convenience'] = (
             self.request.user.is_authenticated
             and (self.request.user.is_staff or self.request.user.is_superuser)
@@ -764,6 +824,8 @@ class ConvenienceCreateView(FormView):
         context = super().get_context_data(**kwargs)
         context['form_title'] = 'QR登録'
         context['submit_label'] = '登録'
+        context['qr_category_hierarchy_json'] = json.dumps(get_qr_category_hierarchy(), ensure_ascii=False)
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?tab=qr&{urlencode({'next': self.request.get_full_path()})}"
         return context
 
     def form_valid(self, form):
@@ -809,6 +871,8 @@ class ConvenienceUpdateView(FormView):
         context['form_title'] = 'QR編集'
         context['submit_label'] = '更新'
         context['feature'] = self.feature
+        context['qr_category_hierarchy_json'] = json.dumps(get_qr_category_hierarchy(), ensure_ascii=False)
+        context['category_create_url'] = f"{reverse_lazy('category_create')}?tab=qr&{urlencode({'next': self.request.get_full_path()})}"
         return context
 
     def form_valid(self, form):
@@ -825,6 +889,87 @@ class ConvenienceUpdateView(FormView):
             self.feature.image = form.cleaned_data['image']
         self.feature.save()
         messages.success(self.request, f'QR「{self.feature.display_text}」を更新しました。')
+        return super().form_valid(form)
+
+
+class ConvenienceCategoryCreateView(FormView):
+    template_name = 'tenasapo_knowledge/category_form.html'
+    form_class = ConvenienceCategoryCreateForm
+    success_url = reverse_lazy('category_create')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('convenience_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['allow_new_reference_type'] = is_admin_account(self.request.user)
+        return kwargs
+
+    def _resolve_return_to_url(self):
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return candidate
+        return ''
+
+    def get_success_url(self):
+        return self._resolve_return_to_url() or f"{self.success_url}?tab=qr"
+
+    @staticmethod
+    def category_browser_data():
+        hierarchy = get_qr_category_hierarchy()
+        browser = []
+        for big in hierarchy:
+            browser.append(
+                {
+                    'name': big['label'],
+                    'value': big['value'],
+                    'direct_children': [
+                        {
+                            'id': f"{big['value']}::{mid['value']}",
+                            'name': mid['label'],
+                        }
+                        for mid in big.get('children', [])
+                    ],
+                    'middles': [
+                        {
+                            'name': mid['label'],
+                            'children': [
+                                {
+                                    'id': f"{big['value']}::{mid['value']}::{small}",
+                                    'name': small,
+                                }
+                                for small in mid.get('children', [])
+                            ],
+                        }
+                        for mid in big.get('children', [])
+                    ],
+                }
+            )
+        return browser
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'カテゴリ登録'
+        context['submit_label'] = '登録'
+        context['return_to'] = self._resolve_return_to_url()
+        context['category_type_tab'] = 'qr'
+        context['category_browser'] = self.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        return context
+
+    def form_valid(self, form):
+        category = form.save()
+        messages.success(
+            self.request,
+            f'QRカテゴリ「{category.reference_type} / {category.category}{(" / " + category.middle_category) if category.middle_category else ""}」を登録しました。',
+        )
         return super().form_valid(form)
 
 
@@ -998,7 +1143,8 @@ class ArticleListView(ListView):
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
         parent_categories = self.available_parent_category_groups()
-        parent_counts, category_counts = self.category_count_maps(visible_articles)
+        all_category_texts = list(self.navigation_category_texts())
+        parent_counts, category_counts = self.category_count_maps_from_texts(all_category_texts)
         for parent_category in parent_categories:
             parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
 
@@ -1017,7 +1163,7 @@ class ArticleListView(ListView):
         context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
-        context['all_count'] = len(visible_articles)
+        context['all_count'] = len(all_category_texts)
         context['grouped_articles'] = self.group_articles(
             visible_articles,
             selected_parent,
@@ -1063,6 +1209,24 @@ class ArticleListView(ListView):
             seen_categories = set()
             seen_parents = set()
             for category_name in cls.split_categories(article.category):
+                if category_name and category_name not in seen_categories:
+                    category_counts[category_name] = category_counts.get(category_name, 0) + 1
+                    seen_categories.add(category_name)
+
+                parent_name = cls.parent_category_name(category_name)
+                if parent_name and parent_name not in seen_parents:
+                    parent_counts[parent_name] = parent_counts.get(parent_name, 0) + 1
+                    seen_parents.add(parent_name)
+        return parent_counts, category_counts
+
+    @classmethod
+    def category_count_maps_from_texts(cls, category_texts):
+        parent_counts = {}
+        category_counts = {}
+        for category_text in category_texts:
+            seen_categories = set()
+            seen_parents = set()
+            for category_name in cls.split_categories(category_text):
                 if category_name and category_name not in seen_categories:
                     category_counts[category_name] = category_counts.get(category_name, 0) + 1
                     seen_categories.add(category_name)
@@ -1257,7 +1421,8 @@ class TipsListView(ListView):
         selected_parent = self.request.GET.get('parent_category', '')
         selected_category = self.request.GET.get('category', '')
         parent_categories = self.available_parent_category_groups()
-        parent_counts, category_counts = self.category_count_maps(visible_tips)
+        all_category_texts = list(self.navigation_category_texts())
+        parent_counts, category_counts = self.category_count_maps_from_texts(all_category_texts)
         for parent_category in parent_categories:
             parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
 
@@ -1276,7 +1441,7 @@ class TipsListView(ListView):
         context['parent_categories'] = parent_categories
         context['selected_parent_category'] = selected_parent
         context['selected_category'] = selected_category
-        context['all_count'] = len(visible_tips)
+        context['all_count'] = len(all_category_texts)
         context['grouped_tips'] = self.group_tips(
             visible_tips,
             selected_parent,
@@ -1322,6 +1487,24 @@ class TipsListView(ListView):
             seen_categories = set()
             seen_parents = set()
             for category_name in cls.split_categories(tip.category):
+                if category_name and category_name not in seen_categories:
+                    category_counts[category_name] = category_counts.get(category_name, 0) + 1
+                    seen_categories.add(category_name)
+
+                parent_name = cls.parent_category_name(category_name)
+                if parent_name and parent_name not in seen_parents:
+                    parent_counts[parent_name] = parent_counts.get(parent_name, 0) + 1
+                    seen_parents.add(parent_name)
+        return parent_counts, category_counts
+
+    @classmethod
+    def category_count_maps_from_texts(cls, category_texts):
+        parent_counts = {}
+        category_counts = {}
+        for category_text in category_texts:
+            seen_categories = set()
+            seen_parents = set()
+            for category_name in cls.split_categories(category_text):
                 if category_name and category_name not in seen_categories:
                     category_counts[category_name] = category_counts.get(category_name, 0) + 1
                     seen_categories.add(category_name)
@@ -3059,10 +3242,33 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
     form_class = FAQCategoryCreateForm
     success_url = reverse_lazy('category_create')
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        user = self.request.user
+        kwargs['allow_new_parent_name'] = is_admin_account(user)
+        return kwargs
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['can_use_qr_tab'] = True
+        tab = (self.request.GET.get('tab') or self.request.POST.get('tab') or 'faq').strip().lower()
+        if tab == 'qr':
+            qr_view = ConvenienceCategoryCreateView()
+            qr_view.request = self.request
+            qr_view.kwargs = getattr(self, 'kwargs', {})
+            qr_view.args = getattr(self, 'args', ())
+            qr_context = qr_view.get_context_data(**kwargs)
+            context.update(qr_context)
+            context['form'] = kwargs.get('form') or ConvenienceCategoryCreateForm(
+                self.request.POST or None,
+                allow_new_reference_type=is_admin_account(self.request.user),
+            )
+            context['category_type_tab'] = 'qr'
+            return context
+
         context['form_title'] = 'カテゴリ登録'
         context['submit_label'] = '登録'
+        context['category_type_tab'] = 'faq'
         context['return_to'] = self._resolve_return_to_url()
         context['categories'] = self.categories_with_parent_visibility()
         context['category_browser'] = self.category_browser_data()
@@ -3080,26 +3286,21 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
         return ''
 
     def get_success_url(self):
+        tab = (self.request.POST.get('tab') or self.request.GET.get('tab') or 'faq').strip().lower()
+        if tab == 'qr':
+            return ConvenienceCategoryCreateView()._resolve_return_to_url.__get__(self, FAQCategoryCreateView)() or f"{self.success_url}?tab=qr"
         return self._resolve_return_to_url() or str(self.success_url)
 
     @staticmethod
     def categories_with_parent_visibility():
-        parent_category_visibility = {
-            setting.name: setting.visible_to_customer
-            for setting in FAQParentCategorySetting.objects.all()
-        }
         categories = list(FAQCategory.objects.all())
         for item in categories:
-            item.parent_visible_to_customer = parent_category_visibility.get(item.parent_name, True)
+            item.parent_visible_to_customer = True
         return categories
 
     @staticmethod
     def category_browser_data():
         categories = FAQCategory.objects.order_by('parent_name', 'middle_name', 'child_name')
-        visibility_map = {
-            item['name']: item['visible_to_customer']
-            for item in FAQParentCategorySetting.objects.values('name', 'visible_to_customer')
-        }
 
         parent_map = {}
         for category in categories:
@@ -3107,7 +3308,7 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
                 category.parent_name,
                 {
                     'name': category.parent_name,
-                    'visible_to_customer': visibility_map.get(category.parent_name, True),
+                    'visible_to_customer': True,
                     'direct_children': [],
                     'middles': {},
                 },
@@ -3141,6 +3342,21 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
         return browser
 
     def form_valid(self, form):
+        tab = (self.request.POST.get('tab') or self.request.GET.get('tab') or 'faq').strip().lower()
+        if tab == 'qr':
+            qr_form = ConvenienceCategoryCreateForm(
+                self.request.POST,
+                allow_new_reference_type=is_admin_account(self.request.user),
+            )
+            if qr_form.is_valid():
+                category = qr_form.save()
+                messages.success(
+                    self.request,
+                    f'QRカテゴリ「{category.reference_type} / {category.category}{(" / " + category.middle_category) if category.middle_category else ""}」を登録しました。',
+                )
+                return redirect(self.get_success_url())
+            return self.form_invalid(qr_form)
+
         category = form.save()
         messages.success(self.request, f'カテゴリ「{category.full_name}」を登録しました。')
         return super().form_valid(form)
@@ -3158,6 +3374,8 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
+        user = self.request.user
+        kwargs['allow_new_parent_name'] = is_admin_account(user)
         kwargs['instance'] = self.category
         return kwargs
 

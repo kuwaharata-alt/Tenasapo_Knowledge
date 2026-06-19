@@ -428,6 +428,23 @@
             text-align: left;
             text-decoration: none;
         }
+        .category-sidebar-toggle::after {
+            content: '▾';
+            margin-left: 0.5rem;
+            font-size: 0.75rem;
+            line-height: 1;
+            opacity: 0.8;
+            transition: transform 0.15s ease;
+            flex-shrink: 0;
+        }
+        .category-sidebar-toggle[aria-expanded="false"]::after {
+            transform: rotate(-90deg);
+        }
+        .category-sidebar-link.active.category-sidebar-toggle::after,
+        .category-child-link.active.category-sidebar-toggle::after {
+            color: inherit;
+            opacity: 0.95;
+        }
         .category-sidebar-link:hover {
             background: #fffaf4;
             color: var(--tk-primary-dark);

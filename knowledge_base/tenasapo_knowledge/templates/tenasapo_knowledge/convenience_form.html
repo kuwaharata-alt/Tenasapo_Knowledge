@@ -19,28 +19,40 @@
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-section-label" for="{{ form.reference_type.id_for_label }}">{{ form.reference_type.label }} <span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.reference_type.errors %} is-invalid{% endif %}" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}" required>
-                            {% for value, label in form.reference_type.field.choices %}
-                                <option value="{{ value }}" {% if form.reference_type.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        {% for error in form.reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <div class="form-section-label mb-0">カテゴリ <span class="text-danger">*</span></div>
+                        <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-section-label" for="{{ form.category.id_for_label }}">{{ form.category.label }} <span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.category.errors %} is-invalid{% endif %}" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" required>
-                            {% for value, label in form.category.field.choices %}
-                                <option value="{{ value }}" {% if form.category.value == value %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-section-label" for="{{ form.middle_category.id_for_label }}">{{ form.middle_category.label }} <span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.middle_category.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}" required>
-                        {% for error in form.middle_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    <div class="col-12">
+                        <div class="category-sidebar category-browser{% if form.reference_type.errors or form.category.errors %} is-invalid{% endif %}" id="qrCategoryBrowser">
+                            <div class="category-browser-header">カテゴリブラウザ</div>
+                            <div class="category-browser-grid">
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">大カテゴリ</div>
+                                    <div class="list-group list-group-flush" id="qrBigPane">
+                                        <div class="category-browser-empty">読み込み中...</div>
+                                    </div>
+                                </div>
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">中カテゴリ</div>
+                                    <div class="list-group list-group-flush" id="qrMidPane">
+                                        <div class="category-browser-empty">大カテゴリを選択してください。</div>
+                                    </div>
+                                </div>
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">小カテゴリ</div>
+                                    <div class="list-group list-group-flush" id="qrSmallPane">
+                                        <div class="category-browser-empty">中カテゴリを選択してください。</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% for error in form.reference_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% for error in form.category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% for error in form.middle_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        <input type="hidden" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}" value="{{ form.reference_type.value|default_if_none:'' }}">
+                        <input type="hidden" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}">
+                        <input type="hidden" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}">
                     </div>
 
                     <div class="col-12">
@@ -90,6 +102,94 @@
 {% block extra_js %}
 <script>
 (() => {
+    // ─── カテゴリ3ペインブラウザ ───────────────────────────────────
+    const hierarchy = JSON.parse('{{ qr_category_hierarchy_json|escapejs }}');
+    const bigInput   = document.getElementById('{{ form.reference_type.id_for_label }}');
+    const midInput   = document.getElementById('{{ form.category.id_for_label }}');
+    const smallInput = document.getElementById('{{ form.middle_category.id_for_label }}');
+    const bigPane    = document.getElementById('qrBigPane');
+    const midPane    = document.getElementById('qrMidPane');
+    const smallPane  = document.getElementById('qrSmallPane');
+
+    let selBig = bigInput.value || '';
+    let selMid = midInput.value || '';
+    let selSmall = smallInput.value || '';
+
+    function makeBtnHTML(value, label, active, asListGroup = false) {
+        const cls = asListGroup
+            ? ('list-group-item list-group-item-action category-sidebar-link' + (active ? ' active' : ''))
+            : ('category-browser-link w-100 text-start border-0 bg-transparent' + (active ? ' active' : ''));
+        return `<button type="button" class="${cls}" data-value="${value}">${label}</button>`;
+    }
+
+    function renderBig() {
+        bigPane.innerHTML = hierarchy
+            .map(item => makeBtnHTML(item.value, item.label, item.value === selBig, true))
+            .join('');
+        bigPane.querySelectorAll('[data-value]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selBig = btn.dataset.value;
+                selMid = '';
+                selSmall = '';
+                bigInput.value = selBig;
+                midInput.value = '';
+                smallInput.value = '';
+                renderBig();
+                renderMid();
+                renderSmall();
+            });
+        });
+    }
+
+    function renderMid() {
+        const bigItem = hierarchy.find(b => b.value === selBig);
+        if (!bigItem) {
+            midPane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
+            return;
+        }
+        midPane.innerHTML = bigItem.children
+            .map(item => makeBtnHTML(item.value, item.label, item.value === selMid, true))
+            .join('') || '<div class="category-browser-empty">中カテゴリがありません。</div>';
+        midPane.querySelectorAll('[data-value]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selMid = btn.dataset.value;
+                selSmall = '';
+                midInput.value = selMid;
+                smallInput.value = '';
+                renderMid();
+                renderSmall();
+            });
+        });
+    }
+
+    function renderSmall() {
+        const bigItem = hierarchy.find(b => b.value === selBig);
+        const midItem = bigItem ? bigItem.children.find(m => m.value === selMid) : null;
+        if (!midItem) {
+            smallPane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
+            return;
+        }
+        if (!midItem.children || midItem.children.length === 0) {
+            smallPane.innerHTML = '<div class="category-browser-empty">小カテゴリがありません。</div>';
+            smallInput.value = '';
+            return;
+        }
+        smallPane.innerHTML = midItem.children
+            .map(val => makeBtnHTML(val, val, val === selSmall, true))
+            .join('');
+        smallPane.querySelectorAll('[data-value]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selSmall = btn.dataset.value;
+                smallInput.value = selSmall;
+                renderSmall();
+            });
+        });
+    }
+
+    renderBig();
+    renderMid();
+    renderSmall();
+    // ─── 使用頻度スター ─────────────────────────────────────────────
     const usageInput = document.getElementById('{{ form.usage_frequency.id_for_label }}');
     const usageButtons = Array.from(document.querySelectorAll('#usageFrequencyStars [data-rating-value]'));
 

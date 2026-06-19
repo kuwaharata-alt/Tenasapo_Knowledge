@@ -200,6 +200,15 @@
                                                                 {% if tip.is_favorited %}★{% else %}☆{% endif %}
                                                             </button>
                                                         {% endif %}
+                                                        <button
+                                                            class="btn btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                            aria-expanded="false"
+                                                            aria-controls="tipsPanel{{ forloop.parentloop.counter }}{{ tip.id }}"
+                                                            aria-label="内容を表示"
+                                                        ></button>
                                                     {% else %}
                                                         {% if can_use_good %}
                                                             <button

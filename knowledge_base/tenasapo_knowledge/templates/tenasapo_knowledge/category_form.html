@@ -11,9 +11,17 @@
             </h1>
         </div>
 
+        <div class="d-flex gap-2 mb-3">
+            <a class="btn {% if category_type_tab == 'faq' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'category_create' %}?tab=faq{% if return_to %}&next={{ return_to|urlencode }}{% endif %}">FAQ / Tipsカテゴリ</a>
+            {% if can_use_qr_tab %}
+                <a class="btn {% if category_type_tab == 'qr' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'category_create' %}?tab=qr{% if return_to %}&next={{ return_to|urlencode }}{% endif %}">QRカテゴリ</a>
+            {% endif %}
+        </div>
+
         <form class="card shadow-sm" method="post">
             <div class="card-body p-4">
                 {% csrf_token %}
+                <input type="hidden" name="tab" value="{{ category_type_tab|default:'faq' }}">
                 {% if return_to %}
                     <input type="hidden" name="next" value="{{ return_to }}">
                 {% endif %}
@@ -22,16 +30,52 @@
                 {% endif %}
 
                 <div class="row g-3">
+                    {% if category_type_tab == 'qr' %}
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.reference_type.id_for_label }}">大カテゴリ</label>
+                        <select class="form-select{% if form.reference_type.errors %} is-invalid{% endif %}" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}">
+                            {% for value, label in form.fields.reference_type.choices %}
+                                <option value="{{ value }}"{% if form.reference_type.value == value %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">既存候補から選択してください。</div>
+                        {% for error in form.reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.new_reference_type.id_for_label }}">大カテゴリ（新規作成）</label>
+                        <input class="form-control{% if form.new_reference_type.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_reference_type.html_name }}" id="{{ form.new_reference_type.id_for_label }}" value="{{ form.new_reference_type.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名">
+                        {% if form.new_reference_type.help_text %}<div class="form-text">{{ form.new_reference_type.help_text }}</div>{% endif %}
+                        {% for error in form.new_reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.category.id_for_label }}">中カテゴリ</label>
+                        <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}" required>
+                        {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.middle_category.id_for_label }}">小カテゴリ（任意）</label>
+                        <input class="form-control{% if form.middle_category.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}">
+                        {% for error in form.middle_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% else %}
                     <div class="col-12 col-md-6">
                         <label class="form-label" for="{{ form.parent_name.id_for_label }}">大カテゴリ</label>
-                        <select class="form-select{% if form.parent_name.errors %} is-invalid{% endif %}" name="{{ form.parent_name.html_name }}" id="{{ form.parent_name.id_for_label }}" required>
-                            <option value="">選択してください</option>
+                        <select class="form-select{% if form.parent_name.errors %} is-invalid{% endif %}" name="{{ form.parent_name.html_name }}" id="{{ form.parent_name.id_for_label }}">
                             {% for value, label in form.fields.parent_name.choices %}
                                 <option value="{{ value }}"{% if form.parent_name.value == value %} selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
+                        <div class="form-text">既存候補から選択してください。</div>
                         {% for error in form.parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {% if form.fields.new_parent_name.widget.input_type != 'hidden' %}
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.new_parent_name.id_for_label }}">大カテゴリ（新規作成）</label>
+                        <input class="form-control{% if form.new_parent_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_parent_name.html_name }}" id="{{ form.new_parent_name.id_for_label }}" value="{{ form.new_parent_name.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名">
+                        {% if form.new_parent_name.help_text %}<div class="form-text">{{ form.new_parent_name.help_text }}</div>{% endif %}
+                        {% for error in form.new_parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    {% endif %}
                     <div class="col-12 col-md-6">
                         <label class="form-label" for="{{ form.middle_name.id_for_label }}">サブカテゴリ1（任意）</label>
                         <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証">
@@ -42,22 +86,7 @@
                         <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源" required>
                         {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="col-12">
-                        <div class="form-check mt-2">
-                            <input
-                                class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}"
-                                type="checkbox"
-                                name="{{ form.visible_to_customer.html_name }}"
-                                id="{{ form.visible_to_customer.id_for_label }}"
-                                {% if form.visible_to_customer.value %}checked{% endif %}
-                            >
-                            <label class="form-check-label" for="{{ form.visible_to_customer.id_for_label }}">
-                                大カテゴリをカスタマーユーザーに表示する
-                            </label>
-                            <div class="form-text">オフにすると、この大カテゴリ配下のFAQ/Tipsは公開対象でもカスタマーユーザーには表示されません。</div>
-                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
@@ -83,9 +112,6 @@
                             {% for parent in category_browser %}
                                 <div class="list-group-item category-sidebar-link d-flex justify-content-between align-items-center">
                                     <span>{{ parent.name }}</span>
-                                    <span class="badge {% if parent.visible_to_customer %}text-bg-success{% else %}text-bg-secondary{% endif %}">
-                                        {% if parent.visible_to_customer %}表示{% else %}非表示{% endif %}
-                                    </span>
                                 </div>
                             {% empty %}
                                 <div class="list-group-item text-muted">カテゴリがありません。</div>
@@ -93,13 +119,13 @@
                         </div>
                     </div>
                     <div class="category-browser-pane">
-                        <div class="category-browser-pane-title">サブカテゴリ1</div>
+                        <div class="category-browser-pane-title">中カテゴリ</div>
                         <div class="category-browser-list">
                             <div id="subcategory1Pane" class="category-browser-empty">大カテゴリを選択してください。</div>
                         </div>
                     </div>
                     <div class="category-browser-pane">
-                        <div class="category-browser-pane-title">サブカテゴリ2</div>
+                        <div class="category-browser-pane-title">小カテゴリ</div>
                         <div class="category-browser-list">
                             <div id="subcategory2Pane" class="category-browser-empty">サブカテゴリ1を選択してください。</div>
                         </div>
@@ -115,6 +141,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const data = JSON.parse('{{ category_browser_json|escapejs }}');
+    const isQrTab = '{{ category_type_tab|default:"faq" }}' === 'qr';
     const parentContainer = document.querySelector('.category-browser-pane .list-group.list-group-flush');
     const sub1Pane = document.getElementById('subcategory1Pane');
     const sub2Pane = document.getElementById('subcategory2Pane');
@@ -140,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function () {
         sub2Pane.innerHTML = middle.children.map(child => (
             '<div class="category-browser-link d-flex justify-content-between align-items-center">'
             + '<span>' + parentName + ' / ' + sub1Name + ' / ' + child.name + '</span>'
-            + '<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + child.id + '/">修正</a>'
+            + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + child.id + '/">修正</a>'))
             + '</div>'
         )).join('');
     }
@@ -170,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function () {
             rows.push(
                 '<div class="category-browser-link d-flex justify-content-between align-items-center">'
                 + '<span>' + item.name + '</span>'
-                + '<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + item.id + '/">修正</a>'
+                + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + item.id + '/">修正</a>'))
                 + '</div>'
             );
         });

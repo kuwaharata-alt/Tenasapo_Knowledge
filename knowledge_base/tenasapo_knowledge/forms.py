@@ -7,9 +7,9 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
 from .models import (
+    ConvenienceCategory,
     ConvenienceFeature,
     FAQCategory,
-    FAQParentCategorySetting,
     Manual,
     RevisionHistory,
     default_expires_on,
@@ -176,19 +176,19 @@ class FAQCategoryCreateForm(forms.ModelForm):
 
     parent_name = forms.ChoiceField(
         label='大カテゴリ',
-        choices=PARENT_CATEGORY_CHOICES,
+        choices=(),
+        required=False,
+    )
+    new_parent_name = forms.CharField(
+        label='大カテゴリ（新規）',
+        required=False,
+        max_length=120,
     )
     middle_name = forms.CharField(
         label='中カテゴリ',
         required=False,
         max_length=120,
     )
-    visible_to_customer = forms.BooleanField(
-        label='大カテゴリをカスタマーユーザーに表示する',
-        required=False,
-        initial=True,
-    )
-
     class Meta:
         model = FAQCategory
         fields = ('parent_name', 'middle_name', 'child_name')
@@ -199,27 +199,31 @@ class FAQCategoryCreateForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        self.allow_new_parent_name = kwargs.pop('allow_new_parent_name', False)
         super().__init__(*args, **kwargs)
-        choice_map = dict(self.PARENT_CATEGORY_CHOICES)
-        parent_choices = list(self.PARENT_CATEGORY_CHOICES)
-        for parent_name in FAQCategory.objects.values_list('parent_name', flat=True).distinct():
-            if parent_name and parent_name not in choice_map:
-                parent_choices.append((parent_name, parent_name))
-        self.fields['parent_name'].choices = parent_choices
-
-        current_parent_name = ''
-        if self.is_bound:
-            current_parent_name = (self.data.get(self.add_prefix('parent_name')) or '').strip()
-        elif self.instance and getattr(self.instance, 'pk', None):
-            current_parent_name = self.instance.parent_name
-        else:
-            current_parent_name = (self.initial.get('parent_name') or '').strip()
-
-        if current_parent_name:
-            setting = FAQParentCategorySetting.objects.filter(name=current_parent_name).first()
-            self.fields['visible_to_customer'].initial = (
-                setting.visible_to_customer if setting else True
+        existing_parent_names = list(
+            dict.fromkeys(
+                [name for name, _ in self.PARENT_CATEGORY_CHOICES]
+                + list(FAQCategory.objects.values_list('parent_name', flat=True).distinct())
             )
+        )
+        candidates = [name for name in existing_parent_names if name]
+        self.parent_name_candidates = candidates
+        self.fields['parent_name'].choices = [('', '選択してください')] + [(name, name) for name in candidates]
+
+        if self.instance and getattr(self.instance, 'pk', None):
+            self.initial.setdefault('parent_name', self.instance.parent_name)
+
+        if self.allow_new_parent_name:
+            self.fields['new_parent_name'].help_text = '既存候補にない場合のみ入力してください。'
+        else:
+            self.fields['new_parent_name'].widget = forms.HiddenInput()
+
+    def clean_parent_name(self):
+        return self.cleaned_data.get('parent_name', '').strip()
+
+    def clean_new_parent_name(self):
+        return self.cleaned_data.get('new_parent_name', '').strip()
 
     def clean_middle_name(self):
         return self.cleaned_data.get('middle_name', '').strip()
@@ -227,31 +231,202 @@ class FAQCategoryCreateForm(forms.ModelForm):
     def clean_child_name(self):
         return self.cleaned_data['child_name'].strip()
 
-    def save(self, commit=True):
-        category = super().save(commit=commit)
-        if commit:
-            self.save_parent_setting()
-        return category
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_parent = (cleaned_data.get('parent_name') or '').strip()
+        new_parent = (cleaned_data.get('new_parent_name') or '').strip()
 
-    def save_parent_setting(self):
-        parent_name = self.cleaned_data.get('parent_name', '').strip()
-        if not parent_name:
-            return None
-        setting, _ = FAQParentCategorySetting.objects.update_or_create(
-            name=parent_name,
-            defaults={'visible_to_customer': self.cleaned_data.get('visible_to_customer', True)},
+        if new_parent and not self.allow_new_parent_name:
+            self.add_error('new_parent_name', '大カテゴリの新規作成権限がありません。')
+
+        final_parent = new_parent if (self.allow_new_parent_name and new_parent) else selected_parent
+        if not final_parent:
+            self.add_error('parent_name', '大カテゴリを選択してください。')
+
+        cleaned_data['parent_name'] = final_parent
+        return cleaned_data
+
+
+DEFAULT_QR_CATEGORY_HIERARCHY = [
+    {
+        'value': 'shortcut',
+        'label': 'ショートカット',
+        'children': [
+            {
+                'value': 'Winodws',
+                'label': 'Winodws',
+                'children': ['デスクトップ', '文書', 'ウィンドウ', 'ファイル操作'],
+            },
+            {
+                'value': 'Office',
+                'label': 'Office',
+                'children': ['Word', 'Excel', 'PowerPoint', 'Outlook'],
+            },
+            {
+                'value': 'Googleカレンダー',
+                'label': 'Googleカレンダー',
+                'children': ['基本操作', '予定管理'],
+            },
+            {
+                'value': 'コントロールパネル',
+                'label': 'コントロールパネル',
+                'children': ['基本操作', 'プログラム', 'システム'],
+            },
+            {
+                'value': 'Windowsの設定',
+                'label': 'Windowsの設定',
+                'children': ['基本操作', 'ネットワーク', 'アカウント'],
+            },
+        ],
+    },
+    {
+        'value': 'command',
+        'label': 'コマンド',
+        'children': [
+            {
+                'value': 'Winodws',
+                'label': 'Winodws',
+                'children': ['ファイル操作', 'ネットワーク', 'システム'],
+            },
+            {
+                'value': 'Office',
+                'label': 'Office',
+                'children': ['Word', 'Excel', 'PowerPoint', 'Outlook'],
+            },
+        ],
+    },
+]
+
+
+def get_qr_category_hierarchy():
+    categories = ConvenienceCategory.objects.order_by('reference_type', 'category', 'middle_category', 'id')
+    if not categories.exists():
+        return DEFAULT_QR_CATEGORY_HIERARCHY
+
+    type_label_map = dict(ConvenienceFeature.TYPE_CHOICES)
+    big_map = {}
+    for item in categories:
+        big_node = big_map.setdefault(
+            item.reference_type,
+            {
+                'value': item.reference_type,
+                'label': type_label_map.get(item.reference_type, item.reference_type),
+                'children': {},
+            },
         )
-        return setting
+        mid_node = big_node['children'].setdefault(
+            item.category,
+            {
+                'value': item.category,
+                'label': item.category,
+                'children': [],
+            },
+        )
+        if item.middle_category and item.middle_category not in mid_node['children']:
+            mid_node['children'].append(item.middle_category)
+
+    hierarchy = []
+    for big in big_map.values():
+        hierarchy.append(
+            {
+                'value': big['value'],
+                'label': big['label'],
+                'children': list(big['children'].values()),
+            }
+        )
+    return hierarchy
+
+
+class ConvenienceCategoryCreateForm(forms.ModelForm):
+    reference_type = forms.ChoiceField(
+        label='大カテゴリ',
+        choices=(),
+        required=False,
+    )
+    new_reference_type = forms.CharField(
+        label='大カテゴリ（新規）',
+        required=False,
+        max_length=120,
+    )
+    category = forms.CharField(
+        label='中カテゴリ',
+        required=True,
+        max_length=120,
+    )
+    middle_category = forms.CharField(
+        label='小カテゴリ',
+        required=False,
+        max_length=120,
+    )
+
+    class Meta:
+        model = ConvenienceCategory
+        fields = ('reference_type', 'category', 'middle_category')
+
+    def __init__(self, *args, **kwargs):
+        self.allow_new_reference_type = kwargs.pop('allow_new_reference_type', False)
+        super().__init__(*args, **kwargs)
+        existing_reference_types = list(
+            dict.fromkeys(
+                [value for value, _ in ConvenienceFeature.TYPE_CHOICES]
+                + list(ConvenienceCategory.objects.values_list('reference_type', flat=True).distinct())
+            )
+        )
+        candidates = [item for item in existing_reference_types if item]
+        self.fields['reference_type'].choices = [('', '選択してください')] + [(item, item) for item in candidates]
+
+        if self.instance and getattr(self.instance, 'pk', None):
+            self.initial.setdefault('reference_type', self.instance.reference_type)
+
+        if self.allow_new_reference_type:
+            self.fields['new_reference_type'].help_text = '既存候補にない場合のみ入力してください。'
+        else:
+            self.fields['new_reference_type'].widget = forms.HiddenInput()
+
+    def clean_reference_type(self):
+        return self.cleaned_data.get('reference_type', '').strip()
+
+    def clean_new_reference_type(self):
+        return self.cleaned_data.get('new_reference_type', '').strip()
+
+    def clean_category(self):
+        return self.cleaned_data.get('category', '').strip()
+
+    def clean_middle_category(self):
+        return self.cleaned_data.get('middle_category', '').strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_reference_type = (cleaned_data.get('reference_type') or '').strip()
+        new_reference_type = (cleaned_data.get('new_reference_type') or '').strip()
+
+        if new_reference_type and not self.allow_new_reference_type:
+            self.add_error('new_reference_type', '大カテゴリの新規作成権限がありません。')
+
+        reference_type = new_reference_type or selected_reference_type
+        category = (cleaned_data.get('category') or '').strip()
+        middle_category = (cleaned_data.get('middle_category') or '').strip()
+
+        if not reference_type:
+            self.add_error('reference_type', '大カテゴリを選択してください。')
+            cleaned_data['reference_type'] = ''
+            return cleaned_data
+
+        cleaned_data['reference_type'] = reference_type
+        if reference_type and category:
+            exists = ConvenienceCategory.objects.filter(
+                reference_type=reference_type,
+                category=category,
+                middle_category=middle_category,
+            )
+            if self.instance.pk:
+                exists = exists.exclude(pk=self.instance.pk)
+            if exists.exists():
+                raise forms.ValidationError('同じカテゴリ構成がすでに登録されています。')
+        return cleaned_data
 
 
 class ConvenienceFeatureCreateForm(forms.ModelForm):
-    CATEGORY_CHOICES = (
-        ('Winodws', 'Winodws'),
-        ('Office', 'Office'),
-        ('Googleカレンダー', 'Googleカレンダー'),
-        ('コントロールパネル', 'コントロールパネル'),
-        ('Windowsの設定', 'Windowsの設定'),
-    )
     USAGE_FREQUENCY_CHOICES = getattr(
         ConvenienceFeature,
         'USAGE_FREQUENCY_CHOICES',
@@ -264,20 +439,21 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
         ),
     )
 
-    reference_type = forms.ChoiceField(
-        label='タブ種別',
-        choices=ConvenienceFeature.TYPE_CHOICES,
-        initial=ConvenienceFeature.TYPE_SHORTCUT,
-    )
-
-    category = forms.ChoiceField(
+    reference_type = forms.CharField(
         label='大カテゴリ',
-        choices=CATEGORY_CHOICES,
+        max_length=20,
+        widget=forms.HiddenInput(),
+    )
+    category = forms.CharField(
+        label='中カテゴリ',
+        max_length=120,
+        widget=forms.HiddenInput(),
     )
     middle_category = forms.CharField(
-        label='中カテゴリ',
-        required=True,
+        label='小カテゴリ',
+        required=False,
         max_length=120,
+        widget=forms.HiddenInput(),
     )
     usage_frequency = forms.ChoiceField(
         label='使用頻度',
@@ -293,11 +469,11 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
         model = ConvenienceFeature
         fields = ('reference_type', 'category', 'middle_category', 'shortcut_key', 'display_text', 'note', 'image')
         labels = {
-            'reference_type': 'タブ種別',
-            'category': '大カテゴリ',
-            'middle_category': '中カテゴリ',
+            'reference_type': '大カテゴリ',
+            'category': '中カテゴリ',
+            'middle_category': '小カテゴリ',
             'usage_frequency': '使用頻度',
-            'shortcut_key': 'ショートカットキー / コマンド',
+            'shortcut_key': 'ショートカットキー',
             'display_text': '内容',
             'note': '備考',
             'image': '画像',
@@ -305,6 +481,44 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def clean_reference_type(self):
+        value = self.cleaned_data.get('reference_type', '').strip()
+        valid_values = [item['value'] for item in get_qr_category_hierarchy()]
+        if value not in valid_values:
+            raise forms.ValidationError('大カテゴリを選択してください。')
+        return value
+
+    def clean_category(self):
+        value = self.cleaned_data.get('category', '').strip()
+        if not value:
+            raise forms.ValidationError('中カテゴリを選択してください。')
+        return value
+
+    def clean(self):
+        cleaned_data = super().clean()
+        reference_type = (cleaned_data.get('reference_type') or '').strip()
+        category = (cleaned_data.get('category') or '').strip()
+        middle_category = (cleaned_data.get('middle_category') or '').strip()
+
+        hierarchy = get_qr_category_hierarchy()
+        big_item = next((item for item in hierarchy if item['value'] == reference_type), None)
+        if not big_item:
+            self.add_error('reference_type', '大カテゴリを選択してください。')
+            return cleaned_data
+
+        mid_item = next((item for item in big_item['children'] if item['value'] == category), None)
+        if not mid_item:
+            self.add_error('category', '中カテゴリを選択してください。')
+            return cleaned_data
+
+        small_values = list(mid_item.get('children', []))
+        if small_values:
+            if not middle_category:
+                self.add_error('middle_category', '小カテゴリを選択してください。')
+            elif middle_category not in small_values:
+                self.add_error('middle_category', '小カテゴリの選択が不正です。')
+        return cleaned_data
 
 
 class RevisionHistoryForm(forms.ModelForm):

@@ -202,6 +202,15 @@
                                                                 {% if article.is_favorited %}★{% else %}☆{% endif %}
                                                             </button>
                                                         {% endif %}
+                                                        <button
+                                                            class="btn btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
+                                                            type="button"
+                                                            data-bs-toggle="collapse"
+                                                            data-bs-target="#faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
+                                                            aria-expanded="false"
+                                                            aria-controls="faqPanel{{ forloop.parentloop.counter }}{{ article.id }}"
+                                                            aria-label="回答を表示"
+                                                        ></button>
                                                     {% else %}
                                                         {% if can_use_good %}
                                                             <button
