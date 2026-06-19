@@ -51,6 +51,7 @@ from .views import (
     UserListView,
     UserPasswordResetView,
     UserUpdateView,
+    switch_account_view_mode,
 )
 
 urlpatterns = [
@@ -114,4 +115,5 @@ urlpatterns = [
     path('manuals/<int:pk>/delete/', ManualDeleteView.as_view(), name='manual_delete'),
     path('management/articles/', ArticleManagementView.as_view(), name='article_management'),
     path('management/reviews/', ReviewListView.as_view(), name='review_list'),
+    path('account/view-mode/', switch_account_view_mode, name='switch_account_view_mode'),
 ]

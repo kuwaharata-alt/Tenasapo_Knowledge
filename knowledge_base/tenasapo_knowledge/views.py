@@ -4,6 +4,7 @@ import json
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group
@@ -31,6 +32,7 @@ from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.http import require_POST
 from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
@@ -109,11 +111,42 @@ DEMO_GROUP_NAME = getattr(
 )
 DEMO_GROUP_ALIASES = {'demo', 'デモ'}
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
+ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
+ACCOUNT_VIEW_MODE_DEMO = 'demo'
+ACCOUNT_VIEW_MODE_CS = 'cs'
+ACCOUNT_VIEW_MODES = {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}
 
 
 class HomeRedirectLoginView(LoginView):
     def get_success_url(self):
         return reverse_lazy('home')
+
+
+def get_forced_account_view_mode(user):
+    mode = str(getattr(user, '_view_mode_override', '') or '').strip().lower()
+    return mode if mode in ACCOUNT_VIEW_MODES else ''
+
+
+@login_required
+@require_POST
+def switch_account_view_mode(request):
+    requested_mode = str(request.POST.get('mode') or '').strip().lower()
+    if requested_mode in ACCOUNT_VIEW_MODES:
+        request.session[ACCOUNT_VIEW_MODE_SESSION_KEY] = requested_mode
+        label = 'Demo' if requested_mode == ACCOUNT_VIEW_MODE_DEMO else 'CS'
+        messages.info(request, f'{label}表示に切り替えました。')
+    else:
+        request.session.pop(ACCOUNT_VIEW_MODE_SESSION_KEY, None)
+        messages.info(request, '通常表示に戻しました。')
+
+    next_url = request.POST.get('next') or ''
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(next_url)
+    return redirect('home')
 
 
 def in_group(user, group_name):
@@ -287,6 +320,12 @@ def is_demo_user(user):
     if not user.is_authenticated:
         return False
 
+    forced_mode = get_forced_account_view_mode(user)
+    if forced_mode == ACCOUNT_VIEW_MODE_DEMO:
+        return True
+    if forced_mode == ACCOUNT_VIEW_MODE_CS:
+        return False
+
     def normalize_group_name(name):
         return str(name or '').strip().casefold()
 
@@ -385,6 +424,10 @@ def is_admin_account(user):
 
 
 def is_customer_user(user):
+    forced_mode = get_forced_account_view_mode(user)
+    if forced_mode in ACCOUNT_VIEW_MODES:
+        return user.is_authenticated
+
     return (
         user.is_authenticated
         and in_group(user, CUSTOMER_GROUP_NAME)

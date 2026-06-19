@@ -4,6 +4,10 @@ from django.contrib.sessions.exceptions import SessionInterrupted
 from django.contrib.sessions.middleware import SessionMiddleware
 
 
+ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
+ACCOUNT_VIEW_MODES = {'demo', 'cs'}
+
+
 class SafeSessionMiddleware(SessionMiddleware):
     def process_response(self, request, response):
         try:
@@ -14,6 +18,11 @@ class SafeSessionMiddleware(SessionMiddleware):
 
 class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
     def process_view(self, request, view_func, view_args, view_kwargs):
+        user = getattr(request, 'user', None)
+        if user and getattr(user, 'is_authenticated', False):
+            mode = str(request.session.get(ACCOUNT_VIEW_MODE_SESSION_KEY) or '').strip().lower()
+            setattr(user, '_view_mode_override', mode if mode in ACCOUNT_VIEW_MODES else '')
+
         path = request.path
         static_url = getattr(settings, 'STATIC_URL', '')
         media_url = getattr(settings, 'MEDIA_URL', '')

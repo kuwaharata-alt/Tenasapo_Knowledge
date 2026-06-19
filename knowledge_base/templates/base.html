@@ -730,6 +730,27 @@
                         <div class="dropdown-menu dropdown-menu-end p-2">
                             <div class="dropdown-item-text text-muted small">ログインID: {{ user.username }}</div>
                             <hr class="dropdown-divider">
+                            {% if current_user_view_mode %}
+                                <form method="post" action="{% url 'switch_account_view_mode' %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="mode" value="">
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button class="dropdown-item" type="submit">{{ current_user_base_display_name }}</button>
+                                </form>
+                            {% endif %}
+                            <form method="post" action="{% url 'switch_account_view_mode' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="mode" value="demo">
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="dropdown-item" type="submit">Demo表示</button>
+                            </form>
+                            <form method="post" action="{% url 'switch_account_view_mode' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="mode" value="cs">
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="dropdown-item" type="submit">カスタマー表示</button>
+                            </form>
+                            <hr class="dropdown-divider">
                             <form method="post" action="{% url 'logout' %}">
                                 {% csrf_token %}
                                 <button class="dropdown-item" type="submit">ログアウト</button>
