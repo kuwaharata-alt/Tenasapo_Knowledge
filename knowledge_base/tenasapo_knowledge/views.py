@@ -150,7 +150,14 @@ def switch_account_view_mode(request):
 
 
 def in_group(user, group_name):
-    return user.is_authenticated and user.groups.filter(name=group_name).exists()
+    if not user.is_authenticated:
+        return False
+
+    forced_mode = get_forced_account_view_mode(user)
+    if forced_mode in ACCOUNT_VIEW_MODES:
+        return group_name == CUSTOMER_GROUP_NAME
+
+    return user.groups.filter(name=group_name).exists()
 
 
 def resolve_next_path(request, fallback_url_name):
@@ -324,7 +331,7 @@ class PreviewRenderView(View):
 
 def is_reviewer_user(user):
     reviewer_group_names = {group_name for group_name in {REVIEWER_GROUP_NAME, 'レビュアー', '承認者'} if group_name}
-    return user.is_authenticated and user.groups.filter(name__in=reviewer_group_names).exists()
+    return user.is_authenticated and any(in_group(user, group_name) for group_name in reviewer_group_names)
 
 
 def is_demo_user(user):
@@ -419,6 +426,9 @@ def can_approve_article(user):
 
 
 def can_edit_article(user):
+    if get_forced_account_view_mode(user) in ACCOUNT_VIEW_MODES:
+        return False
+
     return (
         user.is_authenticated
         and (

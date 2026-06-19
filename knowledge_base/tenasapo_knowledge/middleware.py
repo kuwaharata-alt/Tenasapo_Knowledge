@@ -21,7 +21,13 @@ class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
         user = getattr(request, 'user', None)
         if user and getattr(user, 'is_authenticated', False):
             mode = str(request.session.get(ACCOUNT_VIEW_MODE_SESSION_KEY) or '').strip().lower()
-            setattr(user, '_view_mode_override', mode if mode in ACCOUNT_VIEW_MODES else '')
+            effective_mode = mode if mode in ACCOUNT_VIEW_MODES else ''
+            setattr(user, '_view_mode_override', effective_mode)
+            if effective_mode:
+                setattr(user, '_original_is_staff', user.is_staff)
+                setattr(user, '_original_is_superuser', user.is_superuser)
+                user.is_staff = False
+                user.is_superuser = False
 
         path = request.path
         static_url = getattr(settings, 'STATIC_URL', '')
