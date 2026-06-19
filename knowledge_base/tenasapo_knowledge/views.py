@@ -284,13 +284,30 @@ def is_reviewer_user(user):
 
 
 def is_demo_user(user):
-    demo_group_names = set(DEMO_GROUP_ALIASES)
+    if not user.is_authenticated:
+        return False
+
+    def normalize_group_name(name):
+        return str(name or '').strip().casefold()
+
+    demo_group_names = {
+        normalize_group_name(group_name)
+        for group_name in DEMO_GROUP_ALIASES
+        if normalize_group_name(group_name)
+    }
     if DEMO_GROUP_NAME:
-        demo_group_names.add(DEMO_GROUP_NAME)
+        normalized_demo_group_name = normalize_group_name(DEMO_GROUP_NAME)
+        if normalized_demo_group_name:
+            demo_group_names.add(normalized_demo_group_name)
+
+    user_group_names = {
+        normalize_group_name(group_name)
+        for group_name in user.groups.values_list('name', flat=True)
+        if normalize_group_name(group_name)
+    }
 
     return (
-        user.is_authenticated
-        and user.groups.filter(name__in=demo_group_names).exists()
+        bool(user_group_names & demo_group_names)
         and not (user.is_staff or user.is_superuser)
     )
 
@@ -302,11 +319,11 @@ def can_view_restricted_knowledge_content(user, article_or_tip):
     if user.is_staff or user.is_superuser:
         return True
 
-    if can_edit_article(user):
-        return True
-
     if is_demo_user(user):
         return False
+
+    if can_edit_article(user):
+        return True
 
     return True
 

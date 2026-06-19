@@ -870,6 +870,26 @@ class KnowledgeArticleListTests(TestCase):
         self.assertNotContains(response, restricted_article.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_reviewer_cannot_view_restricted_article_content(self):
+        demo_group, _ = Group.objects.get_or_create(name='Demo')
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        self.user.groups.add(demo_group, reviewer_group)
+        restricted_article = KnowledgeArticle.objects.create(
+            title='デモ兼レビュアー制限FAQ',
+            category='PC/設定',
+            body='非公開本文',
+            visible_to_customer=True,
+            is_approved=True,
+            standard_contract_only=True,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('article_list'))
+
+        self.assertContains(response, restricted_article.title)
+        self.assertNotContains(response, restricted_article.body)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_remand_article_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(username='reviewer_remand', password='password')
@@ -1423,6 +1443,25 @@ class TipsListTests(TestCase):
 
         self.assertContains(response, restricted_tip.title)
         self.assertContains(response, '現在のアカウントでは、このコンテンツの閲覧が制限されております。')
+        self.assertNotContains(response, restricted_tip.body)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_reviewer_cannot_view_restricted_tip_content(self):
+        demo_group, _ = Group.objects.get_or_create(name='Demo')
+        reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
+        self.user.groups.add(demo_group, reviewer_group)
+        restricted_tip = TipsArticle.objects.create(
+            title='デモ兼レビュアー制限Tips',
+            category='PC/設定',
+            body='非公開Tips本文',
+            visible_to_customer=True,
+            is_approved=True,
+            standard_contract_only=True,
+        )
+
+        response = self.client.get(reverse('tip_list'))
+
+        self.assertContains(response, restricted_tip.title)
         self.assertNotContains(response, restricted_tip.body)
 
 
