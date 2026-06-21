@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Knowledge登録 | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>Knowledge登録
+    </h1>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <a href="{% url 'article_create' %}" class="btn btn-danger w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 FAQ登録</strong>
+            <small class="mt-2">FAQを新規登録</small>
+        </a>
+    </div>
+    <div class="col-12 col-md-4">
+        <a href="{% url 'tip_create' %}" class="btn btn-info text-white w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">💡 Tips登録</strong>
+            <small class="mt-2">Tipsを新規登録</small>
+        </a>
+    </div>
+    <div class="col-12 col-md-4">
+        <a href="{% url 'convenience_create' %}" class="btn btn-success w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">⚡ クイックリファレンス登録</strong>
+            <small class="mt-2">クイックリファレンスを新規登録</small>
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -12,6 +12,11 @@ DEMO_GROUP_NAME = getattr(
     'USER_ROLE_DEMO_NAME',
     getattr(settings, 'USER_GROUP_DEMO_NAME', 'demo'),
 )
+SYSTENA_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_SYSTENA_NAME',
+    getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ'),
+)
 DEMO_GROUP_ALIASES = {'demo', 'デモ'}
 
 
@@ -45,6 +50,7 @@ def user_display_name(request):
             'current_user_base_display_name': '',
             'current_user_is_customer': False,
             'current_user_view_mode': '',
+            'can_switch_account_view_mode': False,
         }
 
     view_mode = str(request.session.get(ACCOUNT_VIEW_MODE_SESSION_KEY) or '').strip().lower()
@@ -53,6 +59,12 @@ def user_display_name(request):
 
     profile = getattr(user, 'knowledge_profile', None)
     current_user_is_customer = False
+    can_switch_account_view_mode = False
+    if profile is not None:
+        can_switch_account_view_mode = profile.user_type == 'systena'
+    else:
+        can_switch_account_view_mode = user.groups.filter(name=SYSTENA_GROUP_NAME).exists()
+
     if view_mode in {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}:
         current_user_is_customer = True
     elif is_demo_group_member(user):
@@ -74,4 +86,5 @@ def user_display_name(request):
         'current_user_base_display_name': base_display_name,
         'current_user_is_customer': current_user_is_customer,
         'current_user_view_mode': view_mode,
+        'can_switch_account_view_mode': can_switch_account_view_mode,
     }

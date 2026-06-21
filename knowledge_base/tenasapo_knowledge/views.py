@@ -127,9 +127,32 @@ def get_forced_account_view_mode(user):
     return mode if mode in ACCOUNT_VIEW_MODES else ''
 
 
+def can_switch_account_view_mode(user):
+    if not user.is_authenticated:
+        return False
+
+    profile = getattr(user, 'knowledge_profile', None)
+    if profile is not None:
+        return profile.user_type == UserProfile.USER_TYPE_SYSTENA
+
+    return user.groups.filter(name=SYSTENA_GROUP_NAME).exists()
+
+
 @login_required
 @require_POST
 def switch_account_view_mode(request):
+    if not can_switch_account_view_mode(request.user):
+        messages.warning(request, 'このアカウントでは表示切替できません。')
+        request.session.pop(ACCOUNT_VIEW_MODE_SESSION_KEY, None)
+        next_url = request.POST.get('next') or ''
+        if next_url and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            return redirect(next_url)
+        return redirect('home')
+
     requested_mode = str(request.POST.get('mode') or '').strip().lower()
     if requested_mode in ACCOUNT_VIEW_MODES:
         request.session[ACCOUNT_VIEW_MODE_SESSION_KEY] = requested_mode
@@ -743,9 +766,8 @@ class HomeView(TemplateView):
         if is_admin:
             menu_groups[1]['items'].extend(
                 [
-                    {'label': 'FAQ登録', 'url_name': 'article_create'},
-                    {'label': 'Tips登録', 'url_name': 'tip_create'},
-                    {'label': 'クイックリファレンス登録', 'url_name': 'convenience_create'},
+                    {'label': 'Knowledge登録', 'url_name': 'knowledge_input'},
+                    {'label': 'レビュー', 'url_name': 'review_list'},
                     {'label': 'カテゴリ登録', 'url_name': 'category_create'},
                 ]
             )
@@ -765,6 +787,24 @@ class HomeView(TemplateView):
                 ]
             )
         context['menu_groups'] = [group for group in menu_groups if group['items']]
+        return context
+
+
+class KnowledgeInputHubView(TemplateView):
+    template_name = 'tenasapo_knowledge/knowledge_input.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('article_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        selected_tab = (self.request.GET.get('tab') or 'faq').strip().lower()
+        if selected_tab not in {'faq', 'tips', 'qr'}:
+            selected_tab = 'faq'
+        context['selected_tab'] = selected_tab
         return context
 
 
