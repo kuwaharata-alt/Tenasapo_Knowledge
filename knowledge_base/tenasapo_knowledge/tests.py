@@ -47,6 +47,32 @@ class LoginRedirectTests(TestCase):
         self.assertRedirects(response, reverse('home'))
 
 
+class HomeViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username='home-user', password='password')
+
+    def test_demo_group_user_does_not_see_home_menu_section(self):
+        demo_group, _ = Group.objects.get_or_create(name='Demo')
+        self.user.groups.add(demo_group)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '<h2 class="h5 mb-0 fw-bold">メニュー</h2>', html=True)
+
+    def test_demo_group_user_does_not_see_top_menu_dropdown(self):
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        self.user.groups.add(demo_group)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '<h6 class="dropdown-header">📚 Knowledge</h6>', html=True)
+
+
 class KnowledgeArticleListTests(TestCase):
     def setUp(self):
         User = get_user_model()

@@ -1,9 +1,40 @@
+from django.conf import settings
+
 from .utils import resolve_user_display_name
 
 
 ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
 ACCOUNT_VIEW_MODE_DEMO = 'demo'
 ACCOUNT_VIEW_MODE_CS = 'cs'
+
+DEMO_GROUP_NAME = getattr(
+    settings,
+    'USER_ROLE_DEMO_NAME',
+    getattr(settings, 'USER_GROUP_DEMO_NAME', 'demo'),
+)
+DEMO_GROUP_ALIASES = {'demo', 'デモ'}
+
+
+def normalize_group_name(name):
+    return str(name or '').strip().casefold()
+
+
+def is_demo_group_member(user):
+    demo_group_names = {
+        normalize_group_name(group_name)
+        for group_name in DEMO_GROUP_ALIASES
+        if normalize_group_name(group_name)
+    }
+    normalized_demo_group_name = normalize_group_name(DEMO_GROUP_NAME)
+    if normalized_demo_group_name:
+        demo_group_names.add(normalized_demo_group_name)
+
+    user_group_names = {
+        normalize_group_name(group_name)
+        for group_name in user.groups.values_list('name', flat=True)
+        if normalize_group_name(group_name)
+    }
+    return bool(user_group_names & demo_group_names)
 
 
 def user_display_name(request):
@@ -23,6 +54,8 @@ def user_display_name(request):
     profile = getattr(user, 'knowledge_profile', None)
     current_user_is_customer = False
     if view_mode in {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}:
+        current_user_is_customer = True
+    elif is_demo_group_member(user):
         current_user_is_customer = True
     elif profile is not None:
         current_user_is_customer = profile.user_type == 'customer'

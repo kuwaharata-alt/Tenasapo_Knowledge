@@ -688,7 +688,7 @@ class HomeView(TemplateView):
         user = self.request.user
         is_admin = user.is_staff or user.is_superuser
         can_edit = can_edit_article(user)
-        is_customer_home = is_customer_user(user)
+        is_customer_home = is_customer_user(user) or is_demo_user(user)
 
         # 最新FAQ（権限に応じてフィルタ）
         faq_qs = (
