@@ -706,6 +706,125 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/\[color=(#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1;">$2</span>');
     }
 
+    function plainTextToEditorHtml(text, editor) {
+        const normalized = String(text || '')
+            .replace(/\r\n?|\u2028|\u2029/g, '\n');
+        return editor.dom.encode(normalized).replace(/\n/g, '<br>');
+    }
+
+    function getChildNodeIndex(node) {
+        if (!node || !node.parentNode) {
+            return -1;
+        }
+        return Array.prototype.indexOf.call(node.parentNode.childNodes, node);
+    }
+
+    function splitHtmlLines(html) {
+        return String(html || '').split(/<br\b[^>]*>/i);
+    }
+
+    function buildNormalLineBlock(editor, html) {
+        const block = editor.getDoc().createElement('div');
+        block.innerHTML = html && html.trim() ? html : '<br data-mce-bogus="1">';
+        editor.dom.setStyle(block, 'fontWeight', '400');
+        editor.dom.setStyle(block, 'fontSize', '10pt');
+        editor.dom.setStyle(block, 'textDecoration', 'none');
+        editor.dom.setStyle(block, 'color', '#000000');
+        editor.dom.setStyle(block, 'marginLeft', '0.75em');
+        editor.dom.setStyle(block, 'textIndent', '0');
+        return block;
+    }
+
+    function buildHeadingLineBlock(editor, html) {
+        const block = editor.getDoc().createElement('div');
+        const container = editor.getDoc().createElement('div');
+        container.innerHTML = html || '';
+
+        let text = container.innerText || container.textContent || '';
+        text = text.trim().replace(/^[■・]\s*/, '');
+        editor.dom.addClass(block, 'tk-heading1-line');
+        if (text) {
+            block.textContent = text;
+        } else {
+            block.innerHTML = '<br data-mce-bogus="1">';
+        }
+
+        editor.dom.setStyle(block, 'fontWeight', '700');
+        editor.dom.setStyle(block, 'fontSize', '12pt');
+        editor.dom.setStyle(block, 'textDecoration', 'underline');
+        editor.dom.setStyle(block, 'color', '#000000');
+        editor.dom.setStyle(block, 'marginLeft', '0');
+        editor.dom.setStyle(block, 'paddingLeft', '1.4em');
+        editor.dom.setStyle(block, 'textIndent', '-1.4em');
+        editor.dom.setStyle(block, 'lineHeight', '2');
+
+        return block;
+    }
+
+    function applyHeadingToCurrentVisualLine(editor, block) {
+        if (!block || block.tagName === 'LI') {
+            return false;
+        }
+
+        const range = editor.selection.getRng();
+        if (!range || !block.innerHTML || block.innerHTML.indexOf('<br') === -1) {
+            return false;
+        }
+
+        const brs = Array.from(block.querySelectorAll('br'));
+        if (!brs.length) {
+            return false;
+        }
+
+        let lineIndex = 0;
+        brs.forEach(function(br) {
+            const parent = br.parentNode;
+            const index = getChildNodeIndex(br);
+            if (!parent || index < 0) {
+                return;
+            }
+            try {
+                if (range.comparePoint(parent, index + 1) <= 0) {
+                    lineIndex += 1;
+                }
+            } catch (error) {
+                // comparePoint が使えないケースでは何もしない
+            }
+        });
+
+        const lines = splitHtmlLines(block.innerHTML);
+        if (lines.length <= 1) {
+            return false;
+        }
+
+        lineIndex = Math.max(0, Math.min(lineIndex, lines.length - 1));
+
+        const fragment = editor.getDoc().createDocumentFragment();
+        const lineBlocks = [];
+        lines.forEach(function(lineHtml, index) {
+            const lineBlock = index === lineIndex
+                ? buildHeadingLineBlock(editor, lineHtml)
+                : buildNormalLineBlock(editor, lineHtml);
+            lineBlocks.push(lineBlock);
+            fragment.appendChild(lineBlock);
+        });
+
+        const parent = block.parentNode;
+        if (!parent) {
+            return false;
+        }
+
+        parent.replaceChild(fragment, block);
+
+        const headingBlock = lineBlocks[lineIndex];
+        if (headingBlock) {
+            editor.selection.select(headingBlock, true);
+            editor.selection.collapse(false);
+        }
+
+        return true;
+    }
+
     if (window.tinymce) {
         tinymce.init({
             selector: 'textarea[data-wysiwyg="true"]',
@@ -714,17 +833,19 @@ document.addEventListener('DOMContentLoaded', function() {
             menubar: false,
             branding: false,
             height: 380,
-            plugins: 'lists link code',
+            plugins: 'lists link code paste',
             toolbar: 'undo redo | bold underline strikethrough | forecolor | fontsize | bullist numlist numlist_start | blockquote | link | removeformat | code | tk_heading1 tk_border | styles',
             fontsize_formats: '8pt 9pt 10pt 11pt 12pt 13pt 14pt 15pt 16pt 17pt 18pt',
+            paste_as_text: true,
+            smart_paste: false,
             formats: {
                 tk_heading1: {
                     block: 'div',
-                    styles: { fontWeight: '700', fontSize: '14pt', textDecoration: 'underline', color: '#000000', marginLeft: '0', paddingLeft: '0' }
+                    styles: { fontWeight: '700', fontSize: '12pt', textDecoration: 'underline', color: '#000000', marginLeft: '0', paddingLeft: '0' }
                 },
                 tk_body: {
                     block: 'div',
-                    styles: { fontWeight: '400', fontSize: '10pt', textDecoration: 'none', color: '#000000', marginLeft: '1.5em', textIndent: '1em' }
+                    styles: { fontWeight: '400', fontSize: '10pt', textDecoration: 'none', color: '#000000', marginLeft: '0.75em', textIndent: '0' }
                 },
                 tk_caution: {
                     inline: 'span',
@@ -753,7 +874,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     format: 'tk_point'
                 }
             ],
-            content_style: 'body { font-family: "Yu Gothic", "Hiragino Maru Gothic ProN", "Meiryo", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; padding-left: 0 !important; text-indent: 0 !important; } ul, ol { margin: 0.25rem 0 0.25rem 1.5em; padding-left: 1em; list-style-position: outside; } li { padding-left: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
+            content_style: 'body { font-family: "Meiryo UI", "Meiryo", "Yu Gothic UI", "Yu Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; } .tk-heading1-line::before { content: "■ "; } ul, ol { margin: 0.25rem 0 0.25rem 0.75em; padding-left: 0; list-style-position: outside; } li { padding-left: 0; text-indent: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
             valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[class|style],ul,ol[start],li[value],a[href|target|rel],h1[class|style],h2[class|style],h3[class|style],h4[class|style],blockquote,pre,code',
             valid_styles: {
                 '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,text-indent,line-height'
@@ -764,6 +885,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (raw && raw.indexOf('[') !== -1) {
                         editor.setContent(legacyMarkupToHtml(raw));
                     }
+                });
+
+                editor.on('paste', function(e) {
+                    const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData) || window.clipboardData;
+                    if (!clipboardData) {
+                        return;
+                    }
+                    const plainText = clipboardData.getData('text/plain');
+                    if (typeof plainText !== 'string' || plainText === '') {
+                        return;
+                    }
+
+                    e.preventDefault();
+                    editor.undoManager.transact(function() {
+                        editor.insertContent(plainTextToEditorHtml(plainText, editor));
+                        editor.formatter.apply('tk_body');
+                    });
+                    editor.nodeChanged();
                 });
                 
                 // Enterキー後の新しい段落のスタイルをリセット
@@ -781,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // 見出し1ボタン
                 editor.ui.registry.addButton('tk_heading1', {
                     text: '見出し1',
-                    tooltip: '見出し1（太字 14pt 下線 黒）を適用',
+                    tooltip: '見出し1（太字 12pt 下線 黒）を適用',
                     onAction: function() {
                         applyHeading1WithMarker(editor);
                     }
@@ -867,19 +1006,29 @@ document.addEventListener('DOMContentLoaded', function() {
             const node = editor.selection.getNode();
             const block = editor.dom.getParent(node, 'p,div,li,h1,h2,h3,h4') || node;
             if (!block) return;
+
+            if (applyHeadingToCurrentVisualLine(editor, block)) {
+                editor.nodeChanged();
+                return;
+            }
             
             let text = block.innerText || block.textContent;
-            text = text.trim().replace(/^■\s*/, '');
-            text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            block.innerHTML = '■ ' + text;
+            text = text.trim().replace(/^[■・]\s*/, '');
+            editor.dom.addClass(block, 'tk-heading1-line');
+            if (text) {
+                block.textContent = text;
+            } else {
+                block.innerHTML = '<br data-mce-bogus="1">';
+            }
             editor.dom.removeClass(block, 'tk-heading1');
             
             editor.dom.setStyle(block, 'fontWeight', '700');
-            editor.dom.setStyle(block, 'fontSize', '14pt');
+            editor.dom.setStyle(block, 'fontSize', '12pt');
             editor.dom.setStyle(block, 'textDecoration', 'underline');
             editor.dom.setStyle(block, 'color', '#000000');
             editor.dom.setStyle(block, 'marginLeft', '0');
-            editor.dom.setStyle(block, 'paddingLeft', '0');
+            editor.dom.setStyle(block, 'paddingLeft', '1.4em');
+            editor.dom.setStyle(block, 'textIndent', '-1.4em');
             editor.dom.setStyle(block, 'lineHeight', '2');
             
             editor.nodeChanged();
