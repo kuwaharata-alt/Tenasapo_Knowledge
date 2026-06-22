@@ -1228,6 +1228,39 @@ class ArticleListView(ListView):
             else:
                 queryset = queryset.none()
 
+        if can_edit_article(self.request.user):
+            filter_approval = self.request.GET.get('filter_approval', '')
+            if filter_approval == 'approved':
+                queryset = queryset.filter(is_approved=True)
+            elif filter_approval == 'remanded':
+                queryset = queryset.filter(is_approved=False).exclude(remand_reason='')
+            elif filter_approval == 'pending':
+                queryset = queryset.filter(is_approved=False, remand_reason='')
+
+            filter_creator = self.request.GET.get('filter_creator', '')
+            if filter_creator:
+                queryset = queryset.filter(created_by__id=filter_creator)
+
+            filter_approver = self.request.GET.get('filter_approver', '')
+            if filter_approver:
+                queryset = queryset.filter(approved_by__id=filter_approver)
+
+            filter_created_from = self.request.GET.get('filter_created_from', '')
+            if filter_created_from:
+                queryset = queryset.filter(created_at__date__gte=filter_created_from)
+
+            filter_created_to = self.request.GET.get('filter_created_to', '')
+            if filter_created_to:
+                queryset = queryset.filter(created_at__date__lte=filter_created_to)
+
+            filter_expires_from = self.request.GET.get('filter_expires_from', '')
+            if filter_expires_from:
+                queryset = queryset.filter(expires_on__gte=filter_expires_from)
+
+            filter_expires_to = self.request.GET.get('filter_expires_to', '')
+            if filter_expires_to:
+                queryset = queryset.filter(expires_on__lte=filter_expires_to)
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
@@ -1334,6 +1367,27 @@ class ArticleListView(ListView):
         )
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
+        if can_edit_article(self.request.user):
+            User = get_user_model()
+            base_qs = KnowledgeArticle.objects.filter(is_published=True).filter(active_until_filter())
+            creator_ids = base_qs.exclude(created_by=None).values_list('created_by', flat=True).distinct()
+            approver_ids = base_qs.exclude(approved_by=None).values_list('approved_by', flat=True).distinct()
+            creator_users = User.objects.filter(id__in=creator_ids).order_by('last_name', 'first_name', 'username')
+            approver_users = User.objects.filter(id__in=approver_ids).order_by('last_name', 'first_name', 'username')
+            context['filter_creator_choices'] = [(u.id, resolve_user_display_name(u)) for u in creator_users]
+            context['filter_approver_choices'] = [(u.id, resolve_user_display_name(u)) for u in approver_users]
+            context['filter_approval'] = self.request.GET.get('filter_approval', '')
+            context['filter_creator'] = self.request.GET.get('filter_creator', '')
+            context['filter_approver'] = self.request.GET.get('filter_approver', '')
+            context['filter_created_from'] = self.request.GET.get('filter_created_from', '')
+            context['filter_created_to'] = self.request.GET.get('filter_created_to', '')
+            context['filter_expires_from'] = self.request.GET.get('filter_expires_from', '')
+            context['filter_expires_to'] = self.request.GET.get('filter_expires_to', '')
+            context['active_filter_count'] = sum(bool(context[k]) for k in [
+                'filter_approval', 'filter_creator', 'filter_approver',
+                'filter_created_from', 'filter_created_to',
+                'filter_expires_from', 'filter_expires_to',
+            ])
         return context
 
     @staticmethod
@@ -1521,6 +1575,39 @@ class TipsListView(ListView):
             else:
                 queryset = queryset.none()
 
+        if can_edit_article(self.request.user):
+            filter_approval = self.request.GET.get('filter_approval', '')
+            if filter_approval == 'approved':
+                queryset = queryset.filter(is_approved=True)
+            elif filter_approval == 'remanded':
+                queryset = queryset.filter(is_approved=False).exclude(remand_reason='')
+            elif filter_approval == 'pending':
+                queryset = queryset.filter(is_approved=False, remand_reason='')
+
+            filter_creator = self.request.GET.get('filter_creator', '')
+            if filter_creator:
+                queryset = queryset.filter(created_by__id=filter_creator)
+
+            filter_approver = self.request.GET.get('filter_approver', '')
+            if filter_approver:
+                queryset = queryset.filter(approved_by__id=filter_approver)
+
+            filter_created_from = self.request.GET.get('filter_created_from', '')
+            if filter_created_from:
+                queryset = queryset.filter(created_at__date__gte=filter_created_from)
+
+            filter_created_to = self.request.GET.get('filter_created_to', '')
+            if filter_created_to:
+                queryset = queryset.filter(created_at__date__lte=filter_created_to)
+
+            filter_expires_from = self.request.GET.get('filter_expires_from', '')
+            if filter_expires_from:
+                queryset = queryset.filter(expires_on__gte=filter_expires_from)
+
+            filter_expires_to = self.request.GET.get('filter_expires_to', '')
+            if filter_expires_to:
+                queryset = queryset.filter(expires_on__lte=filter_expires_to)
+
         return queryset.distinct()
 
     def get_context_data(self, **kwargs):
@@ -1614,6 +1701,27 @@ class TipsListView(ListView):
         )
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
+        if can_edit_article(self.request.user):
+            User = get_user_model()
+            base_qs = TipsArticle.objects.filter(is_published=True).filter(active_until_filter())
+            creator_ids = base_qs.exclude(created_by=None).values_list('created_by', flat=True).distinct()
+            approver_ids = base_qs.exclude(approved_by=None).values_list('approved_by', flat=True).distinct()
+            creator_users = User.objects.filter(id__in=creator_ids).order_by('last_name', 'first_name', 'username')
+            approver_users = User.objects.filter(id__in=approver_ids).order_by('last_name', 'first_name', 'username')
+            context['filter_creator_choices'] = [(u.id, resolve_user_display_name(u)) for u in creator_users]
+            context['filter_approver_choices'] = [(u.id, resolve_user_display_name(u)) for u in approver_users]
+            context['filter_approval'] = self.request.GET.get('filter_approval', '')
+            context['filter_creator'] = self.request.GET.get('filter_creator', '')
+            context['filter_approver'] = self.request.GET.get('filter_approver', '')
+            context['filter_created_from'] = self.request.GET.get('filter_created_from', '')
+            context['filter_created_to'] = self.request.GET.get('filter_created_to', '')
+            context['filter_expires_from'] = self.request.GET.get('filter_expires_from', '')
+            context['filter_expires_to'] = self.request.GET.get('filter_expires_to', '')
+            context['active_filter_count'] = sum(bool(context[k]) for k in [
+                'filter_approval', 'filter_creator', 'filter_approver',
+                'filter_created_from', 'filter_created_to',
+                'filter_expires_from', 'filter_expires_to',
+            ])
         return context
 
     @staticmethod

@@ -42,12 +42,95 @@
             {% if can_use_favorite %}
                 <a
                     class="btn {% if favorite_only %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                    {% if not favorite_only %}style="background-color:rgba(255,193,7,.18);"{% endif %}
                     href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if not favorite_only %}&favorite_only=1{% endif %}"
                 >
                     {% if favorite_only %}☆表示解除{% else %}☆のみ表示{% endif %}
                 </a>
             {% endif %}
+            {% if can_edit_article %}
+                <button
+                    class="btn {% if active_filter_count %}btn-info{% else %}btn-outline-info{% endif %} position-relative"
+                    {% if not active_filter_count %}style="background-color:rgba(13,202,240,.18);"{% endif %}
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#faqFilterPanel"
+                    aria-expanded="{% if active_filter_count %}true{% else %}false{% endif %}"
+                    aria-controls="faqFilterPanel"
+                >
+                    <i class="bi bi-funnel"></i> フィルター{% if active_filter_count %}<span class="badge rounded-pill bg-danger ms-1" style="font-size:0.65rem;">{{ active_filter_count }}</span>{% endif %}
+                </button>
+            {% endif %}
         </div>
+        {% if can_edit_article %}
+        <div class="col-12">
+            <div class="collapse {% if active_filter_count %}show{% endif %}" id="faqFilterPanel">
+                <div class="border rounded p-3 mt-1" style="background:var(--tk-panel-bg,#fff);">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-12 col-md-3 col-xl-2">
+                            <label class="form-label small fw-semibold mb-1">承認状態</label>
+                            <select class="form-select form-select-sm" name="filter_approval">
+                                <option value="">すべて</option>
+                                <option value="approved" {% if filter_approval == 'approved' %}selected{% endif %}>承認済</option>
+                                <option value="remanded" {% if filter_approval == 'remanded' %}selected{% endif %}>差戻し</option>
+                                <option value="pending" {% if filter_approval == 'pending' %}selected{% endif %}>登録（未承認）</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3 col-xl-3">
+                            <div class="d-flex flex-column gap-2">
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">作成者</label>
+                                    <select class="form-select form-select-sm" name="filter_creator">
+                                        <option value="">すべて</option>
+                                        {% for cid, cname in filter_creator_choices %}
+                                            <option value="{{ cid }}" {% if filter_creator == cid|stringformat:"s" %}selected{% endif %}>{{ cname }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">承認者</label>
+                                    <select class="form-select form-select-sm" name="filter_approver">
+                                        <option value="">すべて</option>
+                                        {% for aid, aname in filter_approver_choices %}
+                                            <option value="{{ aid }}" {% if filter_approver == aid|stringformat:"s" %}selected{% endif %}>{{ aname }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-3 col-xl-2">
+                            <div class="d-flex flex-column gap-2">
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">作成日（開始）</label>
+                                    <input type="date" class="form-control form-control-sm" name="filter_created_from" value="{{ filter_created_from }}">
+                                </div>
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">作成日（終了）</label>
+                                    <input type="date" class="form-control form-control-sm" name="filter_created_to" value="{{ filter_created_to }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-3 col-xl-2">
+                            <div class="d-flex flex-column gap-2">
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">掲載期限（開始）</label>
+                                    <input type="date" class="form-control form-control-sm" name="filter_expires_from" value="{{ filter_expires_from }}">
+                                </div>
+                                <div>
+                                    <label class="form-label small fw-semibold mb-1">掲載期限（終了）</label>
+                                    <input type="date" class="form-control form-control-sm" name="filter_expires_to" value="{{ filter_expires_to }}">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 d-flex gap-2 justify-content-end mt-1">
+                            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> 絞り込む</button>
+                            <a href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if favorite_only %}&favorite_only=1{% endif %}" class="btn btn-outline-secondary btn-sm">フィルター解除</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
     </form>
 </div>
 
