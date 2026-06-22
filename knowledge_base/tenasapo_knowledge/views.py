@@ -1183,6 +1183,7 @@ class ArticleListView(ListView):
             .filter(active_until_filter())
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
+            .order_by('-management_code', '-created_at')
         )
 
         user = self.request.user
@@ -1523,6 +1524,7 @@ class TipsListView(ListView):
             .filter(active_until_filter())
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
+            .order_by('-management_code', '-created_at')
         )
 
         user = self.request.user
