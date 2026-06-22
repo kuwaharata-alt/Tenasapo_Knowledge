@@ -75,6 +75,14 @@
             <thead class="table-light">
                 <tr>
                     <th style="width: 5rem;">種別</th>
+                    <th style="width: 10rem;" class="text-nowrap">
+                        <a href="{{ sort_management_code_url }}" class="link-dark text-decoration-none">
+                            管理番号
+                            {% if sort_by == 'management_code' %}
+                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
+                            {% endif %}
+                        </a>
+                    </th>
                     <th>
                         <a href="{{ sort_title_url }}" class="link-dark text-decoration-none">
                             タイトル
@@ -106,6 +114,7 @@
                                 <span class="badge text-bg-info text-white">Tips</span>
                             {% endif %}
                         </td>
+                        <td class="small text-muted text-nowrap">{{ item.management_code|default:"-" }}</td>
                         <td>{{ item.title }}</td>
                         <td class="small text-muted">{{ item.creator_display_name|default:"-" }}</td>
                         <td class="small text-muted">{{ item.created_at|date:"Y/m/d" }}</td>
@@ -150,7 +159,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">レビュー対象データがありません。</td>
+                        <td colspan="7" class="text-center text-muted py-4">レビュー対象データがありません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
