@@ -4340,22 +4340,34 @@ class ReviewListView(TemplateView):
             filtered_items.append(item)
 
         # ソート処理
-        def management_number(value):
+        def management_parts(value):
             if not value:
-                return -1
-            digits = ''.join(ch for ch in str(value) if ch.isdigit())
+                return '', -1
+            text = str(value)
+            prefix = ''.join(ch for ch in text if ch.isalpha()).upper()
+            digits = ''.join(ch for ch in text if ch.isdigit())
             if not digits:
-                return -1
-            return int(digits)
+                return prefix, -1
+            return prefix, int(digits)
 
         for item in filtered_items:
-            item['management_number'] = management_number(item.get('management_code'))
+            prefix, number = management_parts(item.get('management_code'))
+            item['management_prefix'] = prefix
+            item['management_number'] = number
 
         reverse = (sort_dir == 'desc')
         if sort_by == 'management_code':
+            prefix_priority = {'FQ': 0, 'TP': 1}
+
+            def management_sort_key(item):
+                priority = prefix_priority.get(item.get('management_prefix', ''), 99)
+                number = item.get('management_number', -1)
+                if reverse:
+                    return (priority, -number, item.get('management_code', ''))
+                return (priority, number, item.get('management_code', ''))
+
             filtered_items.sort(
-                key=lambda item: (item.get('management_number', -1), item.get('management_code', '')),
-                reverse=reverse,
+                key=management_sort_key,
             )
         else:
             filtered_items.sort(key=lambda item: item.get(sort_by, ''), reverse=reverse)
