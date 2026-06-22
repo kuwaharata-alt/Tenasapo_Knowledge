@@ -866,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function() {
             branding: false,
             height: 340,
             plugins: 'lists link code paste',
-            toolbar: 'undo redo | bold underline strikethrough | forecolor | fontsize | bullist numlist numlist_start | blockquote | link | removeformat | code | tk_heading1 tk_border | styles',
+            toolbar: 'undo redo | bold underline strikethrough | forecolor backcolor | fontsize | bullist numlist numlist_start | blockquote | link | removeformat | code | tk_heading1 tk_border | styles',
             fontsize_formats: '8pt 9pt 10pt 11pt 12pt 13pt 14pt 15pt 16pt 17pt 18pt',
             paste_as_text: true,
             smart_paste: false,
@@ -906,10 +906,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     format: 'tk_point'
                 }
             ],
-            content_style: 'body { font-family: "Meiryo UI", "Meiryo", "Yu Gothic UI", "Yu Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; } .tk-heading1-line::before { content: "■ "; } ul, ol { margin: 0.25rem 0 0.25rem 0.75em; padding-left: 0; list-style-position: outside; } li { padding-left: 0; text-indent: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
+            content_style: 'body { font-family: "Meiryo UI", "Meiryo", "Yu Gothic UI", "Yu Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; margin-left: 1cm; margin-right: 1cm; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; } .tk-heading1-line::before { content: "■ "; } ul, ol { margin: 0.25rem 0 0.25rem 1.5em; padding-left: 1em; list-style-position: outside; } li { padding-left: 0; text-indent: 0; margin-bottom: 0.1rem; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
             valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[class|style],ul,ol[start],li[value],a[href|target|rel],h1[class|style],h2[class|style],h3[class|style],h4[class|style],blockquote,pre,code',
             valid_styles: {
-                '*': 'color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,text-indent,line-height'
+                '*': 'color,background-color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,text-indent,line-height'
             },
             setup: function(editor) {
                 editor.on('init', function() {
