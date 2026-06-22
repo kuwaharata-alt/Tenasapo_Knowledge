@@ -178,6 +178,9 @@
                                         <button
                                             class="btn btn-outline-danger btn-sm"
                                             type="submit"
+                                            data-skip-editor-validation="true"
+                                            data-skip-preview="true"
+                                            formnovalidate
                                             formaction="{% url 'tip_image_delete' image.id %}"
                                             formmethod="post"
                                             onclick="return confirm('この画像を削除しますか？');"
@@ -982,6 +985,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         document.querySelectorAll('form').forEach(function(form) {
             form.addEventListener('submit', function(e) {
+                const submitter = e.submitter;
+                if (submitter && submitter.dataset.skipEditorValidation === 'true') {
+                    return;
+                }
                 if (window.tinymce) {
                     tinymce.triggerSave();
                     
@@ -1621,6 +1628,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tipsMainForm) {
         tipsMainForm.addEventListener('submit', function(e) {
             syncTipsFormBeforeSubmit();
+            const submitter = e.submitter;
+            if (submitter && submitter.dataset.skipPreview === 'true') {
+                return;
+            }
             if (isTipsPreviewConfirmed) {
                 return;
             }

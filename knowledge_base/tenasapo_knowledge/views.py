@@ -4218,7 +4218,7 @@ class ReviewListView(TemplateView):
         creator_filter = (self.request.GET.get('creator_id') or '').strip()
         date_from = (self.request.GET.get('date_from') or '').strip()
         date_to = (self.request.GET.get('date_to') or '').strip()
-        sort_by = (self.request.GET.get('sort') or 'created_at').strip().lower()
+        sort_by = (self.request.GET.get('sort') or 'management_code').strip().lower()
         sort_dir = (self.request.GET.get('sort_dir') or 'desc').strip().lower()
 
         date_from_value = None
@@ -4235,8 +4235,8 @@ class ReviewListView(TemplateView):
                 date_to = ''
         
         # ソート条件の検証
-        if sort_by not in {'created_at', 'updated_at', 'title'}:
-            sort_by = 'created_at'
+        if sort_by not in {'management_code', 'created_at', 'updated_at', 'title'}:
+            sort_by = 'management_code'
         if sort_dir not in {'asc', 'desc'}:
             sort_dir = 'desc'
         
@@ -4267,6 +4267,7 @@ class ReviewListView(TemplateView):
                         'type': 'faq',
                         'id': article.id,
                         'title': article.title,
+                        'management_code': article.management_code or '',
                         'creator_id': article.created_by_id,
                         'creator_display_name': resolve_saved_or_user_display_name(
                             article.created_by_name,
@@ -4301,6 +4302,7 @@ class ReviewListView(TemplateView):
                         'type': 'tips',
                         'id': tip.id,
                         'title': tip.title,
+                        'management_code': tip.management_code or '',
                         'creator_id': tip.created_by_id,
                         'creator_display_name': resolve_saved_or_user_display_name(
                             tip.created_by_name,
@@ -4338,8 +4340,25 @@ class ReviewListView(TemplateView):
             filtered_items.append(item)
 
         # ソート処理
+        def management_number(value):
+            if not value:
+                return -1
+            digits = ''.join(ch for ch in str(value) if ch.isdigit())
+            if not digits:
+                return -1
+            return int(digits)
+
+        for item in filtered_items:
+            item['management_number'] = management_number(item.get('management_code'))
+
         reverse = (sort_dir == 'desc')
-        filtered_items.sort(key=lambda item: item.get(sort_by, ''), reverse=reverse)
+        if sort_by == 'management_code':
+            filtered_items.sort(
+                key=lambda item: (item.get('management_number', -1), item.get('management_code', '')),
+                reverse=reverse,
+            )
+        else:
+            filtered_items.sort(key=lambda item: item.get(sort_by, ''), reverse=reverse)
 
         review_items = filtered_items
 
@@ -4359,6 +4378,7 @@ class ReviewListView(TemplateView):
         context['date_to'] = date_to
         context['sort_by'] = sort_by
         context['sort_dir'] = sort_dir
+        context['sort_management_code_url'] = build_sort_url('management_code')
         context['sort_title_url'] = build_sort_url('title')
         context['sort_created_at_url'] = build_sort_url('created_at')
         context['creator_list'] = creator_list
