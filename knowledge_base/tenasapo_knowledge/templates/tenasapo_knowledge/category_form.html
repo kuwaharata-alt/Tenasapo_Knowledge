@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}{{ form_title }} | Nexus{% endblock %}
 
@@ -77,12 +77,12 @@
                     </div>
                     {% endif %}
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">サブカテゴリ1（任意）</label>
+                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">中カテゴリ（任意）</label>
                         <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証">
                         {% for error in form.middle_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.child_name.id_for_label }}">サブカテゴリ2</label>
+                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ</label>
                         <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源" required>
                         {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
@@ -127,7 +127,7 @@
                     <div class="category-browser-pane">
                         <div class="category-browser-pane-title">小カテゴリ</div>
                         <div class="category-browser-list">
-                            <div id="subcategory2Pane" class="category-browser-empty">サブカテゴリ1を選択してください。</div>
+                            <div id="subcategory2Pane" class="category-browser-empty">中カテゴリを選択してください。</div>
                         </div>
                     </div>
                 </div>
@@ -153,13 +153,13 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderSub2(parentName, sub1Name) {
         const parent = data.find(item => item.name === parentName);
         if (!parent) {
-            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
             return;
         }
 
         const middle = (parent.middles || []).find(item => item.name === sub1Name);
         if (!middle || !Array.isArray(middle.children) || middle.children.length === 0) {
-            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ2はありません。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">小カテゴリはありません。</div>';
             return;
         }
 
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const parent = data.find(item => item.name === parentName);
         if (!parent) {
             sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
-            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
             return;
         }
 
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
-        sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+        sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
 
         sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
             button.addEventListener('click', function () {

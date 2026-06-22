@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}{{ form_title|default:"Tips登録" }} | Tenasapo Knowledge{% endblock %}
 
@@ -42,15 +42,15 @@
                                     </div>
                                 </div>
                                 <div class="category-browser-pane">
-                                    <div class="category-browser-pane-title">サブカテゴリ1</div>
+                                    <div class="category-browser-pane-title">中カテゴリ</div>
                                     <div class="category-browser-list" id="tipsCategorySub1Pane">
                                         <div class="category-browser-empty">大カテゴリを選択してください。</div>
                                     </div>
                                 </div>
                                 <div class="category-browser-pane">
-                                    <div class="category-browser-pane-title">サブカテゴリ2</div>
+                                    <div class="category-browser-pane-title">小カテゴリ</div>
                                     <div class="category-browser-list" id="tipsCategorySub2Pane">
-                                        <div class="category-browser-empty">サブカテゴリ1を選択してください。</div>
+                                        <div class="category-browser-empty">中カテゴリを選択してください。</div>
                                     </div>
                                 </div>
                             </div>
@@ -593,12 +593,12 @@ document.addEventListener('DOMContentLoaded', function() {
         function renderSub2(parentName, sub1Name) {
             const parent = data.find(item => item.name === parentName);
             if (!parent) {
-                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+                sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
                 return;
             }
             const middle = (parent.middles || []).find(item => item.name === sub1Name);
             if (!middle || !Array.isArray(middle.children) || middle.children.length === 0) {
-                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ2はありません。</div>';
+                sub2Pane.innerHTML = '<div class="category-browser-empty">小カテゴリはありません。</div>';
                 return;
             }
             sub2Pane.innerHTML = middle.children.map(item => categoryCheckboxHTML(item, 'tips-sub2-')).join('');
@@ -641,7 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const parent = data.find(item => item.name === parentName);
             if (!parent) {
                 sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
-                sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+                sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
                 activeParentName = '';
                 activeSub1Name = '';
                 setActiveParent('');
@@ -667,7 +667,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
             syncSelectedFromPane(sub1Pane);
-            sub2Pane.innerHTML = '<div class="category-browser-empty">サブカテゴリ1を選択してください。</div>';
+            sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
 
             sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
                 button.addEventListener('click', function() {
