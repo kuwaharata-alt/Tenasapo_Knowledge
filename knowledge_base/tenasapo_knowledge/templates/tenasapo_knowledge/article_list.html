@@ -144,7 +144,10 @@
                                 <article class="accordion-item faq-item">
                                     <h3 class="accordion-header" id="faqHeading{{ forloop.parentloop.counter }}{{ article.id }}">
                                         <div class="faq-question d-flex align-items-center gap-3 p-3">
-                                            <span class="badge text-bg-primary flex-shrink-0">FAQ</span>
+                                            <div class="d-flex flex-column align-items-start gap-1 flex-shrink-0">
+                                                <span class="badge text-bg-primary">FAQ</span>
+                                                {% if not current_user_is_customer and article.management_code %}<span class="badge text-bg-light border text-muted" style="font-size:0.7rem;">{{ article.management_code }}</span>{% endif %}
+                                            </div>
                                             <div class="flex-grow-1">
                                                    <div class="faq-question-title fw-semibold">{{ article.title }}</div>
                                                 {% if article.can_view_content and article.category_chips %}

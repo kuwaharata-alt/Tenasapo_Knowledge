@@ -171,6 +171,7 @@ class KnowledgeArticle(models.Model):
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
     remand_reason = models.TextField('差し戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
+    management_code = models.CharField('管理番号', max_length=10, unique=True, blank=True, null=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -181,6 +182,22 @@ class KnowledgeArticle(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.management_code:
+            prefix = 'FQ'
+            last = KnowledgeArticle.objects.filter(
+                management_code__startswith=prefix
+            ).order_by('management_code').last()
+            if last and last.management_code:
+                try:
+                    num = int(last.management_code[len(prefix):]) + 1
+                except ValueError:
+                    num = 1
+            else:
+                num = 1
+            self.management_code = f'{prefix}{num:05d}'
+        super().save(*args, **kwargs)
 
 
 class KnowledgeArticleImageAttachment(models.Model):
@@ -238,6 +255,7 @@ class TipsArticle(models.Model):
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
     remand_reason = models.TextField('差し戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
+    management_code = models.CharField('管理番号', max_length=10, unique=True, blank=True, null=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -248,6 +266,22 @@ class TipsArticle(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        if not self.management_code:
+            prefix = 'TP'
+            last = TipsArticle.objects.filter(
+                management_code__startswith=prefix
+            ).order_by('management_code').last()
+            if last and last.management_code:
+                try:
+                    num = int(last.management_code[len(prefix):]) + 1
+                except ValueError:
+                    num = 1
+            else:
+                num = 1
+            self.management_code = f'{prefix}{num:05d}'
+        super().save(*args, **kwargs)
 
 
 class TipsImageAttachment(models.Model):
@@ -294,6 +328,7 @@ class ConvenienceFeature(models.Model):
     display_text = models.CharField('内容', max_length=200)
     note = models.TextField('備考', blank=True)
     image = models.FileField('画像', upload_to='manuals/%Y/%m/', blank=True)
+    management_code = models.CharField('管理番号', max_length=10, unique=True, blank=True, null=True)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -304,6 +339,22 @@ class ConvenienceFeature(models.Model):
 
     def __str__(self):
         return f'{self.category} - {self.display_text}'
+
+    def save(self, *args, **kwargs):
+        if not self.management_code:
+            prefix = 'QR'
+            last = ConvenienceFeature.objects.filter(
+                management_code__startswith=prefix
+            ).order_by('management_code').last()
+            if last and last.management_code:
+                try:
+                    num = int(last.management_code[len(prefix):]) + 1
+                except ValueError:
+                    num = 1
+            else:
+                num = 1
+            self.management_code = f'{prefix}{num:05d}'
+        super().save(*args, **kwargs)
 
 
 class ConvenienceFavorite(models.Model):

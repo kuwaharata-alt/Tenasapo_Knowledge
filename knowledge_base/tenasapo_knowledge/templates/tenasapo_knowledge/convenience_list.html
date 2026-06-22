@@ -107,7 +107,8 @@
                             <table class="table table-hover align-middle mb-0 bg-white">
                                 <thead class="table-light">
                                     <tr>
-                                        <th class="text-center" style="width: 44%;">内容</th>
+                                        <th class="text-center" style="width: 8rem;">管理番号</th>
+                                        <th class="text-center" style="width: 36%;">内容</th>
                                         <th class="text-center" style="width: 24%;">ショートカットキー</th>
                                         <th class="text-center" style="width: 12%;">頻度</th>
                                         <th class="text-center" style="width: 20%;">操作</th>
@@ -116,6 +117,7 @@
                                 <tbody>
                                     {% for feature in group.features %}
                                         <tr>
+                                            <td class="text-center text-muted small text-nowrap">{{ feature.management_code|default:"-" }}</td>
                                             <td style="font-size: 12pt;">{{ feature.display_text }}</td>
                                             <td class="text-center">
                                                 {% with shortcut_parts=feature.shortcut_key|split_plus %}

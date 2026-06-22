@@ -8,6 +8,7 @@
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"QR登録" }}
+                {% if feature and feature.management_code %}<span class="badge bg-secondary" style="font-size:0.75rem;">{{ feature.management_code }}</span>{% endif %}
             </h1>
         </div>
 
