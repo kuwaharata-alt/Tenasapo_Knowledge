@@ -183,7 +183,7 @@ def in_group(user, group_name):
     return user.groups.filter(name=group_name).exists()
 
 
-def resolve_next_path(request, fallback_url_name):
+def resolve_next_path(request, fallback_url_name, **fallback_kwargs):
     candidate = (request.POST.get('next') or request.GET.get('next') or '').strip()
     if candidate and url_has_allowed_host_and_scheme(
         url=candidate,
@@ -191,6 +191,8 @@ def resolve_next_path(request, fallback_url_name):
         require_https=request.is_secure(),
     ):
         return candidate
+    if fallback_kwargs:
+        return reverse_lazy(fallback_url_name, kwargs=fallback_kwargs)
     return reverse_lazy(fallback_url_name)
 
 
@@ -234,6 +236,10 @@ def can_republish_hidden_content(user):
             or in_group(user, ADMIN_GROUP_NAME)
         )
     )
+
+
+def can_reset_approval(user):
+    return user.is_authenticated and user.username.lower() in PASSWORD_MANAGER_USERNAMES
 
 
 def profile_user_type_from_groups(group_names):
@@ -1834,6 +1840,7 @@ class TipsUpdateView(FormView):
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_tip'] = can_approve_article(self.request.user)
         context['can_remand_tip'] = can_approve_article(self.request.user)
+        context['can_reset_tip_approval'] = can_reset_approval(self.request.user)
         context['tip_approval_status'] = approval_status_value(self.tip)
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
@@ -1848,6 +1855,15 @@ class TipsUpdateView(FormView):
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
         context['tip_images'] = self.tip.images.all().order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            context['return_to'] = candidate
+        else:
+            context['return_to'] = ''
         context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
@@ -1918,13 +1934,16 @@ class TipsApproveView(View):
 
         standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
+        visible_to_customer_raw = str(request.POST.get('visible_to_customer', '1')).strip().lower()
+        visible_to_customer = visible_to_customer_raw in {'1', 'true', 'on', 'yes'}
 
         tip.is_approved = True
         tip.standard_contract_only = standard_contract_only
+        tip.visible_to_customer = visible_to_customer
         tip.approved_by = request.user
         tip.approved_by_name = resolve_user_display_name(request.user)
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
@@ -1948,6 +1967,22 @@ class TipsRemandView(View):
         tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」を差し戻しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
+
+
+class TipsApprovalResetView(View):
+    def post(self, request, pk):
+        if not can_reset_approval(request.user):
+            messages.error(request, '承認リセットを実行する権限がありません。')
+            return redirect(resolve_next_path(request, 'tip_list'))
+
+        tip = get_object_or_404(TipsArticle, pk=pk)
+        tip.is_approved = False
+        tip.approved_by = None
+        tip.approved_by_name = ''
+        tip.remand_reason = ''
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        messages.success(request, f'Tips「{tip.title}」の承認をリセットしました。')
+        return redirect(resolve_next_path(request, 'tip_edit', pk=pk))
 
 
 class TipsDeleteView(View):
@@ -3261,6 +3296,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_approve_article'] = can_approve_article(self.request.user)
         context['can_remand_article'] = can_approve_article(self.request.user)
+        context['can_reset_article_approval'] = can_reset_approval(self.request.user)
         context['article_approval_status'] = approval_status_value(self.article)
         context['question_images'] = self.article.attachments.filter(
             placement=ArticleAttachment.PLACEMENT_QUESTION
@@ -3276,6 +3312,15 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         )
         context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
         context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            context['return_to'] = candidate
+        else:
+            context['return_to'] = ''
         context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
@@ -3346,15 +3391,34 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
 
         standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
+        visible_to_customer_raw = str(request.POST.get('visible_to_customer', '1')).strip().lower()
+        visible_to_customer = visible_to_customer_raw in {'1', 'true', 'on', 'yes'}
 
         article.is_approved = True
         article.standard_contract_only = standard_contract_only
+        article.visible_to_customer = visible_to_customer
         article.approved_by = request.user
         article.approved_by_name = resolve_user_display_name(request.user)
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'standard_contract_only', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'article_list'))
+
+
+class KnowledgeArticleApprovalResetView(View):
+    def post(self, request, pk):
+        if not can_reset_approval(request.user):
+            messages.error(request, '承認リセットを実行する権限がありません。')
+            return redirect(resolve_next_path(request, 'article_list'))
+
+        article = get_object_or_404(KnowledgeArticle, pk=pk)
+        article.is_approved = False
+        article.approved_by = None
+        article.approved_by_name = ''
+        article.remand_reason = ''
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        messages.success(request, f'FAQ「{article.title}」の承認をリセットしました。')
+        return redirect(resolve_next_path(request, 'article_edit', pk=pk))
 
 
 class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
@@ -4213,8 +4277,10 @@ class ReviewListView(TemplateView):
                         'approval_status': approval_status_value(article),
                         'remand_reason': article.remand_reason,
                         'standard_contract_only': article.standard_contract_only,
+                        'visible_to_customer': article.visible_to_customer,
                         'approve_url_name': 'article_approve',
                         'remand_url_name': 'article_remand',
+                        'edit_url_name': 'article_edit',
                         'question': article.summary,
                         'answer': article.body,
                         'question_images': question_images,
@@ -4245,8 +4311,10 @@ class ReviewListView(TemplateView):
                         'approval_status': approval_status_value(tip),
                         'remand_reason': tip.remand_reason,
                         'standard_contract_only': tip.standard_contract_only,
+                        'visible_to_customer': tip.visible_to_customer,
                         'approve_url_name': 'tip_approve',
                         'remand_url_name': 'tip_remand',
+                        'edit_url_name': 'tip_edit',
                         'body': tip.body,
                         'inline_images': sorted(
                             tip.images.all(),
@@ -4296,6 +4364,7 @@ class ReviewListView(TemplateView):
         context['creator_list'] = creator_list
         context['review_items'] = review_items
         context['can_approve_review'] = can_approve_article(self.request.user)
+        context['use_edit_button_in_review_list'] = can_reset_approval(self.request.user)
         context['return_to'] = self.request.get_full_path()
         return context
 

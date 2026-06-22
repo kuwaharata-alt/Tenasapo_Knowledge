@@ -127,17 +127,25 @@
                             {% endif %}
                         </td>
                         <td>
-                            <button
-                                class="btn btn-outline-primary btn-sm review-open-btn"
-                                type="button"
-                                data-bs-toggle="modal"
-                                data-bs-target="#reviewModal"
-                                data-review-id="review-content-{{ item.type }}-{{ item.id }}"
-                                data-title="{{ item.title|escape }}"
-                                data-approve-url="{% url item.approve_url_name item.id %}"
-                                data-remand-url="{% url item.remand_url_name item.id %}"
-                                data-standard-only="{% if item.standard_contract_only %}1{% else %}0{% endif %}"
-                            >レビュー</button>
+                            {% if use_edit_button_in_review_list %}
+                                <a
+                                    class="btn btn-outline-primary btn-sm"
+                                    href="{% url item.edit_url_name item.id %}?next={{ return_to|urlencode }}"
+                                >編集</a>
+                            {% else %}
+                                <button
+                                    class="btn btn-outline-primary btn-sm review-open-btn"
+                                    type="button"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#reviewModal"
+                                    data-review-id="review-content-{{ item.type }}-{{ item.id }}"
+                                    data-title="{{ item.title|escape }}"
+                                    data-approve-url="{% url item.approve_url_name item.id %}"
+                                    data-remand-url="{% url item.remand_url_name item.id %}"
+                                    data-standard-only="{% if item.standard_contract_only %}1{% else %}0{% endif %}"
+                                    data-visible-to-customer="{% if item.visible_to_customer %}1{% else %}0{% endif %}"
+                                >レビュー</button>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}
@@ -193,9 +201,15 @@
                 <div id="reviewPreviewBody" class="mb-3 text-muted">レビュー対象を選択してください。</div>
                 {% if can_approve_review %}
                     <div class="border-top pt-3 d-flex flex-column gap-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="reviewStandardOnly" checked>
-                            <label class="form-check-label" for="reviewStandardOnly">Demo制限</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="reviewStandardOnly" checked>
+                                <label class="form-check-label" for="reviewStandardOnly">Demo制限</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="reviewVisibleToCustomer" checked>
+                                <label class="form-check-label" for="reviewVisibleToCustomer">カスタマーユーザーに公開する</label>
+                            </div>
                         </div>
                         <div class="d-flex flex-nowrap gap-2 align-items-stretch">
                             <button class="btn btn-success px-4 text-nowrap" type="button" id="reviewApproveBtn">承認</button>
@@ -227,6 +241,7 @@
     <form id="reviewApproveForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="standard_contract_only" id="reviewStandardOnlyValue" value="0">
+        <input type="hidden" name="visible_to_customer" id="reviewVisibleToCustomerValue" value="1">
         <input type="hidden" name="next" value="{{ return_to }}">
     </form>
     <form id="reviewRemandForm" method="post" class="d-none">
@@ -261,9 +276,13 @@ document.addEventListener('DOMContentLoaded', function() {
             currentRemandUrl = this.dataset.remandUrl || '';
 
             const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
+            const visibleToCustomerCheckbox = document.getElementById('reviewVisibleToCustomer');
             const commentInput = document.getElementById('reviewComment');
             if (standardOnlyCheckbox) {
-                standardOnlyCheckbox.checked = true;
+                standardOnlyCheckbox.checked = (this.dataset.standardOnly || '0') === '1';
+            }
+            if (visibleToCustomerCheckbox) {
+                visibleToCustomerCheckbox.checked = (this.dataset.visibleToCustomer || '1') === '1';
             }
             if (commentInput) {
                 commentInput.value = '';
@@ -284,8 +303,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const approveForm = document.getElementById('reviewApproveForm');
             const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
             const standardOnlyValue = document.getElementById('reviewStandardOnlyValue');
+            const visibleToCustomerCheckbox = document.getElementById('reviewVisibleToCustomer');
+            const visibleToCustomerValue = document.getElementById('reviewVisibleToCustomerValue');
             approveForm.action = currentApproveUrl;
             standardOnlyValue.value = standardOnlyCheckbox.checked ? '1' : '0';
+            visibleToCustomerValue.value = visibleToCustomerCheckbox.checked ? '1' : '0';
             approveForm.submit();
         });
     }

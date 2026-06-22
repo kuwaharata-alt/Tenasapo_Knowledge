@@ -185,7 +185,7 @@
                                                 <div class="d-flex align-items-center gap-1">
                                                     {% if can_edit_tip %}
                                                         {% if can_edit_tip %}
-                                                            <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}">編集</a>
+                                                            <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
                                                         {% endif %}
                                                         {% if can_use_favorite %}
                                                             <button

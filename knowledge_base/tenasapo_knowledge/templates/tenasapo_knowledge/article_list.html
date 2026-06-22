@@ -187,7 +187,7 @@
                                                 <div class="d-flex align-items-center gap-1">
                                                     {% if can_edit_article %}
                                                         {% if can_edit_article %}
-                                                            <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'article_edit' article.id %}">編集</a>
+                                                            <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'article_edit' article.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
                                                         {% endif %}
                                                         {% if can_use_favorite %}
                                                             <button

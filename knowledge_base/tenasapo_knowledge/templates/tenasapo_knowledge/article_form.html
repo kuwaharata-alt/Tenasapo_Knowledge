@@ -308,6 +308,13 @@
                                 {% if article_approval_status == 'approved' %}
                                     <span class="badge text-bg-success">承認</span>
                                     <span class="badge faq-meta-badge">承認者 {{ article_approver_display_name|default:"-" }}</span>
+                                    {% if can_reset_article_approval %}
+                                        <form method="post" action="{% url 'article_approval_reset' article.id %}" class="d-inline" onsubmit="return confirm('このFAQの承認をリセットしますか？');">
+                                            {% csrf_token %}
+                                            {% if return_to %}<input type="hidden" name="next" value="{{ return_to }}">{% endif %}
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-2" type="submit">承認リセット</button>
+                                        </form>
+                                    {% endif %}
                                 {% elif article_approval_status == 'remanded' %}
                                     <span class="badge text-bg-warning">差し戻し</span>
                                     <button
