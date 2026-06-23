@@ -176,8 +176,11 @@ STATICFILES_DIRS = [
     BASE_DIR / 'logo',
 ]
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+MEDIA_URL = os.getenv('MEDIA_URL', '/media/')
+
+default_media_root = '/home/site/media' if is_running_on_azure else str(BASE_DIR / 'media')
+MEDIA_ROOT = os.getenv('MEDIA_ROOT', default_media_root)
+os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
