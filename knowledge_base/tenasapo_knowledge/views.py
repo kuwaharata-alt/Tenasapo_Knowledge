@@ -1366,6 +1366,19 @@ class ArticleListView(ListView):
             selected_parent,
             [group['name'] for group in parent_categories],
         )
+        open_code = (self.request.GET.get('open_code') or '').strip()
+        open_id_raw = (self.request.GET.get('open_id') or '').strip()
+        open_article_id = None
+        if open_code:
+            for article in visible_articles:
+                if article.management_code == open_code:
+                    open_article_id = article.id
+                    break
+        elif open_id_raw.isdigit():
+            open_id = int(open_id_raw)
+            if any(article.id == open_id for article in visible_articles):
+                open_article_id = open_id
+        context['open_article_id'] = open_article_id
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         if can_edit_article(self.request.user):
@@ -1701,6 +1714,19 @@ class TipsListView(ListView):
             selected_parent,
             [group['name'] for group in parent_categories],
         )
+        open_code = (self.request.GET.get('open_code') or '').strip()
+        open_id_raw = (self.request.GET.get('open_id') or '').strip()
+        open_tip_id = None
+        if open_code:
+            for tip in visible_tips:
+                if tip.management_code == open_code:
+                    open_tip_id = tip.id
+                    break
+        elif open_id_raw.isdigit():
+            open_id = int(open_id_raw)
+            if any(tip.id == open_id for tip in visible_tips):
+                open_tip_id = open_id
+        context['open_tip_id'] = open_tip_id
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         if can_edit_article(self.request.user):

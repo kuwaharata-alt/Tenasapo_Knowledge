@@ -449,6 +449,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const trackUrl = "{% url 'faq_answer_track_view' %}";
     const toggleGoodUrl = "{% url 'faq_toggle_good' %}";
     const toggleFavoriteUrl = "{% url 'faq_toggle_favorite' %}";
+    const openArticleId = Number("{{ open_article_id|default:''|escapejs }}");
     const filterState = {
         search_query: "{{ query|escapejs }}",
         parent_category: "{{ selected_parent_category|escapejs }}",
@@ -462,12 +463,43 @@ document.addEventListener('DOMContentLoaded', function() {
         return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
     }
 
+    function adjustExpandedItemIntoView(panel) {
+        const accordionItem = panel.closest('.faq-item');
+        if (!accordionItem) {
+            return;
+        }
+
+        const rootStyle = getComputedStyle(document.documentElement);
+        const navbarOffsetRaw = rootStyle.getPropertyValue('--tk-navbar-offset').trim();
+        const parsedOffset = Number.parseFloat(navbarOffsetRaw);
+        const navbarOffsetPx = Number.isFinite(parsedOffset) ? parsedOffset * 16 : 72;
+        const topPadding = navbarOffsetPx + 12;
+
+        const ensureVisible = () => {
+            const rect = accordionItem.getBoundingClientRect();
+            const topLimit = topPadding;
+            const bottomLimit = window.innerHeight - 12;
+            if (rect.top < topLimit || rect.bottom > bottomLimit) {
+                const targetY = window.scrollY + rect.top - topPadding;
+                window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
+            }
+        };
+
+        ensureVisible();
+        requestAnimationFrame(() => {
+            requestAnimationFrame(ensureVisible);
+        });
+        setTimeout(ensureVisible, 220);
+    }
+
     document.querySelectorAll('.accordion-collapse[data-article-id]').forEach(panel => {
         panel.addEventListener('shown.bs.collapse', function() {
             const accordionItem = this.closest('.faq-item');
             if (accordionItem) {
                 accordionItem.classList.add('faq-item-expanded');
             }
+
+            adjustExpandedItemIntoView(this);
 
             const articleId = this.dataset.articleId;
             if (!articleId) {
@@ -497,6 +529,14 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    if (Number.isInteger(openArticleId) && openArticleId > 0) {
+        const targetPanel = document.querySelector(`.accordion-collapse[data-article-id="${openArticleId}"]`);
+        if (targetPanel) {
+            const collapse = bootstrap.Collapse.getOrCreateInstance(targetPanel, { toggle: false });
+            collapse.show();
+        }
+    }
 
     document.querySelectorAll('.faq-good-btn[data-article-id]').forEach(button => {
         button.addEventListener('click', function() {

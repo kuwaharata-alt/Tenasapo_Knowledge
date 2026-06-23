@@ -441,6 +441,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs
 const trackViewUrl = "{% url 'tip_track_view' %}";
 const toggleGoodUrl = "{% url 'tip_toggle_good' %}";
 const toggleFavoriteUrl = "{% url 'tip_toggle_favorite' %}";
+const openTipId = Number("{{ open_tip_id|default:''|escapejs }}");
 const filterState = {
     search_query: "{{ query|escapejs }}",
     parent_category: "{{ selected_parent_category|escapejs }}",
@@ -452,6 +453,35 @@ function getCookie(name) {
         .split('; ')
         .find(row => row.startsWith(name + '='));
     return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+}
+
+function adjustExpandedItemIntoView(panel) {
+    const accordionItem = panel.closest('.faq-item');
+    if (!accordionItem) {
+        return;
+    }
+
+    const rootStyle = getComputedStyle(document.documentElement);
+    const navbarOffsetRaw = rootStyle.getPropertyValue('--tk-navbar-offset').trim();
+    const parsedOffset = Number.parseFloat(navbarOffsetRaw);
+    const navbarOffsetPx = Number.isFinite(parsedOffset) ? parsedOffset * 16 : 72;
+    const topPadding = navbarOffsetPx + 12;
+
+    const ensureVisible = () => {
+        const rect = accordionItem.getBoundingClientRect();
+        const topLimit = topPadding;
+        const bottomLimit = window.innerHeight - 12;
+        if (rect.top < topLimit || rect.bottom > bottomLimit) {
+            const targetY = window.scrollY + rect.top - topPadding;
+            window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
+        }
+    };
+
+    ensureVisible();
+    requestAnimationFrame(() => {
+        requestAnimationFrame(ensureVisible);
+    });
+    setTimeout(ensureVisible, 220);
 }
 
 window.openPdfModal = async function(btn) {
@@ -515,6 +545,8 @@ document.querySelectorAll('.accordion-collapse[data-tip-id]').forEach(panel => {
             accordionItem.classList.add('faq-item-expanded');
         }
 
+        adjustExpandedItemIntoView(this);
+
         const tipId = this.dataset.tipId;
         if (!tipId) {
             return;
@@ -543,6 +575,14 @@ document.querySelectorAll('.accordion-collapse[data-tip-id]').forEach(panel => {
         }
     });
 });
+
+if (Number.isInteger(openTipId) && openTipId > 0) {
+    const targetPanel = document.querySelector(`.accordion-collapse[data-tip-id="${openTipId}"]`);
+    if (targetPanel) {
+        const collapse = bootstrap.Collapse.getOrCreateInstance(targetPanel, { toggle: false });
+        collapse.show();
+    }
+}
 
 document.querySelectorAll('.tips-good-btn[data-tip-id]').forEach(button => {
     button.addEventListener('click', function() {

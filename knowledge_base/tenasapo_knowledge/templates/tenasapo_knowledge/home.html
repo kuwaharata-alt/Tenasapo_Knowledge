@@ -45,7 +45,14 @@
                 <ul class="list-group list-group-flush">
                     {% for article in recent_faqs %}
                     <li class="list-group-item px-0">
-                        <div><span style="font-size:0.85em;">●</span> {{ article.title }}</div>
+                        <div>
+                            <span style="font-size:0.85em;">●</span>
+                            {% if article.management_code %}
+                                <a href="{% url 'article_list' %}?open_code={{ article.management_code|urlencode }}" class="text-decoration-none">{{ article.title }}</a>
+                            {% else %}
+                                <a href="{% url 'article_list' %}?open_id={{ article.id }}" class="text-decoration-none">{{ article.title }}</a>
+                            {% endif %}
+                        </div>
                         <div class="text-muted" style="font-size:0.78rem;">{{ article.updated_at|date:"Y/m/d H:i" }}</div>
                     </li>
                     {% endfor %}
@@ -62,7 +69,14 @@
                 <ul class="list-group list-group-flush">
                     {% for tip in recent_tips %}
                     <li class="list-group-item px-0">
-                        <div><span style="font-size:0.85em;">●</span> {{ tip.title }}</div>
+                        <div>
+                            <span style="font-size:0.85em;">●</span>
+                            {% if tip.management_code %}
+                                <a href="{% url 'tip_list' %}?open_code={{ tip.management_code|urlencode }}" class="text-decoration-none">{{ tip.title }}</a>
+                            {% else %}
+                                <a href="{% url 'tip_list' %}?open_id={{ tip.id }}" class="text-decoration-none">{{ tip.title }}</a>
+                            {% endif %}
+                        </div>
                         <div class="text-muted" style="font-size:0.78rem;">{{ tip.updated_at|date:"Y/m/d H:i" }}</div>
                     </li>
                     {% endfor %}
