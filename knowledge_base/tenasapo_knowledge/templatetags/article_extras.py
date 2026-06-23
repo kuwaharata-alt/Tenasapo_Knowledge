@@ -33,12 +33,12 @@ ALLOWED_ATTRIBUTES = {
     'p': ['style'],
     'div': ['class', 'style'],
     'ol': ['start'],
-    'li': ['value'],
+    'li': ['value', 'class'],
     'a': ['href', 'target', 'rel'],
     'img': ['src', 'alt', 'class'],
 }
 CSS_SANITIZER = CSSSanitizer(
-    allowed_css_properties=['color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'text-indent', 'line-height']
+    allowed_css_properties=['color', 'background-color', 'font-size', 'text-decoration', 'font-weight', 'border', 'padding', 'padding-left', 'margin-left', 'text-indent', 'line-height']
 )
 TRAILING_BLANK_PARAGRAPH_PATTERN = re.compile(
     r'<p[^>]*>(?:\s|&nbsp;|<span[^>]*>\s*</span>|<br(?:\s[^>]*)?\s*/?>)*</p>\s*$',

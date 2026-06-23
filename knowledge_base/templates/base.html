@@ -293,6 +293,7 @@
             margin-bottom: 0.35em;
         }
         .faq-body-indent {
+            font-family: "Meiryo UI", "Meiryo", "Yu Gothic UI", "Yu Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif;
             font-size: 10pt;
             line-height: 1.5;
             margin-left: 1cm;
@@ -300,6 +301,19 @@
         }
         .faq-body-indent > div[style*="font-weight: 700"] {
             margin: 0.5em 0;
+            margin-left: 0 !important;
+            padding-left: 1.4em;
+            text-indent: -1.4em !important;
+            line-height: 2;
+        }
+        .faq-body-indent > .tk-heading1-line::before {
+            content: "■ ";
+        }
+        .faq-body-indent > div[style*="font-weight: 400"] {
+            margin-left: 0 !important;
+            text-indent: 1em !important;
+        }
+        .faq-body-indent li div[style*="font-weight: 400"] {
             margin-left: 0 !important;
             text-indent: 0 !important;
         }
@@ -319,13 +333,25 @@
         }
         .faq-body-indent ul,
         .faq-body-indent ol {
-            margin: 0.25rem 0 0.25rem 1.5em;
-            padding-left: 1em;
+            margin: 0.25rem 0;
+            padding-left: 2.5em;
             list-style-position: outside;
+        }
+        .faq-body-indent ol > li::marker {
+            content: counter(list-item) ".\00a0";
+        }
+        .faq-body-indent ul > li::marker {
+            content: "•\00a0";
         }
         .faq-body-indent li {
             padding-left: 0;
             margin-bottom: 0.1rem;
+        }
+        .faq-body-indent li.tk-list-wrapper {
+            list-style-type: none;
+        }
+        .faq-body-indent li.tk-list-wrapper::marker {
+            content: "";
         }
         .faq-question blockquote,
         .accordion-body blockquote {

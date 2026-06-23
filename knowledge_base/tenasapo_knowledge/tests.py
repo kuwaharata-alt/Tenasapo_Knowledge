@@ -1888,3 +1888,31 @@ class RichTextTemplateFilterTests(TestCase):
         )
 
         self.assertIn('<p>&nbsp;</p>', rendered)
+
+    def test_render_inline_images_preserves_empty_list_wrapper_class(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({
+                'text': '<ol><li class="tk-list-wrapper"><ul><li>nested</li></ul></li></ol>',
+                'images': [],
+            })
+        )
+
+        self.assertIn('<li class="tk-list-wrapper"><ul><li>nested</li></ul></li>', rendered)
+
+    def test_render_inline_images_preserves_font_and_highlight_colors(self):
+        rendered = Template(
+            "{% load article_extras %}{{ text|render_inline_images:images }}"
+        ).render(
+            Context({
+                'text': (
+                    '<p><span style="color: rgb(224, 62, 45); '
+                    'background-color: rgb(250, 197, 28);">colored</span></p>'
+                ),
+                'images': [],
+            })
+        )
+
+        self.assertIn('color: rgb(224, 62, 45)', rendered)
+        self.assertIn('background-color: rgb(250, 197, 28)', rendered)
