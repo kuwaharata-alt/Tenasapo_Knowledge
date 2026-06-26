@@ -1205,6 +1205,12 @@ class ArticleListView(ListView):
             self.parent_category_name,
         )
 
+        query = self.request.GET.get('q')
+        if query:
+            queryset = queryset.filter(
+                Q(title__icontains=query) | Q(summary__icontains=query) | Q(body__icontains=query)
+            )
+
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
         favorite_only = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
@@ -1561,7 +1567,9 @@ class TipsListView(ListView):
 
         query = self.request.GET.get('q')
         if query:
-            queryset = queryset.filter(title__icontains=query)
+            queryset = queryset.filter(
+                Q(title__icontains=query) | Q(body__icontains=query)
+            )
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
