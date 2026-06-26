@@ -109,6 +109,23 @@
                         <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="4">{{ form.note.value|default_if_none:'' }}</textarea>
                         {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    {% if is_edit %}
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input{% if form.skip_login_lp.errors %} is-invalid{% endif %}"
+                                    type="checkbox"
+                                    name="{{ form.skip_login_lp.html_name }}"
+                                    id="{{ form.skip_login_lp.id_for_label }}"
+                                    {% if form.skip_login_lp.value %}checked{% endif %}
+                                >
+                                <label class="form-check-label" for="{{ form.skip_login_lp.id_for_label }}">
+                                    {{ form.skip_login_lp.label }}
+                                </label>
+                                {% for error in form.skip_login_lp.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">

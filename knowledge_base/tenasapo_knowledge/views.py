@@ -119,7 +119,42 @@ ACCOUNT_VIEW_MODES = {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}
 
 class HomeRedirectLoginView(LoginView):
     def get_success_url(self):
+        if should_show_login_lp(self.request.user):
+            return reverse_lazy('login_lp')
         return reverse_lazy('home')
+
+
+def should_show_login_lp(user):
+    try:
+        profile = user.knowledge_profile
+    except UserProfile.DoesNotExist:
+        return True
+    return not profile.skip_login_lp
+
+
+class LoginLandingPageView(TemplateView):
+    template_name = 'tenasapo_knowledge/login_lp.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        if not should_show_login_lp(request.user):
+            return redirect('home')
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        should_skip_next_login_lp = request.POST.get('skip_login_lp') == 'on'
+
+        try:
+            profile = request.user.knowledge_profile
+        except UserProfile.DoesNotExist:
+            messages.warning(request, 'プロフィールが未登録のため設定を保存できませんでした。')
+            return redirect('home')
+
+        profile.skip_login_lp = should_skip_next_login_lp
+        profile.save(update_fields=['skip_login_lp'])
+
+        return redirect('home')
 
 
 def get_forced_account_view_mode(user):
@@ -4214,6 +4249,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
             'groups': list(self.user_obj.groups.values_list('name', flat=True)),
             'email_addresses': profile.email_addresses if profile else '',
             'note': profile.note if profile else '',
+            'skip_login_lp': profile.skip_login_lp if profile else False,
         }
 
     def get_form(self, form_class=None):
@@ -4299,6 +4335,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         profile.user_type = user_type
         profile.email_addresses = '\n'.join(emails)
         profile.note = form.cleaned_data['note']
+        profile.skip_login_lp = form.cleaned_data.get('skip_login_lp', False)
         profile.save()
 
         # 顧客を更新

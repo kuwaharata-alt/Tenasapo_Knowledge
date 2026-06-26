@@ -73,6 +73,7 @@ class UserProfile(models.Model):
     )
     email_addresses = models.TextField('メールアドレス（複数）', blank=True)
     note = models.TextField('備考', blank=True)
+    skip_login_lp = models.BooleanField('ログイン後LPを表示しない', default=False)
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 

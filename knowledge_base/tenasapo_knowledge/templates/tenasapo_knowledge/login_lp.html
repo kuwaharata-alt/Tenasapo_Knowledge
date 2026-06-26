@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}ようこそ | Nexus{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-3">Nexusへようこそ</h1>
+                <p class="text-muted mb-4">FAQ・Tips・クイックリファレンスを横断して、業務ナレッジを素早く見つけられます。</p>
+                <div class="row g-3 mb-4">
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded p-3 h-100 bg-white">
+                            <h2 class="h6 mb-2">FAQ</h2>
+                            <p class="mb-0 small text-muted">トラブル解決手順をカテゴリ別に確認できます。</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded p-3 h-100 bg-white">
+                            <h2 class="h6 mb-2">Tips</h2>
+                            <p class="mb-0 small text-muted">運用に役立つ実践的なノウハウを集約しています。</p>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="border rounded p-3 h-100 bg-white">
+                            <h2 class="h6 mb-2">クイックリファレンス</h2>
+                            <p class="mb-0 small text-muted">よく使う情報へ最短でアクセスできます。</p>
+                        </div>
+                    </div>
+                </div>
+                <form method="post" class="d-flex flex-column gap-3">
+                    {% csrf_token %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="on" id="skipLoginLp" name="skip_login_lp">
+                        <label class="form-check-label" for="skipLoginLp">
+                            次回ログイン時は表示しない
+                        </label>
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">ホームへ進む</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

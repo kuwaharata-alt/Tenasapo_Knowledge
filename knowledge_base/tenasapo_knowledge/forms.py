@@ -913,6 +913,10 @@ class UserUpdateForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'rows': 4}),
     )
+    skip_login_lp = forms.BooleanField(
+        label='次回ログイン時はLPを表示しない',
+        required=False,
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

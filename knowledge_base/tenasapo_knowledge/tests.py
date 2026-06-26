@@ -34,8 +34,15 @@ class LoginRedirectTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username='login-user', password='password')
+        UserProfile.objects.create(
+            user=self.user,
+            uid='000001',
+            display_name='ログインユーザー',
+            company_name='テスト会社',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+        )
 
-    def test_login_always_redirects_to_home_even_with_next_parameter(self):
+    def test_login_redirects_to_lp_even_with_next_parameter(self):
         response = self.client.post(
             f"{reverse('login')}?next={reverse('article_list')}",
             {
@@ -44,7 +51,36 @@ class LoginRedirectTests(TestCase):
             },
         )
 
+        self.assertRedirects(response, reverse('login_lp'))
+
+    def test_login_redirects_to_home_when_lp_is_disabled(self):
+        profile = self.user.knowledge_profile
+        profile.skip_login_lp = True
+        profile.save(update_fields=['skip_login_lp'])
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'login-user',
+                'password': 'password',
+            },
+        )
+
         self.assertRedirects(response, reverse('home'))
+
+    def test_lp_post_can_enable_skip_setting(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('login_lp'),
+            {
+                'skip_login_lp': 'on',
+            },
+        )
+
+        self.assertRedirects(response, reverse('home'))
+        self.user.knowledge_profile.refresh_from_db()
+        self.assertTrue(self.user.knowledge_profile.skip_login_lp)
 
 
 class HomeViewTests(TestCase):
@@ -1165,6 +1201,36 @@ class UserCreateViewTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.member.refresh_from_db()
         self.assertTrue(self.member.check_password('password'))
+
+    def test_user_can_update_skip_login_lp_from_user_edit(self):
+        UserProfile.objects.create(
+            user=self.member,
+            uid='123456',
+            display_name='一般ユーザー',
+            company_name='株式会社サンプル',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+            skip_login_lp=False,
+        )
+        self.client.force_login(self.member)
+
+        response = self.client.post(
+            reverse('user_edit', args=[self.member.id]),
+            {
+                'uid': '123456',
+                'display_name': '一般ユーザー',
+                'company_name': '株式会社サンプル',
+                'role': 'user',
+                'user_type': 'customer',
+                'groups': [],
+                'email_addresses': '',
+                'note': '',
+                'skip_login_lp': 'on',
+            },
+        )
+
+        self.assertRedirects(response, reverse('user_list'), fetch_redirect_response=False)
+        self.member.knowledge_profile.refresh_from_db()
+        self.assertTrue(self.member.knowledge_profile.skip_login_lp)
 
 
 class LoginHistorySignalTests(TestCase):
