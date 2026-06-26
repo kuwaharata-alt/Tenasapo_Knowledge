@@ -10,7 +10,7 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Q
 from django.http import HttpResponse, JsonResponse, Http404
 from django.template import Context, Template
@@ -3846,8 +3846,113 @@ class UserCreateView(StaffRequiredMixin, FormView):
         customer, _ = Customer.objects.get_or_create(name=company_name)
         customer.users.add(user)
 
-        messages.success(self.request, f'{resolve_user_display_name(user)}（{user.username}）を作成しました。')
+        messages.success(
+            self.request,
+            f'{resolve_user_display_name(user)}（{user.username}）を作成しました。',
+            extra_tags='user',
+        )
         return super().form_valid(form)
+
+
+class UserDemoIssueView(StaffRequiredMixin, View):
+    success_url = reverse_lazy('user_list')
+    demo_prefix = 'CSDemo'
+    demo_number_start = 800000
+    demo_number_end = 809999
+
+    @classmethod
+    def _iter_used_demo_numbers(cls):
+        User = get_user_model()
+
+        usernames = User.objects.filter(username__startswith=f'{cls.demo_prefix}80').values_list('username', flat=True)
+        for username in usernames:
+            suffix = (username or '')[len(cls.demo_prefix):]
+            if len(suffix) == 6 and suffix.isdigit() and suffix.startswith('80'):
+                number = int(suffix)
+                if cls.demo_number_start <= number <= cls.demo_number_end:
+                    yield number
+
+        uids = UserProfile.objects.filter(uid__startswith='80').values_list('uid', flat=True)
+        for uid in uids:
+            normalized_uid = (uid or '').strip()
+            if len(normalized_uid) == 6 and normalized_uid.isdigit() and normalized_uid.startswith('80'):
+                number = int(normalized_uid)
+                if cls.demo_number_start <= number <= cls.demo_number_end:
+                    yield number
+
+    @classmethod
+    def _resolve_next_demo_number(cls):
+        used_numbers = set(cls._iter_used_demo_numbers())
+        for number in range(cls.demo_number_start, cls.demo_number_end + 1):
+            if number not in used_numbers:
+                return number
+        return None
+
+    def post(self, request):
+        company_name = (request.POST.get('company_name') or '').strip()
+        if not company_name:
+            messages.error(request, '会社名を入力してください。', extra_tags='user')
+            return redirect(self.success_url)
+
+        demo_group, _ = Group.objects.get_or_create(name=DEMO_GROUP_NAME)
+
+        for _ in range(10):
+            number = self._resolve_next_demo_number()
+            if number is None:
+                messages.error(request, 'デモアカウント番号の発行上限（809999）に達しました。', extra_tags='user')
+                return redirect(self.success_url)
+
+            uid = f'{number:06d}'
+            username = f'{self.demo_prefix}{uid}'
+            temporary_password = get_random_string(
+                12,
+                allowed_chars='abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789',
+            )
+
+            try:
+                with transaction.atomic():
+                    User = get_user_model()
+                    user = User.objects.create_user(
+                        username=username,
+                        password=temporary_password,
+                        email='',
+                        is_staff=False,
+                        is_superuser=False,
+                    )
+                    user.groups.set([demo_group])
+
+                    UserProfile.objects.create(
+                        user=user,
+                        uid=uid,
+                        display_name='Demoアカウント',
+                        company_name=company_name,
+                        user_type=UserProfile.USER_TYPE_CUSTOMER,
+                        email_addresses='',
+                        note='',
+                    )
+
+                    customer, _ = Customer.objects.get_or_create(name=company_name)
+                    customer.users.add(user)
+            except IntegrityError:
+                continue
+
+            messages.success(
+                request,
+                (
+                    f'デモアカウントを発行しました。'
+                    f'管理番号: {uid} / ログインID: {username} / '
+                    'ユーザー名: Demoアカウント'
+                ),
+                extra_tags='user',
+            )
+            request.session['issued_demo_account'] = {
+                'login_id': username,
+                'password': temporary_password,
+            }
+            return redirect(self.success_url)
+
+        messages.error(request, 'デモアカウント発行時に競合が発生しました。再度お試しください。', extra_tags='user')
+        return redirect(self.success_url)
 
 
 class UserListView(StaffRequiredMixin, ListView):
@@ -3895,6 +4000,7 @@ class UserListView(StaffRequiredMixin, ListView):
         context['selected_user_type'] = self.request.GET.get('user_type', '')
         context['roles'] = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         context['can_manage_all_users'] = _can_manage_all_users(self.request.user)
+        context['issued_demo_account'] = self.request.session.pop('issued_demo_account', None)
         return context
 
 
@@ -3922,14 +4028,14 @@ class UserPasswordResetView(StaffOrSelfRequiredMixin, View):
         User = get_user_model()
         user = get_object_or_404(User, pk=pk)
         if not _can_manage_target_user(request.user, user):
-            messages.error(request, '他のユーザーのパスワードを変更する権限がありません。')
+            messages.error(request, '他のユーザーのパスワードを変更する権限がありません。', extra_tags='user')
             return redirect('user_list')
         reset_mode = request.POST.get('reset_mode', 'random')
 
         if reset_mode == 'manual':
             temporary_password = request.POST.get('new_password', '').strip()
             if not temporary_password:
-                messages.error(request, '手動設定するパスワードを入力してください。')
+                messages.error(request, '手動設定するパスワードを入力してください。', extra_tags='user')
                 return redirect('user_list')
             message = f'{resolve_user_display_name(user)}（{user.username}）のパスワードを手動設定しました。'
         else:
@@ -3947,7 +4053,7 @@ class UserPasswordResetView(StaffOrSelfRequiredMixin, View):
         if user == request.user:
             update_session_auth_hash(request, user)
 
-        messages.warning(request, message)
+        messages.warning(request, message, extra_tags='user')
         return redirect('user_list')
 
 
@@ -4065,22 +4171,18 @@ class ViewHistoryListView(StaffRequiredMixin, ListView):
         user_ids = [user.id for user in users]
 
         login_histories_by_user = {user.id: [] for user in users}
-        view_histories_by_user = {user.id: [] for user in users}
 
         if user_ids:
             login_histories = LoginHistory.objects.filter(user_id__in=user_ids).order_by('-logged_in_at')
-            view_histories = ViewHistory.objects.filter(user_id__in=user_ids).order_by('-viewed_at')
 
             for history in login_histories:
                 login_histories_by_user.setdefault(history.user_id, []).append(history)
-            for history in view_histories:
-                view_histories_by_user.setdefault(history.user_id, []).append(history)
 
         context['grouped_user_histories'] = [
             {
                 'user': user,
                 'login_histories': login_histories_by_user.get(user.id, []),
-                'view_histories': view_histories_by_user.get(user.id, []),
+                'view_histories': [],
             }
             for user in users
         ]
@@ -4096,7 +4198,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         User = get_user_model()
         self.user_obj = get_object_or_404(User, pk=kwargs['pk'])
         if not _can_manage_target_user(request.user, self.user_obj):
-            messages.error(request, '他のユーザーを編集する権限がありません。')
+            messages.error(request, '他のユーザーを編集する権限がありません。', extra_tags='user')
             return redirect('user_list')
         return super().dispatch(request, *args, **kwargs)
 
@@ -4204,7 +4306,11 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         if self.user_obj not in customer.users.all():
             customer.users.add(self.user_obj)
 
-        messages.success(self.request, f'{resolve_user_display_name(self.user_obj)}（{self.user_obj.username}）を更新しました。')
+        messages.success(
+            self.request,
+            f'{resolve_user_display_name(self.user_obj)}（{self.user_obj.username}）を更新しました。',
+            extra_tags='user',
+        )
         return super().form_valid(form)
 
 
@@ -4215,18 +4321,18 @@ class UserDeleteView(StaffRequiredMixin, View):
         
         # Admin/SystenaAdminのみ削除可能
         if not _can_manage_all_users(request.user):
-            messages.error(request, '他のユーザーを削除する権限がありません。')
+            messages.error(request, '他のユーザーを削除する権限がありません。', extra_tags='user')
             return redirect('user_list')
         
         # 削除対象がリクエスト者本人でないことを確認
         if user == request.user:
-            messages.error(request, '自分自身を削除することはできません。')
+            messages.error(request, '自分自身を削除することはできません。', extra_tags='user')
             return redirect('user_list')
         
         username = resolve_user_display_name(user) or user.username
         login_id = user.username
         user.delete()
-        messages.success(request, f'{username}（{login_id}）を削除しました。')
+        messages.success(request, f'{username}（{login_id}）を削除しました。', extra_tags='user')
         return redirect('user_list')
 
 

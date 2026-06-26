@@ -12,12 +12,17 @@
             </h1>
             <p class="page-title-sub">管理者アカウントのみ利用できます。</p>
         </div>
-        <a class="btn btn-primary" href="{% url 'user_create' %}">ユーザー作成</a>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#demoAccountIssueModal">デモアカウント発行</button>
+            <a class="btn btn-primary" href="{% url 'user_create' %}">ユーザー作成</a>
+        </div>
     </div>
 </div>
 
 {% for message in messages %}
-    <div class="alert alert-{{ message.tags }}" role="alert">{{ message }}</div>
+    {% if 'user' in message.tags %}
+        <div class="alert alert-{{ message.level_tag }}" role="alert">{{ message }}</div>
+    {% endif %}
 {% endfor %}
 
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
@@ -170,6 +175,59 @@
     </nav>
 {% endif %}
 
+<div class="modal fade" id="demoAccountIssueModal" tabindex="-1" aria-labelledby="demoAccountIssueModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="demoAccountIssueModalLabel">デモアカウント発行</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'user_demo_issue' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label class="form-label" for="demoCompanyName">会社名<span class="text-danger">*</span></label>
+                        <input class="form-control" id="demoCompanyName" type="text" name="company_name" maxlength="120" required>
+                    </div>
+                    <p class="form-text mb-0">ログインID・管理番号・パスワードは自動生成されます。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">発行</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% if issued_demo_account %}
+<div class="modal fade" id="demoAccountResultModal" tabindex="-1" aria-labelledby="demoAccountResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="demoAccountResultModalLabel">デモアカウント発行完了</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="issuedDemoLoginId">ログインID</label>
+                    <input class="form-control" id="issuedDemoLoginId" type="text" value="{{ issued_demo_account.login_id }}" readonly>
+                </div>
+                <div class="mb-0">
+                    <label class="form-label" for="issuedDemoPassword">パスワード</label>
+                    <input class="form-control" id="issuedDemoPassword" type="text" value="{{ issued_demo_account.password }}" readonly>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" id="issuedDemoCopyBtn">コピー</button>
+                <button type="button" class="btn btn-outline-primary" id="issuedDemoSaveBtn">保存</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- パスワード変更モーダル -->
 {% for account in users %}
 <div class="modal fade" id="passwordChangeModal{{ account.id }}" tabindex="-1" aria-labelledby="passwordChangeModalLabel{{ account.id }}" aria-hidden="true">
@@ -241,6 +299,45 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const issuedModalEl = document.getElementById('demoAccountResultModal');
+    if (issuedModalEl && typeof bootstrap !== 'undefined') {
+        const issuedLoginId = document.getElementById('issuedDemoLoginId');
+        const issuedPassword = document.getElementById('issuedDemoPassword');
+        const issuedCopyBtn = document.getElementById('issuedDemoCopyBtn');
+        const issuedSaveBtn = document.getElementById('issuedDemoSaveBtn');
+
+        const issuedModal = new bootstrap.Modal(issuedModalEl);
+        issuedModal.show();
+
+        if (issuedCopyBtn && issuedLoginId && issuedPassword) {
+            issuedCopyBtn.addEventListener('click', function() {
+                const output = `ログインID: ${issuedLoginId.value}\nパスワード: ${issuedPassword.value}`;
+                navigator.clipboard.writeText(output).then(() => {
+                    const originalText = issuedCopyBtn.textContent;
+                    issuedCopyBtn.textContent = 'コピーしました';
+                    setTimeout(() => {
+                        issuedCopyBtn.textContent = originalText;
+                    }, 2000);
+                });
+            });
+        }
+
+        if (issuedSaveBtn && issuedLoginId && issuedPassword) {
+            issuedSaveBtn.addEventListener('click', function() {
+                const output = `ログインID: ${issuedLoginId.value}\r\nパスワード: ${issuedPassword.value}\r\n`;
+                const blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
+                const downloadUrl = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = downloadUrl;
+                anchor.download = `${issuedLoginId.value}.txt`;
+                document.body.appendChild(anchor);
+                anchor.click();
+                document.body.removeChild(anchor);
+                URL.revokeObjectURL(downloadUrl);
+            });
+        }
+    }
+
     const currentParams = new URLSearchParams(window.location.search);
     const restoredScroll = currentParams.get('scroll');
     if (restoredScroll && /^\d+$/.test(restoredScroll)) {
