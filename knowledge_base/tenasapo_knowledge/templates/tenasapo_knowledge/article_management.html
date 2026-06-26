@@ -130,10 +130,17 @@
                             <button
                                 type="button"
                                 class="btn btn-link text-start p-0 text-decoration-none text-dark mgmt-title-btn small"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#inline-detail-{{ item.type }}-{{ item.id }}"
+                                aria-expanded="false"
+                                aria-controls="inline-detail-{{ item.type }}-{{ item.id }}"
                                 data-detail-id="detail-{{ item.type }}-{{ item.id }}"
                                 data-modal-title="{{ item.title|escapejs }}"
                                 data-modal-type="{{ item.type }}"
-                            >{{ item.title }}</button>
+                            >
+                                <span>{{ item.title }}</span>
+                                <i class="bi bi-chevron-down ms-1 mgmt-toggle-icon" aria-hidden="true"></i>
+                            </button>
                             {% if item.category_chips %}
                                 <div class="d-flex flex-wrap gap-1 mt-1">
                                     {% for chip in item.category_chips %}
@@ -179,6 +186,17 @@
                                 {% endif %}
                             </td>
                         {% endif %}
+                    </tr>
+                    <tr>
+                        <td colspan="{% if can_edit %}10{% else %}9{% endif %}" class="py-0 border-0">
+                            <div class="collapse" id="inline-detail-{{ item.type }}-{{ item.id }}">
+                                <div class="p-3 border-top bg-light">
+                                    <div class="mgmt-inline-body" data-detail-source-id="detail-{{ item.type }}-{{ item.id }}">
+                                        <div class="text-muted">読み込み中...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
@@ -388,25 +406,34 @@ document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const detailModal = new bootstrap.Modal(document.getElementById('articleDetailModal'));
-    const modalLabel = document.getElementById('articleDetailModalLabel');
-    const modalBadge = document.getElementById('modalTypeBadge');
-    const modalBody = document.getElementById('articleDetailModalBody');
-
     document.querySelectorAll('.mgmt-title-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const detailId = this.dataset.detailId;
-            const title = this.dataset.modalTitle;
-            const type = this.dataset.modalType;
+        const targetSelector = btn.getAttribute('data-bs-target') || '';
+        const collapseElement = targetSelector ? document.querySelector(targetSelector) : null;
+        if (!collapseElement) {
+            return;
+        }
 
-            modalLabel.textContent = title;
-            modalBadge.textContent = type === 'faq' ? 'FAQ' : 'Tips';
-            modalBadge.className = 'badge ' + (type === 'faq' ? 'text-bg-primary' : 'text-bg-info text-white');
+        const icon = btn.querySelector('.mgmt-toggle-icon');
 
-            const detailEl = document.getElementById(detailId);
-            modalBody.innerHTML = detailEl ? detailEl.innerHTML : '';
+        collapseElement.addEventListener('show.bs.collapse', function() {
+            const inlineBody = collapseElement.querySelector('.mgmt-inline-body');
+            if (inlineBody && !inlineBody.dataset.loaded) {
+                const sourceId = inlineBody.dataset.detailSourceId || '';
+                const source = sourceId ? document.getElementById(sourceId) : null;
+                inlineBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">詳細を表示できません。</div>';
+                inlineBody.dataset.loaded = '1';
+            }
+            if (icon) {
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-up');
+            }
+        });
 
-            detailModal.show();
+        collapseElement.addEventListener('hide.bs.collapse', function() {
+            if (icon) {
+                icon.classList.remove('bi-chevron-up');
+                icon.classList.add('bi-chevron-down');
+            }
         });
     });
 });

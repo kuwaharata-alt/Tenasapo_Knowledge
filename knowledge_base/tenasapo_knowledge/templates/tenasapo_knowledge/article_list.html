@@ -444,6 +444,15 @@
     </section>
 </div>
 
+<style>
+.faq-question {
+    transition: background-color 0.15s ease;
+}
+.faq-question:hover {
+    background-color: rgba(0, 0, 0, 0.03) !important;
+}
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const trackUrl = "{% url 'faq_answer_track_view' %}";
@@ -455,6 +464,26 @@ document.addEventListener('DOMContentLoaded', function() {
         parent_category: "{{ selected_parent_category|escapejs }}",
         category: "{{ selected_category|escapejs }}",
     };
+
+    // タイトル行クリックで展開
+    document.querySelectorAll('.faq-question').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.style.userSelect = 'none';
+        el.addEventListener('click', function(e) {
+            const header = this.closest('.accordion-header');
+            if (!header) return;
+            const toggleBtn = header.querySelector('.faq-toggle');
+            if (toggleBtn) {
+                toggleBtn.click();
+            }
+        });
+    });
+    // ボタンやリンククリックで親のクリックイベントを伝播させない
+    document.querySelectorAll('.faq-question button, .faq-question a').forEach(el => {
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
 
     function getCookie(name) {
         const cookieValue = document.cookie

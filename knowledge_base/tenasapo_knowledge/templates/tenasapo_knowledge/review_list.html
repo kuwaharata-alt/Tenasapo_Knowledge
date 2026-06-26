@@ -115,7 +115,19 @@
                             {% endif %}
                         </td>
                         <td class="small text-muted text-nowrap">{{ item.management_code|default:"-" }}</td>
-                        <td>{{ item.title }}</td>
+                        <td>
+                            <button
+                                class="btn btn-link p-0 text-start text-decoration-none review-title-toggle"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#inline-review-{{ item.type }}-{{ item.id }}"
+                                aria-expanded="false"
+                                aria-controls="inline-review-{{ item.type }}-{{ item.id }}"
+                            >
+                                <span>{{ item.title }}</span>
+                                <i class="bi bi-chevron-down ms-1 review-toggle-icon" aria-hidden="true"></i>
+                            </button>
+                        </td>
                         <td class="small text-muted">{{ item.creator_display_name|default:"-" }}</td>
                         <td class="small text-muted">{{ item.created_at|date:"Y/m/d" }}</td>
                         <td>
@@ -155,6 +167,17 @@
                                     data-visible-to-customer="{% if item.visible_to_customer %}1{% else %}0{% endif %}"
                                 >レビュー</button>
                             {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="7" class="py-0 border-0">
+                            <div class="collapse" id="inline-review-{{ item.type }}-{{ item.id }}">
+                                <div class="p-3 border-top bg-light">
+                                    <div class="review-inline-body" data-review-source-id="review-content-{{ item.type }}-{{ item.id }}">
+                                        <div class="text-muted">読み込み中...</div>
+                                    </div>
+                                </div>
+                            </div>
                         </td>
                     </tr>
                 {% empty %}
@@ -295,6 +318,37 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             if (commentInput) {
                 commentInput.value = '';
+            }
+        });
+    });
+
+    document.querySelectorAll('.review-title-toggle').forEach(button => {
+        const targetSelector = button.getAttribute('data-bs-target') || '';
+        const collapseElement = targetSelector ? document.querySelector(targetSelector) : null;
+        if (!collapseElement) {
+            return;
+        }
+
+        const icon = button.querySelector('.review-toggle-icon');
+
+        collapseElement.addEventListener('show.bs.collapse', function() {
+            const inlineBody = collapseElement.querySelector('.review-inline-body');
+            if (inlineBody && !inlineBody.dataset.loaded) {
+                const sourceId = inlineBody.dataset.reviewSourceId || '';
+                const source = sourceId ? document.getElementById(sourceId) : null;
+                inlineBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">プレビューを表示できません。</div>';
+                inlineBody.dataset.loaded = '1';
+            }
+            if (icon) {
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-up');
+            }
+        });
+
+        collapseElement.addEventListener('hide.bs.collapse', function() {
+            if (icon) {
+                icon.classList.remove('bi-chevron-up');
+                icon.classList.add('bi-chevron-down');
             }
         });
     });

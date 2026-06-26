@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+{% load article_extras %}
+
+{% block title %}{{ tip.title }} | Tips | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <a href="{% url 'tip_list' %}" class="link-secondary text-decoration-none">&larr; Tips一覧に戻る</a>
+    </div>
+    <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+        <span class="badge text-bg-info text-white">Tips</span>
+        {% if tip.management_code %}<span class="badge bg-secondary" style="font-size:0.75rem;">{{ tip.management_code }}</span>{% endif %}
+    </h1>
+</div>
+
+<div class="row g-4">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h4 mb-3 fw-semibold">{{ tip.title }}</h2>
+
+                {% if tip.can_view_content and tip.category_chips %}
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    {% for category in tip.category_chips %}
+                        <span class="badge faq-category-chip">{{ category }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if tip.can_view_content and tip.target_os_chips %}
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    {% for target_os in tip.target_os_chips %}
+                        <span class="badge faq-meta-badge faq-os-chip">
+                            対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}
+                        </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="d-flex flex-wrap gap-2 mb-3 pb-3 border-bottom">
+                    <span class="badge faq-meta-badge">
+                        掲載日 {{ tip.published_at|date:"Y/m/d" }}
+                    </span>
+                    {% if tip.expires_on %}
+                        <span class="badge faq-meta-badge">
+                            掲載期限 {{ tip.expires_on|date:"Y/m/d" }}
+                        </span>
+                    {% endif %}
+                    {% if tip.source_published_at %}
+                        <span class="badge faq-meta-badge">
+                            ソース公開日 {{ tip.source_published_at|date:"Y/m/d" }}
+                        </span>
+                    {% endif %}
+                    <span class="badge faq-meta-badge">
+                        投稿者 {{ tip.creator_display_name|default:"-" }}
+                    </span>
+                    {% if approval_enabled %}
+                        <span class="badge text-bg-secondary">
+                            {% if tip.is_approved %}
+                                承認者 {{ tip.approver_display_name|default:"-" }}
+                            {% else %}
+                                未承認
+                            {% endif %}
+                        </span>
+                    {% endif %}
+                </div>
+
+                {% if tip.can_view_content and tip.pdf_file %}
+                <div class="d-flex justify-content-end mb-3">
+                    <button
+                        class="btn btn-outline-primary btn-sm"
+                        type="button"
+                        data-pdf-url="{{ tip.pdf_file.url }}"
+                        data-pdf-title="{{ tip.title }}"
+                        onclick="openPdfModal(this)"
+                    >PDFを見る</button>
+                </div>
+                {% endif %}
+
+                {% if tip.can_view_content %}
+                    <div class="faq-body-indent mb-3">
+                        {{ tip.body|render_inline_images:tip.inline_images }}
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
+                {% endif %}
+
+                {% if tip.can_view_content and tip.reference_links %}
+                <div class="border-top pt-3 mt-3">
+                    <div class="fw-semibold small mb-2">参考リンク</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for link in tip.reference_links %}
+                            {% if link.url %}
+                                <a class="btn btn-outline-info btn-sm" href="{{ link.url }}" target="_blank" rel="noopener">
+                                    🔗 {{ link.label|default:link.url }}
+                                </a>
+                            {% else %}
+                                <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
+                                    🔗 {{ link }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="border-top pt-3 mt-3">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% if can_use_good and tip.can_view_content %}
+                            <button
+                                class="btn btn-sm flex-shrink-0 tips-good-btn {% if tip.is_gooded %}btn-success{% else %}btn-outline-success{% endif %}"
+                                type="button"
+                                data-tip-id="{{ tip.id }}"
+                                data-liked="{% if tip.is_gooded %}1{% else %}0{% endif %}"
+                            >
+                                👍 <span class="tips-good-count">{{ tip.good_count }}</span>
+                            </button>
+                        {% endif %}
+                        {% if can_use_favorite %}
+                            <button
+                                class="btn btn-sm rounded-circle flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                                type="button"
+                                data-tip-id="{{ tip.id }}"
+                                data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
+                                aria-label="お気に入り"
+                            >
+                                {% if tip.is_favorited %}★{% else %}☆{% endif %}
+                            </button>
+                        {% endif %}
+                        {% if can_edit_tip %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'tip_edit' tip.id %}">編集</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height:90vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
+                <h5 class="modal-title" id="pdfModalLabel">PDF閲覧</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body p-2" id="pdfModalBody" style="flex:1; overflow-y:auto; background:#3c3c3c;">
+                <div id="pdfLoadingMsg" class="text-white text-center py-4">読み込み中...</div>
+                <div id="pdfPageStack"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
+                <a id="pdfDownloadLink" href="" download class="btn btn-outline-secondary btn-sm">ダウンロード</a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+
+const toggleGoodUrl = "{% url 'tip_toggle_good' %}";
+const toggleFavoriteUrl = "{% url 'tip_toggle_favorite' %}";
+
+function getCookie(name) {
+    const cookieValue = document.cookie
+        .split('; ')
+        .find(row => row.startsWith(name + '='));
+    return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+}
+
+window.openPdfModal = async function(btn) {
+    const url = btn.dataset.pdfUrl;
+    const title = btn.dataset.pdfTitle;
+    document.getElementById('pdfModalLabel').textContent = title;
+    document.getElementById('pdfDownloadLink').href = url;
+    const pageStack = document.getElementById('pdfPageStack');
+    const loadingMsg = document.getElementById('pdfLoadingMsg');
+    pageStack.innerHTML = '';
+    loadingMsg.textContent = '読み込み中...';
+    loadingMsg.style.display = 'block';
+
+    const modalEl = document.getElementById('pdfModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    try {
+        const pdfDoc = await pdfjsLib.getDocument(url).promise;
+        loadingMsg.style.display = 'none';
+        const bodyWidth = document.getElementById('pdfModalBody').clientWidth - 32;
+        for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
+            const page = await pdfDoc.getPage(pageNo);
+            const section = document.createElement('section');
+            section.className = 'mb-3';
+            const label = document.createElement('div');
+            label.className = 'small text-white-50 mb-1';
+            label.textContent = pageNo + ' ページ';
+            const frame = document.createElement('div');
+            frame.style.cssText = 'background:#fff;border-radius:.5rem;overflow:hidden;display:flex;justify-content:center;';
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = 'max-width:100%;display:block;';
+            const base = page.getViewport({ scale: 1 });
+            const scale = Math.max(1, bodyWidth) / base.width;
+            const viewport = page.getViewport({ scale });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            frame.appendChild(canvas);
+            section.appendChild(label);
+            section.appendChild(frame);
+            pageStack.appendChild(section);
+        }
+    } catch (e) {
+        loadingMsg.textContent = 'PDFの読み込みに失敗しました: ' + e.message;
+        loadingMsg.style.display = 'block';
+        console.error(e);
+    }
+};
+
+document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('pdfPageStack').innerHTML = '';
+    document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
+    document.getElementById('pdfLoadingMsg').style.display = 'block';
+});
+
+document.querySelectorAll('.tips-good-btn[data-tip-id]').forEach(button => {
+    button.addEventListener('click', function() {
+        const tipId = this.dataset.tipId;
+        if (!tipId) {
+            return;
+        }
+
+        fetch(toggleGoodUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({
+                tip_id: Number(tipId),
+            }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!data.ok) {
+                    return;
+                }
+                this.dataset.liked = data.liked ? '1' : '0';
+                this.classList.toggle('btn-success', data.liked);
+                this.classList.toggle('btn-outline-success', !data.liked);
+                const countElm = this.querySelector('.tips-good-count');
+                if (countElm) {
+                    countElm.textContent = data.good_count;
+                }
+            })
+            .catch(() => {});
+    });
+});
+
+document.querySelectorAll('.tips-favorite-btn[data-tip-id]').forEach(button => {
+    button.addEventListener('click', function() {
+        const tipId = this.dataset.tipId;
+        if (!tipId) {
+            return;
+        }
+
+        fetch(toggleFavoriteUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify({
+                tip_id: Number(tipId),
+            }),
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (!data || !data.ok) {
+                    return;
+                }
+                this.dataset.favorited = data.favorited ? '1' : '0';
+                this.classList.toggle('btn-warning', data.favorited);
+                this.classList.toggle('btn-outline-warning', !data.favorited);
+                this.textContent = data.favorited ? '★' : '☆';
+            })
+            .catch(() => {});
+    });
+});
+</script>
+{% endblock %}

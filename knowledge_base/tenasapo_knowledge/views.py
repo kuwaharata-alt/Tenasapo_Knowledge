@@ -12,7 +12,7 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, F, Q
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, Http404
 from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
 
@@ -4793,5 +4793,147 @@ class ArticleManagementView(TemplateView):
         context['sort_by'] = sort_by
         context['sort_dir'] = sort_dir
         context['can_edit'] = can_edit_article(self.request.user)
+        return context
+
+
+class KnowledgeArticleDetailView(TemplateView):
+    template_name = 'tenasapo_knowledge/article_detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        management_code = kwargs.get('management_code', '')
+        
+        article = get_object_or_404(
+            KnowledgeArticle.objects.filter(is_published=True).filter(active_until_filter()),
+            management_code=management_code,
+        )
+
+        user = self.request.user
+        is_admin = user.is_staff or user.is_superuser
+        is_systena = in_group(user, SYSTENA_GROUP_NAME)
+        is_reviewer = is_reviewer_user(user)
+
+        if not (is_admin or is_systena or is_reviewer):
+            if not article.visible_to_customer:
+                raise Http404('記事が見つかりません。')
+            if FAQ_APPROVAL_ENABLED and not article.is_approved:
+                raise Http404('記事が見つかりません。')
+
+        article.creator_display_name = resolve_saved_or_user_display_name(
+            article.created_by_name,
+            article.created_by,
+        )
+        article.approver_display_name = resolve_saved_or_user_display_name(
+            article.approved_by_name,
+            article.approved_by,
+        )
+        article.category_chips = list(dict.fromkeys(ArticleListView.split_categories(article.category)))
+        article.target_os_chips = parse_target_os_values(article.target_os)
+        article.can_view_content = can_view_restricted_knowledge_content(user, article)
+
+        ordered_attachments = sorted(
+            article.attachments.all(),
+            key=lambda attachment: (attachment.uploaded_at, attachment.id),
+        )
+        article.question_images = [
+            a for a in ordered_attachments
+            if a.placement == ArticleAttachment.PLACEMENT_QUESTION
+        ]
+        article.answer_images = [
+            a for a in ordered_attachments
+            if a.placement == ArticleAttachment.PLACEMENT_ANSWER
+        ]
+        article.file_attachments = [
+            a for a in ordered_attachments
+            if a.placement == ArticleAttachment.PLACEMENT_ATTACHMENT
+        ]
+
+        liked_article_ids = set(
+            ArticleGood.objects.filter(
+                user=user,
+                article_id=article.id,
+            ).values_list('article_id', flat=True)
+        )
+        favorite_article_ids = set(
+            ArticleFavorite.objects.filter(
+                user=user,
+                article_id=article.id,
+            ).values_list('article_id', flat=True)
+        )
+        article.is_gooded = article.id in liked_article_ids
+        article.is_favorited = article.id in favorite_article_ids
+        article.good_count = liked_article_ids.__len__() if article.id in liked_article_ids else 0
+        for good in ArticleGood.objects.filter(article_id=article.id):
+            article.good_count = ArticleGood.objects.filter(article_id=article.id).count()
+            break
+
+        context['article'] = article
+        context['can_use_good'] = is_customer_user(user)
+        context['can_use_favorite'] = can_use_favorite(user)
+        context['can_edit_article'] = can_edit_article(user)
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
+        return context
+
+
+class TipsArticleDetailView(TemplateView):
+    template_name = 'tenasapo_knowledge/tips_detail.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        management_code = kwargs.get('management_code', '')
+        
+        tip = get_object_or_404(
+            TipsArticle.objects.filter(is_published=True).filter(active_until_filter()),
+            management_code=management_code,
+        )
+
+        user = self.request.user
+        is_admin = user.is_staff or user.is_superuser
+        is_systena = in_group(user, SYSTENA_GROUP_NAME)
+        is_reviewer = is_reviewer_user(user)
+
+        if not (is_admin or is_systena or is_reviewer):
+            if not tip.visible_to_customer:
+                raise Http404('記事が見つかりません。')
+            if FAQ_APPROVAL_ENABLED and not tip.is_approved:
+                raise Http404('記事が見つかりません。')
+
+        tip.creator_display_name = resolve_saved_or_user_display_name(
+            tip.created_by_name,
+            tip.created_by,
+        )
+        tip.approver_display_name = resolve_saved_or_user_display_name(
+            tip.approved_by_name,
+            tip.approved_by,
+        )
+        tip.category_chips = list(dict.fromkeys(TipsListView.split_categories(tip.category)))
+        tip.target_os_chips = parse_target_os_values(tip.target_os)
+        tip.can_view_content = can_view_restricted_knowledge_content(user, tip)
+        tip.inline_images = sorted(
+            tip.images.all(),
+            key=lambda image: (image.uploaded_at, image.id),
+        )
+
+        liked_tip_ids = set(
+            TipsGood.objects.filter(
+                user=user,
+                tip_id=tip.id,
+            ).values_list('tip_id', flat=True)
+        )
+        favorite_tip_ids = set(
+            TipsFavorite.objects.filter(
+                user=user,
+                tip_id=tip.id,
+            ).values_list('tip_id', flat=True)
+        )
+        tip.is_gooded = tip.id in liked_tip_ids
+        tip.is_favorited = tip.id in favorite_tip_ids
+        tip.good_count = TipsGood.objects.filter(tip_id=tip.id).count()
+
+        context['tip'] = tip
+        context['can_use_good'] = is_customer_user(user)
+        context['can_use_favorite'] = can_use_favorite(user)
+        context['can_edit_tip'] = can_edit_article(user)
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         return context
 

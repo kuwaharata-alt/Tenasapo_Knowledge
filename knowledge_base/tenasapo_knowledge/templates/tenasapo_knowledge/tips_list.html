@@ -448,12 +448,46 @@ const filterState = {
     category: "{{ selected_category|escapejs }}",
 };
 
+// ホバー効果用CSS
+const style = document.createElement('style');
+style.textContent = `
+  .faq-question {
+    transition: background-color 0.15s ease;
+  }
+  .faq-question:hover {
+    background-color: rgba(0, 0, 0, 0.03) !important;
+  }
+`;
+document.head.appendChild(style);
+
 function getCookie(name) {
     const cookieValue = document.cookie
         .split('; ')
         .find(row => row.startsWith(name + '='));
     return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
 }
+
+// タイトル行クリックで展開
+setTimeout(() => {
+    document.querySelectorAll('.faq-question').forEach(el => {
+        el.style.cursor = 'pointer';
+        el.style.userSelect = 'none';
+        el.addEventListener('click', function(e) {
+            const header = this.closest('.accordion-header');
+            if (!header) return;
+            const toggleBtn = header.querySelector('.faq-toggle');
+            if (toggleBtn) {
+                toggleBtn.click();
+            }
+        });
+    });
+    // ボタンやリンククリックで親のクリックイベントを伝播させない
+    document.querySelectorAll('.faq-question button, .faq-question a').forEach(el => {
+        el.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    });
+}, 100);
 
 function adjustExpandedItemIntoView(panel) {
     const accordionItem = panel.closest('.faq-item');
