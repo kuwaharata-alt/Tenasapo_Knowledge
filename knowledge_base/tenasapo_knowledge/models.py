@@ -537,9 +537,11 @@ class RevisionHistory(models.Model):
     CATEGORY_NEW_FEATURE = 'new_feature'
     CATEGORY_UPDATE = 'update'
     CATEGORY_DELETE = 'delete'
+    CATEGORY_BUG_FIX = 'bug_fix'
     CATEGORY_CHOICES = (
         (CATEGORY_NEW_FEATURE, '新規機能追加'),
         (CATEGORY_UPDATE, '更新/改修'),
+        (CATEGORY_BUG_FIX, '不具合修正'),
         (CATEGORY_DELETE, '削除'),
     )
 
