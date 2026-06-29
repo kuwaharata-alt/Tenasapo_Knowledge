@@ -105,7 +105,20 @@
                     <ul class="list-group list-group-flush">
                         {% for item in group.items %}
                             <li class="list-group-item px-0">
-                                <a href="{% url item.url_name %}">{{ item.label }}</a>
+                                {% if item.method == 'post' %}
+                                    <form method="post" action="{% url item.url_name %}" class="mb-0">
+                                        {% csrf_token %}
+                                        <button
+                                            type="submit"
+                                            class="btn btn-link p-0 text-decoration-none align-baseline"
+                                            {% if item.confirm_message %}onclick="return confirm('{{ item.confirm_message|escapejs }}');"{% endif %}
+                                        >
+                                            {{ item.label }}
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <a href="{% url item.url_name %}">{{ item.label }}</a>
+                                {% endif %}
                             </li>
                         {% endfor %}
                     </ul>

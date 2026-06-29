@@ -2,7 +2,7 @@ import tempfile
 import json
 from datetime import timedelta
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
 
 from django.contrib.auth import get_user_model
@@ -107,6 +107,36 @@ class HomeViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, '<h6 class="dropdown-header">📚 Knowledge</h6>', html=True)
+
+    def test_admin_account_does_not_see_test_menus(self):
+        admin_user = get_user_model().objects.create_user(
+            username='Admin',
+            password='password',
+            is_staff=True,
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '通知テスト')
+        self.assertNotContains(response, 'メール下書きテスト')
+        self.assertNotContains(response, 'GAS手動下書きテスト')
+
+    def test_regular_staff_does_not_see_test_menus(self):
+        staff_user = get_user_model().objects.create_user(
+            username='staff-home',
+            password='password',
+            is_staff=True,
+        )
+        self.client.force_login(staff_user)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, '通知テスト')
+        self.assertNotContains(response, 'メール下書きテスト')
+        self.assertNotContains(response, 'GAS手動下書きテスト')
 
 
 class KnowledgeArticleListTests(TestCase):
@@ -865,14 +895,28 @@ class KnowledgeArticleListTests(TestCase):
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_approve_article_from_edit_page(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
-        reviewer = get_user_model().objects.create_user(username='reviewer', password='password')
+        reviewer = get_user_model().objects.create_user(
+            username='reviewer',
+            password='password',
+            email='reviewer@example.com',
+        )
         reviewer.groups.add(reviewer_group)
+        creator = get_user_model().objects.create_user(username='article_creator', password='password')
+        UserProfile.objects.create(
+            user=creator,
+            uid='910001',
+            display_name='作成者',
+            company_name='株式会社サンプル',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+            email_addresses='creator@example.com',
+        )
         article = KnowledgeArticle.objects.create(
             title='承認待ちFAQ',
             category='PC/設定',
             body='本文',
             visible_to_customer=True,
             is_approved=False,
+            created_by=creator,
         )
         self.client.force_login(reviewer)
 
@@ -882,7 +926,10 @@ class KnowledgeArticleListTests(TestCase):
 
         approve_response = self.client.post(reverse('article_approve', args=[article.id]))
 
-        self.assertRedirects(approve_response, reverse('article_list'))
+        self.assertEqual(approve_response.status_code, 200)
+        self.assertIn('action=create_draft', approve_response.content.decode())
+        self.assertIn('to=creator%40example.com', approve_response.content.decode())
+        self.assertIn('window.open', approve_response.content.decode())  # 新規タブでGASを開く
         article.refresh_from_db()
         self.assertTrue(article.is_approved)
         self.assertTrue(article.standard_contract_only)
@@ -954,14 +1001,28 @@ class KnowledgeArticleListTests(TestCase):
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_remand_article_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
-        reviewer = get_user_model().objects.create_user(username='reviewer_remand', password='password')
+        reviewer = get_user_model().objects.create_user(
+            username='reviewer_remand',
+            password='password',
+            email='reviewer_remand@example.com',
+        )
         reviewer.groups.add(reviewer_group)
+        creator = get_user_model().objects.create_user(username='article_remand_creator', password='password')
+        UserProfile.objects.create(
+            user=creator,
+            uid='910003',
+            display_name='FAQ作成者',
+            company_name='株式会社サンプル',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+            email_addresses='faqcreator@example.com',
+        )
         article = KnowledgeArticle.objects.create(
             title='差し戻し対象FAQ',
             category='PC/設定',
             body='本文',
             visible_to_customer=True,
             is_approved=False,
+            created_by=creator,
         )
         self.client.force_login(reviewer)
 
@@ -970,14 +1031,13 @@ class KnowledgeArticleListTests(TestCase):
             {'remand_reason': '記載内容を修正してください。'},
         )
 
-        self.assertRedirects(remand_response, reverse('article_list'))
+        self.assertEqual(remand_response.status_code, 200)
+        self.assertIn('action=create_draft', remand_response.content.decode())
+        self.assertIn('to=faqcreator%40example.com', remand_response.content.decode())
+        self.assertIn('window.open', remand_response.content.decode())
         article.refresh_from_db()
         self.assertFalse(article.is_approved)
         self.assertEqual(article.remand_reason, '記載内容を修正してください。')
-
-        list_response = self.client.get(reverse('article_list'))
-        self.assertContains(list_response, '差戻し')
-        self.assertContains(list_response, 'レビュー')
 
     def test_reviewer_cannot_republish_hidden_for_all_article(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
@@ -1447,14 +1507,28 @@ class TipsListTests(TestCase):
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_remand_tip_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
-        reviewer = get_user_model().objects.create_user(username='tips_reviewer_remand', password='password')
+        reviewer = get_user_model().objects.create_user(
+            username='tips_reviewer_remand',
+            password='password',
+            email='tips_reviewer_remand@example.com',
+        )
         reviewer.groups.add(reviewer_group)
+        creator = get_user_model().objects.create_user(username='tips_remand_creator', password='password')
+        UserProfile.objects.create(
+            user=creator,
+            uid='910004',
+            display_name='Tips作成者',
+            company_name='株式会社サンプル',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+            email_addresses='tipscreator@example.com',
+        )
         tip = TipsArticle.objects.create(
             title='差し戻し対象Tips',
             category='PC/設定',
             body='本文',
             visible_to_customer=True,
             is_approved=False,
+            created_by=creator,
         )
         self.client.force_login(reviewer)
 
@@ -1463,32 +1537,48 @@ class TipsListTests(TestCase):
             {'remand_reason': '表現を見直してください。'},
         )
 
-        self.assertRedirects(remand_response, reverse('tip_list'))
+        self.assertEqual(remand_response.status_code, 200)
+        self.assertIn('action=create_draft', remand_response.content.decode())
+        self.assertIn('to=tipscreator%40example.com', remand_response.content.decode())
+        self.assertIn('window.open', remand_response.content.decode())
         tip.refresh_from_db()
         self.assertFalse(tip.is_approved)
         self.assertEqual(tip.remand_reason, '表現を見直してください。')
 
-        list_response = self.client.get(reverse('tip_list'))
-        self.assertContains(list_response, '差戻し')
-        self.assertContains(list_response, 'レビュー')
-
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_reviewer_can_approve_tip_and_default_is_standard_restricted(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
-        reviewer = get_user_model().objects.create_user(username='tips_reviewer_approve', password='password')
+        reviewer = get_user_model().objects.create_user(
+            username='tips_reviewer_approve',
+            password='password',
+            email='tipreviewer@example.com',
+        )
         reviewer.groups.add(reviewer_group)
+        creator = get_user_model().objects.create_user(username='tip_creator', password='password')
+        UserProfile.objects.create(
+            user=creator,
+            uid='910002',
+            display_name='Tips作成者',
+            company_name='株式会社サンプル',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+            email_addresses='tipcreator@example.com',
+        )
         tip = TipsArticle.objects.create(
             title='承認待ちTips',
             category='PC/設定',
             body='本文',
             visible_to_customer=True,
             is_approved=False,
+            created_by=creator,
         )
         self.client.force_login(reviewer)
 
         approve_response = self.client.post(reverse('tip_approve', args=[tip.id]))
 
-        self.assertRedirects(approve_response, reverse('tip_list'))
+        self.assertEqual(approve_response.status_code, 200)
+        self.assertIn('action=create_draft', approve_response.content.decode())
+        self.assertIn('to=tipcreator%40example.com', approve_response.content.decode())
+        self.assertIn('window.open', approve_response.content.decode())
         tip.refresh_from_db()
         self.assertTrue(tip.is_approved)
         self.assertTrue(tip.standard_contract_only)

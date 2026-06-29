@@ -31,6 +31,7 @@ from .views import (
     ManualDetailView,
     ManualListView,
     ManualUpdateView,
+    MailDraftCallbackView,
     RevisionHistoryCreateView,
     RevisionHistoryDeleteView,
     RevisionHistoryListView,
@@ -129,5 +130,6 @@ urlpatterns = [
     path('manuals/<int:pk>/delete/', ManualDeleteView.as_view(), name='manual_delete'),
     path('management/articles/', ArticleManagementView.as_view(), name='article_management'),
     path('management/reviews/', ReviewListView.as_view(), name='review_list'),
+    path('management/mail-draft-callback/', MailDraftCallbackView.as_view(), name='mail_draft_callback'),
     path('account/view-mode/', switch_account_view_mode, name='switch_account_view_mode'),
 ]

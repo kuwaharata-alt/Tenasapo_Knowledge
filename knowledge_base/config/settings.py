@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
@@ -20,6 +21,9 @@ load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# テスト実行の検出
+IS_TESTING = 'test' in sys.argv
 
 
 # Quick-start development settings - unsuitable for production
@@ -256,3 +260,26 @@ EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'Tenasapo@gmail.com')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your-app-password')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'tenasapo@systena.co.jp')
 EMAIL_FILE_PATH = os.getenv('EMAIL_FILE_PATH', os.path.join(BASE_DIR, 'sent_emails'))
+
+# Google Chat 通知
+# テスト環境と本番環境で異なるWebhook/URLを使用可能
+if IS_TESTING:
+    # テスト環境: ダミー値を使用（環境変数で上書き可能）
+    GOOGLE_CHAT_WEBHOOK_URL = os.getenv(
+        'GOOGLE_CHAT_WEBHOOK_URL',
+        'https://chat.googleapis.com/v1/spaces/TEST_SPACE_ID/messages?key=TEST_KEY&token=TEST_TOKEN',
+    )
+    GOOGLE_CHAT_GAS_WEB_APP_URL = os.getenv(
+        'GOOGLE_CHAT_GAS_WEB_APP_URL',
+        'https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec',
+    )
+else:
+    # 本番環境: 実際の本番URLをデフォルト値とする
+    GOOGLE_CHAT_WEBHOOK_URL = os.getenv(
+        'GOOGLE_CHAT_WEBHOOK_URL',
+        'https://chat.googleapis.com/v1/spaces/AAQAuHpWqBA/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=y3uEoM2pbNxQk3thuqZYl2gbwZEJ6aEGXrxkUlBFSlY',
+    )
+    GOOGLE_CHAT_GAS_WEB_APP_URL = os.getenv(
+        'GOOGLE_CHAT_GAS_WEB_APP_URL',
+        'https://script.google.com/a/macros/systena.co.jp/s/AKfycbxik70T0Xrkv4SJG5rN0OQhh_CiMnOCgzbo29wSttIzgZBmTfPCvKGBcWQigrOMNR6e8g/exec',
+    )

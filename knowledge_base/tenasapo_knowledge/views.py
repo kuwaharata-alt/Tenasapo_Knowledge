@@ -1,7 +1,12 @@
 from collections import Counter
 from datetime import datetime, timedelta
 import json
+import logging
+import threading
+import urllib.request as _urlrequest
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+_logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -27,7 +32,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
 import sys
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
 from django.utils.crypto import get_random_string
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils import timezone
@@ -115,6 +120,7 @@ ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
 ACCOUNT_VIEW_MODE_DEMO = 'demo'
 ACCOUNT_VIEW_MODE_CS = 'cs'
 ACCOUNT_VIEW_MODES = {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}
+APPROVAL_MAIL_CC_FIXED = 'hanadary@systena.co.jp'
 
 
 class HomeRedirectLoginView(LoginView):
@@ -229,6 +235,149 @@ def resolve_next_path(request, fallback_url_name, **fallback_kwargs):
     if fallback_kwargs:
         return reverse_lazy(fallback_url_name, kwargs=fallback_kwargs)
     return reverse_lazy(fallback_url_name)
+
+
+def _extract_first_email(value):
+    text = str(value or '').strip()
+    if not text:
+        return ''
+
+    normalized = (
+        text.replace('\r', '\n')
+        .replace(',', '\n')
+        .replace(';', '\n')
+        .replace('\t', '\n')
+        .replace(' ', '\n')
+    )
+    for token in normalized.split('\n'):
+        candidate = token.strip().strip('<>').strip()
+        if '@' in candidate:
+            return candidate
+    return ''
+
+
+def _resolve_creator_email(user):
+    if user is None:
+        return ''
+
+    profile = getattr(user, 'knowledge_profile', None)
+    if profile:
+        profile_email = _extract_first_email(profile.email_addresses)
+        if profile_email:
+            return profile_email
+
+    return _extract_first_email(getattr(user, 'email', ''))
+
+
+def _build_review_mail_draft_redirect_url(
+    request,
+    management_code,
+    article_title,
+    creator_user,
+    operation_subject_label,
+    operation_message,
+    remand_reason='',
+):
+    gas_url = (getattr(settings, 'GOOGLE_CHAT_GAS_WEB_APP_URL', '') or '').strip()
+    if not gas_url:
+        return ''
+
+    to_address = _resolve_creator_email(creator_user)
+    if not to_address:
+        return ''
+
+    approver_email = _extract_first_email(getattr(request.user, 'email', ''))
+    cc_addresses = [APPROVAL_MAIL_CC_FIXED]
+    if approver_email and approver_email.lower() != APPROVAL_MAIL_CC_FIXED.lower():
+        cc_addresses.append(approver_email)
+
+    timestamp = timezone.localtime().strftime('%Y/%m/%d %H:%M:%S')
+    approver_name = resolve_user_display_name(request.user)
+    code_text = str(management_code or '').strip()
+    code_text_for_subject = code_text or '-'
+    subject = f'【Nexus】{operation_subject_label}　【{code_text_for_subject}】{article_title}'
+
+    open_path = '/faq/'
+    list_url_name = 'article_list'
+    if code_text.upper().startswith('TP'):
+        open_path = '/tips/'
+        list_url_name = 'tip_list'
+    knowledge_url = request.build_absolute_uri(f'{open_path}?open_code={code_text}') if code_text else request.build_absolute_uri(open_path)
+
+    body_lines = [
+        operation_message,
+        '',
+        f'管理番号: {code_text or "-"}',
+        f'タイトル: {article_title}',
+        f'承認者: {approver_name}',
+        f'承認日時: {timestamp}',
+    ]
+    if remand_reason:
+        body_lines.extend(['', f'差戻し理由: {remand_reason}'])
+    body_lines.extend(['', f'ナレッジのリンク: {knowledge_url}'])
+    body = '\n'.join(body_lines)
+
+    # GAS処理後はタブを自動クローズする指示
+    callback_url = request.build_absolute_uri(reverse('mail_draft_callback')) + '?window_close=1'
+    params = urlencode(
+        {
+            'action': 'create_draft',
+            'to': to_address,
+            'cc': ','.join(cc_addresses),
+            'subject': subject,
+            'body': body,
+            'intro_message': operation_message,
+            'management_code': code_text or '-',
+            'article_title': article_title,
+            'approver_name': approver_name,
+            'approved_at': timestamp,
+            'knowledge_url': knowledge_url,
+            'remand_reason': remand_reason,
+            'callback': callback_url,
+        }
+    )
+    sep = '&' if '?' in gas_url else '?'
+    return gas_url + sep + params
+
+
+def _open_gas_newtab_response(request, gas_url, return_path):
+    """現在タブを return_path へ移動し、GAS URL を新規タブで開く HTML レスビンスを返す。"""
+    gas_url_js = json.dumps(gas_url)
+    return_url_js = json.dumps(return_path)
+    html = (
+        '<!DOCTYPE html><html><head><meta charset="utf-8">'
+        '<meta http-equiv="refresh" content="0;url=' + return_path + '">'
+        '</head><body>'
+        '<script>'
+        'try { window.open(' + gas_url_js + ', "_blank"); } catch(e) {}'
+        'window.location.href = ' + return_url_js + ';'
+        '</script>'
+        '</body></html>'
+    )
+    return HttpResponse(html)
+
+
+def _build_approval_mail_draft_redirect_url(request, management_code, article_title, creator_user):
+    return _build_review_mail_draft_redirect_url(
+        request=request,
+        management_code=management_code,
+        article_title=article_title,
+        creator_user=creator_user,
+        operation_subject_label='承認',
+        operation_message='以下のコンテンツが承認されました。',
+    )
+
+
+def _build_remand_mail_draft_redirect_url(request, management_code, article_title, creator_user, remand_reason):
+    return _build_review_mail_draft_redirect_url(
+        request=request,
+        management_code=management_code,
+        article_title=article_title,
+        creator_user=creator_user,
+        operation_subject_label='差戻し',
+        operation_message='以下のコンテンツが差し戻されました。',
+        remand_reason=remand_reason,
+    )
 
 
 def target_os_entries_for_form(form):
@@ -829,6 +978,42 @@ class HomeView(TemplateView):
             )
         context['menu_groups'] = [group for group in menu_groups if group['items']]
         return context
+
+
+class MailDraftCallbackView(View):
+    """GASからの下書き作成結果を受け取る。新規タブの場合はタブを自動クローズする。"""
+    http_method_names = ['get']
+
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+
+        # 新規タブモード: タブを自動クローズするのみ
+        if request.GET.get('window_close'):
+            error_message = (request.GET.get('error_message') or '').strip()
+            msg = 'メール下書きの作成に失敗しました。' if error_message else 'Gmail下書きを作成しました。'
+            return HttpResponse(
+                '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>'
+                '<p>' + msg + 'このタブを閉じてください。</p>'
+                '<script>window.close();</script>'
+                '</body></html>'
+            )
+
+        error_message = (request.GET.get('error_message') or '').strip()
+        draft_id = (request.GET.get('draft_id') or '').strip()
+        next_url = (request.GET.get('next') or '').strip()
+
+        if error_message:
+            messages.error(request, f'メール下書きの作成に失敗しました: {error_message}')
+        else:
+            messages.success(request, 'Gmail下書きを作成しました。')
+
+        if next_url:
+            from urllib.parse import urlparse
+            parsed = urlparse(next_url)
+            safe_next = parsed.path + (('?' + parsed.query) if parsed.query else '')
+            return redirect(safe_next)
+        return redirect('home')
 
 
 class KnowledgeInputHubView(TemplateView):
@@ -2123,6 +2308,15 @@ class TipsApproveView(View):
         tip.approved_by_name = resolve_user_display_name(request.user)
         tip.remand_reason = ''
         tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        redirect_url = _build_approval_mail_draft_redirect_url(
+            request=request,
+            management_code=tip.management_code,
+            article_title=tip.title,
+            creator_user=tip.created_by,
+        )
+        if redirect_url:
+            messages.success(request, f'Tips「{tip.title}」を承認しました。メール下書きを作成します。')
+            return _open_gas_newtab_response(request, redirect_url, reverse('tip_list'))
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
@@ -2144,6 +2338,16 @@ class TipsRemandView(View):
         tip.approved_by_name = ''
         tip.remand_reason = reason
         tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        redirect_url = _build_remand_mail_draft_redirect_url(
+            request=request,
+            management_code=tip.management_code,
+            article_title=tip.title,
+            creator_user=tip.created_by,
+            remand_reason=reason,
+        )
+        if redirect_url:
+            messages.success(request, f'Tips「{tip.title}」を差し戻しました。メール下書きを作成します。')
+            return _open_gas_newtab_response(request, redirect_url, reverse('tip_list'))
         messages.success(request, f'Tips「{tip.title}」を差し戻しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
@@ -3580,6 +3784,15 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article.approved_by_name = resolve_user_display_name(request.user)
         article.remand_reason = ''
         article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        redirect_url = _build_approval_mail_draft_redirect_url(
+            request=request,
+            management_code=article.management_code,
+            article_title=article.title,
+            creator_user=article.created_by,
+        )
+        if redirect_url:
+            messages.success(request, f'FAQ「{article.title}」を承認しました。メール下書きを作成します。')
+            return _open_gas_newtab_response(request, redirect_url, reverse('article_list'))
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
@@ -3614,6 +3827,16 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         article.approved_by_name = ''
         article.remand_reason = reason
         article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        redirect_url = _build_remand_mail_draft_redirect_url(
+            request=request,
+            management_code=article.management_code,
+            article_title=article.title,
+            creator_user=article.created_by,
+            remand_reason=reason,
+        )
+        if redirect_url:
+            messages.success(request, f'FAQ「{article.title}」を差し戻しました。メール下書きを作成します。')
+            return _open_gas_newtab_response(request, redirect_url, reverse('article_list'))
         messages.success(request, f'FAQ「{article.title}」を差し戻しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
