@@ -83,6 +83,7 @@
                     <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
                 {% endif %}
 
+                {% if can_edit_article %}
                 <div class="border-top pt-3 mt-3 mb-3">
                     <div class="fw-semibold small mb-3">関連するFAQ</div>
                     {% if related_articles %}
@@ -102,6 +103,7 @@
                         <div class="text-muted small">関連する記事はありません</div>
                     {% endif %}
                 </div>
+                {% endif %}
 
                 {% if article.can_view_content and article.reference_links %}
                 <div class="border-top pt-3 mt-3">
