@@ -46,6 +46,7 @@ from .forms import (
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
+    RelatedTagCreateForm,
     get_qr_category_hierarchy,
     RevisionHistoryForm,
     parse_target_os_entries_json,
@@ -69,6 +70,7 @@ from .models import (
     KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
+    RelatedTag,
     RevisionHistory,
     TipsFavorite,
     TipsGood,
@@ -2108,6 +2110,7 @@ class TipsCreateView(FormView):
         context['form_title'] = 'Tips登録'
         context['submit_label'] = '登録'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
+        context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
@@ -2130,6 +2133,7 @@ class TipsCreateView(FormView):
 
         tip = TipsArticle.objects.create(
             title=form.cleaned_data['title'],
+            tags=form.cleaned_data.get('tags', ''),
             target_os=form.cleaned_data['target_os'],
             category=form.cleaned_data['category'],
             body=form.cleaned_data['body'],
@@ -2180,6 +2184,7 @@ class TipsUpdateView(FormView):
         return {
             'registered_category': registered_category_ids,
             'title': self.tip.title,
+            'tags': self.tip.tags,
             'target_os_entries': json.dumps(parse_target_os_values(self.tip.target_os), ensure_ascii=False),
             'target_os_name': parsed_target_os['name'],
             'target_os_version': parsed_target_os['version'],
@@ -2196,6 +2201,7 @@ class TipsUpdateView(FormView):
         context['form_title'] = 'Tips編集'
         context['submit_label'] = '更新'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
+        context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['tip'] = self.tip
         context['tip_approver_display_name'] = resolve_saved_or_user_display_name(
             self.tip.approved_by_name,
@@ -2255,6 +2261,7 @@ class TipsUpdateView(FormView):
             reference_links = []
 
         self.tip.title = form.cleaned_data['title']
+        self.tip.tags = form.cleaned_data.get('tags', '')
         self.tip.target_os = form.cleaned_data['target_os']
         self.tip.category = form.cleaned_data['category']
         self.tip.body = form.cleaned_data['body']
@@ -2264,7 +2271,7 @@ class TipsUpdateView(FormView):
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
         self.tip.reference_links = reference_links
         update_fields = [
-            'title', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
+            'title', 'tags', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
             'visible_to_customer', 'visible_to_systena', 'reference_links', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
@@ -3553,6 +3560,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         context['form_title'] = 'FAQ登録'
         context['submit_label'] = '登録'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
+        context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['category_groups'] = self.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
@@ -3600,6 +3608,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         article = KnowledgeArticle.objects.create(
             category=form.cleaned_data['category'],
             title=form.cleaned_data['title'],
+            tags=form.cleaned_data.get('tags', ''),
             target_os=form.cleaned_data['target_os'],
             summary=form.cleaned_data['question'],
             body=form.cleaned_data['answer'],
@@ -3654,6 +3663,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         return {
             'registered_category': registered_category_ids,
             'title': self.article.title,
+            'tags': self.article.tags,
             'target_os_entries': json.dumps(parse_target_os_values(self.article.target_os), ensure_ascii=False),
             'target_os_name': parsed_target_os['name'],
             'target_os_version': parsed_target_os['version'],
@@ -3671,6 +3681,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['form_title'] = 'FAQ編集'
         context['submit_label'] = '更新'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
+        context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['article'] = self.article
         context['article_approver_display_name'] = resolve_saved_or_user_display_name(
             self.article.approved_by_name,
@@ -3732,6 +3743,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
 
         self.article.category = form.cleaned_data['category']
         self.article.title = form.cleaned_data['title']
+        self.article.tags = form.cleaned_data.get('tags', '')
         self.article.target_os = form.cleaned_data['target_os']
         self.article.summary = form.cleaned_data['question']
         self.article.body = form.cleaned_data['answer']
@@ -3744,6 +3756,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             update_fields=[
                 'category',
                 'title',
+                'tags',
                 'target_os',
                 'summary',
                 'body',
@@ -4058,6 +4071,38 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
             if updated_categories != categories:
                 tip.category = ','.join(updated_categories)
                 tip.save(update_fields=['category', 'updated_at'])
+
+
+class RelatedTagCreateView(StaffRequiredMixin, FormView):
+    template_name = 'tenasapo_knowledge/tag_form.html'
+    form_class = RelatedTagCreateForm
+    success_url = reverse_lazy('tag_create')
+
+    def _resolve_return_to_url(self):
+        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
+        if candidate and url_has_allowed_host_and_scheme(
+            url=candidate,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return candidate
+        return ''
+
+    def get_success_url(self):
+        return self._resolve_return_to_url() or str(self.success_url)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'タグ登録'
+        context['submit_label'] = '登録'
+        context['return_to'] = self._resolve_return_to_url()
+        context['tags'] = RelatedTag.objects.order_by('name')
+        return context
+
+    def form_valid(self, form):
+        tag = form.save()
+        messages.success(self.request, f'タグ「{tag.name}」を登録しました。')
+        return super().form_valid(form)
 
 
 class UserCreateView(StaffRequiredMixin, FormView):

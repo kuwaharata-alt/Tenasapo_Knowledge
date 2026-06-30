@@ -25,7 +25,10 @@
                 <div class="row g-3">
                     <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <div class="form-section-label mb-0">カテゴリ <span class="text-danger">*</span></div>
-                        <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
+                        <div class="d-flex gap-2">
+                            <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
+                            <a class="btn btn-outline-primary btn-sm" href="{{ tag_create_url }}">タグ登録</a>
+                        </div>
                     </div>
                     <div class="col-12">
                         <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
@@ -58,6 +61,12 @@
                         </div>
                         {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         <div id="faqCategoryHiddenContainer" style="display:none;"></div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>
+                        <input class="form-control{% if form.tags.errors %} is-invalid{% endif %}" type="text" name="{{ form.tags.html_name }}" id="{{ form.tags.id_for_label }}" value="{{ form.tags.value|default_if_none:'' }}" placeholder="例: IP, 設定, ネットワーク">
+                        {% if form.tags.help_text %}<div class="form-text">{{ form.tags.help_text }}</div>{% endif %}
+                        {% for error in form.tags.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
                         <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>

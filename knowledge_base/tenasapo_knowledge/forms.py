@@ -11,6 +11,7 @@ from .models import (
     ConvenienceFeature,
     FAQCategory,
     Manual,
+    RelatedTag,
     RevisionHistory,
     default_expires_on,
 )
@@ -245,6 +246,18 @@ class FAQCategoryCreateForm(forms.ModelForm):
 
         cleaned_data['parent_name'] = final_parent
         return cleaned_data
+
+
+class RelatedTagCreateForm(forms.ModelForm):
+    class Meta:
+        model = RelatedTag
+        fields = ('name',)
+        labels = {
+            'name': 'タグ名',
+        }
+
+    def clean_name(self):
+        return self.cleaned_data['name'].strip()
 
 
 DEFAULT_QR_CATEGORY_HIERARCHY = [
@@ -547,6 +560,12 @@ class KnowledgeArticleCreateForm(forms.Form):
         label='タイトル',
         max_length=200,
     )
+    tags = forms.CharField(
+        label='タグ',
+        max_length=300,
+        required=False,
+        help_text='カンマ区切りで入力（例: IP, 設定, ネットワーク）',
+    )
     target_os_name = forms.ChoiceField(
         label='OS',
         choices=TARGET_OS_NAME_CHOICES,
@@ -660,6 +679,12 @@ class TipsCreateForm(forms.Form):
     title = forms.CharField(
         label='タイトル',
         max_length=200,
+    )
+    tags = forms.CharField(
+        label='タグ',
+        max_length=300,
+        required=False,
+        help_text='カンマ区切りで入力（例: IP, 設定, ネットワーク）',
     )
     target_os_name = forms.ChoiceField(
         label='OS',

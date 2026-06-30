@@ -133,6 +133,7 @@ class KnowledgeArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
     target_os = models.CharField('対象OS', max_length=120, blank=True)
     category = models.CharField('カテゴリ', max_length=180, blank=True)
+    tags = models.CharField('タグ', max_length=300, blank=True)
     customer = models.ForeignKey(
         Customer,
         on_delete=models.SET_NULL,
@@ -201,7 +202,7 @@ class KnowledgeArticle(models.Model):
         super().save(*args, **kwargs)
 
     def get_related_articles(self, limit=5, approved_only=True):
-        """キーワードマッチングで関連記事を取得
+        """タグ一致（2個以上）で関連記事を取得
         approved_only=True: 承認済みのみ（カスタマー向け）
         approved_only=False: 未承認も含む（システナ/管理者向け）
         """
@@ -228,53 +229,36 @@ class KnowledgeArticle(models.Model):
             if faq_approval_enabled:
                 all_articles = all_articles.filter(is_approved=True)
         
-        # 同じカテゴリの記事を優先
-        if self.category:
-            category_articles = list(
-                all_articles.filter(category=self.category)[:limit]
-            )
-            if len(category_articles) >= limit:
-                return category_articles
-        
-        # タイトルと本文から共通キーワードを含む記事を検索
-        keywords = self._extract_keywords(self.title)
-        
-        related_articles = []
-        if keywords:
-            for keyword in keywords:
-                q = Q(title__icontains=keyword) | Q(body__icontains=keyword)
-                matching = list(all_articles.filter(q).exclude(id__in=[a.id for a in related_articles])[:limit - len(related_articles)])
-                related_articles.extend(matching)
-                
-                if len(related_articles) >= limit:
-                    break
-        
-        return related_articles[:limit]
+        own_tags = set(self.parsed_tags)
+        if len(own_tags) < 2:
+            return []
+
+        scored_articles = []
+        for candidate in all_articles:
+            candidate_tags = set(candidate.parsed_tags)
+            matched_tags = own_tags & candidate_tags
+            if len(matched_tags) < 2:
+                continue
+            scored_articles.append((len(matched_tags), candidate.published_at, candidate.created_at, candidate))
+
+        scored_articles.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+        return [item[3] for item in scored_articles[:limit]]
     
     @staticmethod
-    def _extract_keywords(text, min_length=2, limit=5):
-        """テキストからキーワードを抽出（カタカナ・漢字を別グループで分割）"""
-        import re
-        
-        # カタカナ / 漢字 / ひらがな(3文字以上) を別々のグループとして抽出
-        # 例: "IPアドレスの手動設定手順" → ["アドレス", "手動設定手順"]
-        # 例: "IPアドレス設定" → ["アドレス", "設定"]
-        words = re.findall(
-            r'[\u30A0-\u30FF]+|[\u4E00-\u9FFF]+|[\u3040-\u309F]{3,}',
-            text
-        )
-        
-        # 指定文字数以上のワードで重複を除去
-        keywords = []
+    def parse_tags(tags_text):
+        tags = []
         seen = set()
-        for word in words:
-            if len(word) >= min_length and word not in seen:
-                keywords.append(word)
-                seen.add(word)
-                if len(keywords) >= limit:
-                    break
-        
-        return keywords
+        for raw_tag in (tags_text or '').replace('、', ',').split(','):
+            tag = raw_tag.strip().lower()
+            if not tag or tag in seen:
+                continue
+            seen.add(tag)
+            tags.append(tag)
+        return tags
+
+    @property
+    def parsed_tags(self):
+        return self.parse_tags(self.tags)
 
     def get_all_related_articles(self):
         """システナ/管理者向け: 未承認も含む関連記事を取得"""
@@ -305,6 +289,7 @@ class TipsArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
     target_os = models.CharField('対象OS', max_length=120, blank=True)
     category = models.CharField('カテゴリ', max_length=180, blank=True)
+    tags = models.CharField('タグ', max_length=300, blank=True)
     body = models.TextField('内容')
     pdf_file = models.FileField('PDFファイル', upload_to='tips_attachments/%Y/%m/', blank=True)
     is_published = models.BooleanField('公開', default=True)
@@ -365,7 +350,7 @@ class TipsArticle(models.Model):
         super().save(*args, **kwargs)
 
     def get_related_articles(self, limit=5, approved_only=True):
-        """キーワードマッチングで関連記事を取得
+        """タグ一致（2個以上）で関連記事を取得
         approved_only=True: 承認済みのみ（カスタマー向け）
         approved_only=False: 未承認も含む（システナ/管理者向け）
         """
@@ -392,53 +377,36 @@ class TipsArticle(models.Model):
             if faq_approval_enabled:
                 all_articles = all_articles.filter(is_approved=True)
         
-        # 同じカテゴリの記事を優先
-        if self.category:
-            category_articles = list(
-                all_articles.filter(category=self.category)[:limit]
-            )
-            if len(category_articles) >= limit:
-                return category_articles
-        
-        # タイトルと本文から共通キーワードを含む記事を検索
-        keywords = self._extract_keywords(self.title)
-        
-        related_articles = []
-        if keywords:
-            for keyword in keywords:
-                q = Q(title__icontains=keyword) | Q(body__icontains=keyword)
-                matching = list(all_articles.filter(q).exclude(id__in=[a.id for a in related_articles])[:limit - len(related_articles)])
-                related_articles.extend(matching)
-                
-                if len(related_articles) >= limit:
-                    break
-        
-        return related_articles[:limit]
+        own_tags = set(self.parsed_tags)
+        if len(own_tags) < 2:
+            return []
+
+        scored_articles = []
+        for candidate in all_articles:
+            candidate_tags = set(candidate.parsed_tags)
+            matched_tags = own_tags & candidate_tags
+            if len(matched_tags) < 2:
+                continue
+            scored_articles.append((len(matched_tags), candidate.published_at, candidate.created_at, candidate))
+
+        scored_articles.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+        return [item[3] for item in scored_articles[:limit]]
     
     @staticmethod
-    def _extract_keywords(text, min_length=2, limit=5):
-        """テキストからキーワードを抽出（カタカナ・漢字を別グループで分割）"""
-        import re
-        
-        # カタカナ / 漢字 / ひらがな(3文字以上) を別々のグループとして抽出
-        # 例: "IPアドレスの手動設定手順" → ["アドレス", "手動設定手順"]
-        # 例: "IPアドレス設定" → ["アドレス", "設定"]
-        words = re.findall(
-            r'[\u30A0-\u30FF]+|[\u4E00-\u9FFF]+|[\u3040-\u309F]{3,}',
-            text
-        )
-        
-        # 指定文字数以上のワードで重複を除去
-        keywords = []
+    def parse_tags(tags_text):
+        tags = []
         seen = set()
-        for word in words:
-            if len(word) >= min_length and word not in seen:
-                keywords.append(word)
-                seen.add(word)
-                if len(keywords) >= limit:
-                    break
-        
-        return keywords
+        for raw_tag in (tags_text or '').replace('、', ',').split(','):
+            tag = raw_tag.strip().lower()
+            if not tag or tag in seen:
+                continue
+            seen.add(tag)
+            tags.append(tag)
+        return tags
+
+    @property
+    def parsed_tags(self):
+        return self.parse_tags(self.tags)
 
     def get_all_related_articles(self):
         """システナ/管理者向け: 未承認も含む関連記事を取得"""
@@ -571,6 +539,20 @@ class ConvenienceCategory(models.Model):
         if self.middle_category:
             parts.append(self.middle_category)
         return ' / '.join(parts)
+
+
+class RelatedTag(models.Model):
+    name = models.CharField('タグ名', max_length=60, unique=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = '関連タグ'
+        verbose_name_plural = '関連タグ'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
 
 
 class ArticleAttachment(models.Model):

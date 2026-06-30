@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title }} | Nexus{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-tags-fill"></i></span>{{ form_title }}
+            </h1>
+        </div>
+
+        <form class="card shadow-sm" method="post">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                {% if return_to %}
+                    <input type="hidden" name="next" value="{{ return_to }}">
+                {% endif %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                        <input class="form-control{% if form.name.errors %} is-invalid{% endif %}" type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}" value="{{ form.name.value|default_if_none:'' }}" placeholder="例: IP" required>
+                        {% for error in form.name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                {% if return_to %}
+                    <a class="btn btn-outline-secondary" href="{{ return_to }}">戻る</a>
+                {% else %}
+                    <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
+                {% endif %}
+                <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
+            </div>
+        </form>
+
+        <section class="mt-4">
+            <h2 class="h5 fw-bold mb-3">登録済みタグ</h2>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for tag in tags %}
+                            <span class="badge text-bg-secondary">{{ tag.name }}</span>
+                        {% empty %}
+                            <div class="text-muted">タグがありません。</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}
