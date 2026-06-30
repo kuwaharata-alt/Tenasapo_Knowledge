@@ -5241,7 +5241,12 @@ class KnowledgeArticleDetailView(TemplateView):
             article.good_count = ArticleGood.objects.filter(article_id=article.id).count()
             break
 
+        # 関連記事を取得（カスタマーは承認済みのみ、システナ/管理者は未承認も含む）
+        approved_only = not (is_admin or is_systena or is_reviewer)
+        related_articles = article.get_related_articles(limit=5, approved_only=approved_only)
+
         context['article'] = article
+        context['related_articles'] = related_articles
         context['can_use_good'] = is_customer_user(user)
         context['can_use_favorite'] = can_use_favorite(user)
         context['can_edit_article'] = can_edit_article(user)
@@ -5304,10 +5309,16 @@ class TipsArticleDetailView(TemplateView):
         tip.is_favorited = tip.id in favorite_tip_ids
         tip.good_count = TipsGood.objects.filter(tip_id=tip.id).count()
 
+        # 関連記事を取得（カスタマーは承認済みのみ、システナ/管理者は未承認も含む）
+        approved_only = not (is_admin or is_systena or is_reviewer)
+        related_articles = tip.get_related_articles(limit=5, approved_only=approved_only)
+
         context['tip'] = tip
+        context['related_articles'] = related_articles
         context['can_use_good'] = is_customer_user(user)
         context['can_use_favorite'] = can_use_favorite(user)
         context['can_edit_tip'] = can_edit_article(user)
+        context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         return context
 

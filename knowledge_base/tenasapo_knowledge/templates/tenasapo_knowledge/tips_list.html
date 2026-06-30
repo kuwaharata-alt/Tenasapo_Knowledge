@@ -371,7 +371,26 @@
                                                 </div>
                                             {% endif %}
                                             {% if tip.can_view_content %}
-                                                <div class="faq-body-indent">{{ tip.body|render_inline_images:tip.inline_images }}</div>
+                                                <div class="faq-body-indent mb-3">{{ tip.body|render_inline_images:tip.inline_images }}</div>
+
+                                                {% with related=tip.get_related_articles %}
+                                                    <div class="border-top pt-3 mt-3 mb-1">
+                                                        <div class="fw-semibold small mb-2">関連するTips</div>
+                                                        {% if related %}
+                                                            <div class="d-flex flex-column gap-2">
+                                                                {% for rel in related %}
+                                                                    <a href="{% url 'tip_detail' rel.management_code %}" class="d-flex align-items-center gap-2 text-decoration-none text-body border rounded px-3 py-2 small bg-light bg-opacity-50">
+                                                                        <span class="badge text-bg-info text-white flex-shrink-0" style="font-size:0.65rem;">Tips</span>
+                                                                        <span>{{ rel.title }}</span>
+                                                                        <span class="ms-auto text-muted" style="white-space:nowrap;">{{ rel.management_code }}</span>
+                                                                    </a>
+                                                                {% endfor %}
+                                                            </div>
+                                                        {% else %}
+                                                            <div class="text-muted small">関連する記事はありません</div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% endwith %}
                                             {% else %}
                                                 <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
                                             {% endif %}
