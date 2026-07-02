@@ -11,12 +11,42 @@
 </div>
 
 <form class="row gy-2 gx-2 align-items-end mb-4" method="get">
-    <div class="col-12 col-md-5">
+    <div class="col-12 col-md-3">
         <label class="form-label" for="q">検索</label>
         <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名で検索">
     </div>
-    <div class="col-12 col-md-auto">
+    <div class="col-12 col-md-3">
+        <label class="form-label" for="page_name">ページ名</label>
+        <select class="form-select" id="page_name" name="page_name">
+            <option value="">すべて</option>
+            {% for name in page_names %}
+                <option value="{{ name }}" {% if selected_page_name == name %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-12 col-md-3">
+        <label class="form-label" for="parent_category">大カテゴリ</label>
+        <select class="form-select" id="parent_category" name="parent_category">
+            <option value="">すべて</option>
+            {% for name in parent_categories %}
+                <option value="{{ name }}" {% if selected_parent_category == name %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-12 col-md-2">
+        <label class="form-label" for="category">小カテゴリ</label>
+        <select class="form-select" id="category" name="category">
+            <option value="">すべて</option>
+            {% for name in categories %}
+                <option value="{{ name }}" {% if selected_category == name %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-12 col-md-auto d-flex gap-2">
         <button class="btn btn-outline-primary" type="submit">検索</button>
+        {% if query or selected_page_name or selected_parent_category or selected_category %}
+            <a class="btn btn-outline-secondary" href="{% url 'view_history_list' %}">クリア</a>
+        {% endif %}
     </div>
 </form>
 
@@ -95,7 +125,7 @@
         <ul class="pagination">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}">前へ</a>
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}{% if selected_page_name %}&page_name={{ selected_page_name|urlencode }}{% endif %}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}">前へ</a>
                 </li>
             {% endif %}
             <li class="page-item active" aria-current="page">
@@ -103,7 +133,7 @@
             </li>
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}">次へ</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}{% if selected_page_name %}&page_name={{ selected_page_name|urlencode }}{% endif %}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}">次へ</a>
                 </li>
             {% endif %}
         </ul>

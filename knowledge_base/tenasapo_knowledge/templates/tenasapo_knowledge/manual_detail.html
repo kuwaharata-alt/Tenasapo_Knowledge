@@ -23,7 +23,7 @@
 
 <div id="pdf-viewer-wrap" class="p-3 p-lg-4" style="background:#2b2b2b; border-radius:1rem; box-shadow:0 18px 40px rgba(0,0,0,0.25);">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="h6 text-white mb-0">全ページ表示（4:3）</h2>
+        <h2 class="h6 text-white mb-0">全ページ表示</h2>
         <a href="{{ manual.pdf_file.url }}" download class="btn btn-sm btn-outline-warning">PDFダウンロード</a>
     </div>
 
@@ -57,7 +57,7 @@ function createPageCard(pageNo) {
     label.textContent = `${pageNo} ページ`;
 
     const frame = document.createElement('div');
-    frame.style.cssText = 'aspect-ratio:4/3;background:#ffffff;border-radius:.5rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
+    frame.style.cssText = 'background:#ffffff;border-radius:.5rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';
@@ -82,7 +82,7 @@ function createThumb(pageNo) {
     };
 
     const frame = document.createElement('div');
-    frame.style.cssText = 'aspect-ratio:4/3;background:#fff;border-radius:.35rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
+    frame.style.cssText = 'background:#fff;border-radius:.35rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';

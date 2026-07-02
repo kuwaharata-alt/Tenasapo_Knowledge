@@ -157,15 +157,23 @@
 
 {% if is_paginated %}
     <nav class="mt-4" aria-label="ページネーション">
-        <ul class="pagination">
+        <ul class="pagination flex-wrap">
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">前へ</a>
                 </li>
             {% endif %}
-            <li class="page-item active" aria-current="page">
-                <span class="page-link">{{ page_obj.number }}</span>
-            </li>
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <li class="page-item active" aria-current="page">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">次へ</a>

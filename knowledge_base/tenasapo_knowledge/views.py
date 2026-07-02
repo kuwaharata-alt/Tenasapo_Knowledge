@@ -4464,11 +4464,44 @@ class ViewHistoryListView(StaffRequiredMixin, ListView):
                 Q(username__icontains=query) |
                 Q(knowledge_profile__display_name__icontains=query)
             )
+
+        page_name = self.request.GET.get('page_name', '').strip()
+        if page_name:
+            queryset = queryset.filter(view_histories__page_name=page_name)
+
+        parent_category = self.request.GET.get('parent_category', '').strip()
+        if parent_category:
+            queryset = queryset.filter(view_histories__parent_category=parent_category)
+
+        category = self.request.GET.get('category', '').strip()
+        if category:
+            queryset = queryset.filter(view_histories__category=category)
+
         return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['query'] = self.request.GET.get('q', '')
+        context['selected_page_name'] = self.request.GET.get('page_name', '')
+        context['selected_parent_category'] = self.request.GET.get('parent_category', '')
+        context['selected_category'] = self.request.GET.get('category', '')
+
+        view_history_qs = ViewHistory.objects.exclude(page_name='')
+        context['page_names'] = list(
+            view_history_qs.order_by('page_name').values_list('page_name', flat=True).distinct()
+        )
+        context['parent_categories'] = list(
+            ViewHistory.objects.exclude(parent_category='')
+            .order_by('parent_category')
+            .values_list('parent_category', flat=True)
+            .distinct()
+        )
+        context['categories'] = list(
+            ViewHistory.objects.exclude(category='')
+            .order_by('category')
+            .values_list('category', flat=True)
+            .distinct()
+        )
 
         users = list(context['users'])
         user_ids = [user.id for user in users]

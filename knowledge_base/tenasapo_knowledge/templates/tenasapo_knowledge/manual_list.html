@@ -32,7 +32,7 @@
                     background: var(--tk-surface-warm);
                     border-radius: 1rem 1rem 0 0;
                     overflow: hidden;
-                    aspect-ratio: 4/3;
+                    height: 200px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
@@ -40,7 +40,7 @@
                 " onclick="location.href='{% url 'manual_detail' manual.pk %}'">
                     <canvas class="pdf-thumb"
                             data-pdf-url="{{ manual.pdf_file.url }}"
-                            style="max-width:100%; max-height:100%;"></canvas>
+                            style="max-width:100%; max-height:100%; object-fit:contain;"></canvas>
                     <div class="pdf-thumb-placeholder text-center text-muted"
                          style="display:none; padding:1rem;">
                         <div style="font-size:3rem;">📄</div>
