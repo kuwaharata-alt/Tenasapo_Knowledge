@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}検証内容登録 | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>検証内容登録
+    </h1>
+    <p class="page-title-sub mb-0">{{ topic.category }} / {{ topic.title }}</p>
+</div>
+
+<form class="card shadow-sm" method="post" enctype="multipart/form-data" id="verificationEntryForm">
+    <div class="card-body p-4">
+        {% csrf_token %}
+        <div class="row g-3">
+            <div class="col-12">
+                <label class="form-label" for="{{ form.subtitle.id_for_label }}">サブタイトル</label>
+                <input class="form-control{% if form.subtitle.errors %} is-invalid{% endif %}" type="text" name="{{ form.subtitle.html_name }}" id="{{ form.subtitle.id_for_label }}" value="{{ form.subtitle.value|default_if_none:'' }}" required>
+                {% for error in form.subtitle.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="{{ form.summary.id_for_label }}">概要</label>
+                <textarea class="form-control{% if form.summary.errors %} is-invalid{% endif %}" name="{{ form.summary.html_name }}" id="{{ form.summary.id_for_label }}" rows="3">{{ form.summary.value|default_if_none:'' }}</textarea>
+                {% for error in form.summary.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="{{ form.steps.id_for_label }}">手順</label>
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="small text-muted me-1">スタイル</span>
+                    <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-dark bg-white text-dark fw-bold" style="text-decoration:underline;" data-format-target="{{ form.steps.id_for_label }}" data-format-name="tk_heading1">■ 見出し1</button>
+                    <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-secondary bg-white text-dark" data-format-target="{{ form.steps.id_for_label }}" data-format-name="tk_body">本文</button>
+                    <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-danger bg-white text-danger fw-bold" data-format-target="{{ form.steps.id_for_label }}" data-format-name="tk_caution">注意</button>
+                    <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-primary bg-white text-primary fw-bold" data-format-target="{{ form.steps.id_for_label }}" data-format-name="tk_point">ポイント</button>
+                </div>
+                <textarea class="rich-text-source{% if form.steps.errors %} is-invalid{% endif %}" name="{{ form.steps.html_name }}" id="{{ form.steps.id_for_label }}" rows="6" data-wysiwyg="true">{{ form.steps.value|default_if_none:'' }}</textarea>
+                <div class="small text-muted mb-1 d-none">プレビュー編集</div>
+                <div class="form-control bg-white d-none" data-rich-editor-disabled-for="{{ form.steps.id_for_label }}" contenteditable="true" style="min-height:14rem; max-height:28rem; overflow:auto;"></div>
+                {% for error in form.steps.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="{{ form.step_images.id_for_label }}">{{ form.step_images.label }}</label>
+                {% if form.step_images.help_text %}<div class="form-text mb-2">{{ form.step_images.help_text }}</div>{% endif %}
+                <div id="verificationStepImageDropZone" class="border border-2 border-secondary-subtle rounded bg-light-subtle p-4 text-center mb-2" style="border-style:dashed!important; cursor:pointer;">
+                    <div class="fw-semibold mb-1">ここに画像をドラッグ＆ドロップ</div>
+                    <div class="small text-muted">またはクリックして画像を選択</div>
+                </div>
+                <input class="form-control{% if form.step_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.step_images.html_name }}" id="{{ form.step_images.id_for_label }}" accept="image/*" multiple>
+                <div class="form-text">選択後、下の一覧から画像を1枚ずつ手順へ挿入できます。</div>
+                <div id="verification_step_image_insert_list" class="mt-2 d-flex flex-column gap-2"></div>
+                {% for error in form.step_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="{{ form.cautions.id_for_label }}">注意事項</label>
+                <textarea class="form-control{% if form.cautions.errors %} is-invalid{% endif %}" name="{{ form.cautions.html_name }}" id="{{ form.cautions.id_for_label }}" rows="3">{{ form.cautions.value|default_if_none:'' }}</textarea>
+                {% for error in form.cautions.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+                <label class="form-label" for="{{ form.pdf_file.id_for_label }}">{{ form.pdf_file.label }}</label>
+                {% if form.pdf_file.help_text %}<div class="form-text mb-2">{{ form.pdf_file.help_text }}</div>{% endif %}
+                <input class="form-control{% if form.pdf_file.errors %} is-invalid{% endif %}" type="file" name="{{ form.pdf_file.html_name }}" id="{{ form.pdf_file.id_for_label }}" accept=".pdf">
+                {% for error in form.pdf_file.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+        <a class="btn btn-outline-secondary" href="{% url 'verification_report_detail' topic.id %}">戻る</a>
+        <button class="btn btn-primary" type="submit">登録</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const stepsFieldId = '{{ form.steps.id_for_label }}';
+    const stepImagesInput = document.getElementById('{{ form.step_images.id_for_label }}');
+    const stepImageInsertList = document.getElementById('verification_step_image_insert_list');
+    const dropZone = document.getElementById('verificationStepImageDropZone');
+
+    if (window.tinymce) {
+        tinymce.init({
+            selector: '#' + stepsFieldId,
+            height: 360,
+            menubar: false,
+            branding: false,
+            plugins: 'lists link code',
+            toolbar: 'undo redo | bold italic underline | bullist numlist | link | removeformat code',
+            language: 'ja',
+            language_url: 'https://cdn.jsdelivr.net/npm/tinymce@7/langs/ja.js',
+            convert_urls: false,
+        });
+    }
+
+    function insertHtmlToSteps(html) {
+        const editor = window.tinymce ? window.tinymce.get(stepsFieldId) : null;
+        if (editor) {
+            editor.insertContent(html);
+            editor.save();
+            return;
+        }
+        const textarea = document.getElementById(stepsFieldId);
+        if (!textarea) return;
+        textarea.value += html;
+    }
+
+    function refreshImageInsertList() {
+        if (!stepImagesInput || !stepImageInsertList) return;
+        stepImageInsertList.innerHTML = '';
+        Array.from(stepImagesInput.files || []).forEach(function(file) {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 p-2 border rounded';
+            const name = document.createElement('span');
+            name.className = 'small text-muted';
+            name.textContent = file.name;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'btn btn-outline-primary btn-sm';
+            button.textContent = '手順へ挿入';
+            button.addEventListener('click', function() {
+                insertHtmlToSteps('【画像:' + file.name + '】');
+            });
+            row.appendChild(name);
+            row.appendChild(button);
+            stepImageInsertList.appendChild(row);
+        });
+    }
+
+    function mergeFilesIntoInput(newFiles) {
+        if (!stepImagesInput || !window.DataTransfer) return;
+        const dataTransfer = new DataTransfer();
+        Array.from(stepImagesInput.files || []).forEach(function(file) {
+            dataTransfer.items.add(file);
+        });
+        Array.from(newFiles || []).forEach(function(file) {
+            if (file && String(file.type || '').startsWith('image/')) {
+                dataTransfer.items.add(file);
+            }
+        });
+        stepImagesInput.files = dataTransfer.files;
+        refreshImageInsertList();
+    }
+
+    if (stepImagesInput) {
+        stepImagesInput.addEventListener('change', refreshImageInsertList);
+    }
+
+    if (dropZone && stepImagesInput) {
+        dropZone.addEventListener('click', function () {
+            stepImagesInput.click();
+        });
+
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                dropZone.classList.add('border-primary', 'bg-primary-subtle');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                dropZone.classList.remove('border-primary', 'bg-primary-subtle');
+            });
+        });
+
+        dropZone.addEventListener('drop', function(event) {
+            const files = event.dataTransfer ? event.dataTransfer.files : null;
+            mergeFilesIntoInput(files);
+        });
+    }
+});
+</script>
+{% endblock %}

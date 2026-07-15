@@ -56,6 +56,8 @@ from .forms import (
     TipsCreateForm,
     UserCreateForm,
     UserUpdateForm,
+    VerificationReportEntryForm,
+    VerificationReportTopicForm,
 )
 from .models import (
     ConvenienceCategory,
@@ -77,6 +79,9 @@ from .models import (
     TipsArticle,
     TipsImageAttachment,
     UserProfile,
+    VerificationReportEntry,
+    VerificationReportEntryImageAttachment,
+    VerificationReportTopic,
     ViewHistory,
 )
 from .utils import resolve_saved_or_user_display_name, resolve_user_display_name
@@ -541,6 +546,15 @@ class PreviewRenderView(View):
                 }
             )
 
+        if preview_type == 'verification-report':
+            steps_html = _render_preview_html(payload.get('steps', ''), [])
+            return JsonResponse(
+                {
+                    'ok': True,
+                    'steps_html': steps_html,
+                }
+            )
+
         return JsonResponse({'ok': False, 'error': 'invalid type'}, status=400)
 
 
@@ -947,6 +961,7 @@ class HomeView(TemplateView):
                     {'label': 'FAQ', 'url_name': 'article_list'},
                     {'label': 'Tips', 'url_name': 'tip_list'},
                     {'label': 'クイックリファレンス', 'url_name': 'convenience_list'},
+                    {'label': '検証結果', 'url_name': 'verification_report_site'},
                 ],
             },
             {'name': 'Input', 'icon': '✍️', 'items': []},
@@ -3130,6 +3145,101 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         context['customer_tips_good_total'] = sum(tip.good_count for tip in tips_with_goods)
 
         return context
+
+
+class VerificationReportSiteView(TemplateView):
+    template_name = 'tenasapo_knowledge/verification_report_site.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        record_view_history(request, '検証結果一覧')
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        form = VerificationReportTopicForm(request.POST)
+        if form.is_valid():
+            topic = form.save(commit=False)
+            topic.created_by = request.user
+            topic.save()
+            messages.success(request, '検証結果タイトルを登録しました。')
+            return redirect('verification_report_site')
+
+        topics = VerificationReportTopic.objects.select_related('created_by').all()
+        context = self.get_context_data(form=form, topics=topics)
+        return self.render_to_response(context)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = kwargs.get('form') or VerificationReportTopicForm()
+        context['topics'] = kwargs.get('topics') or VerificationReportTopic.objects.select_related('created_by').all()
+        context['report_date'] = timezone.localdate()
+        return context
+
+
+class VerificationReportDetailView(TemplateView):
+    template_name = 'tenasapo_knowledge/verification_report_detail.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.topic = get_object_or_404(VerificationReportTopic, pk=kwargs['pk'])
+        record_view_history(request, f'検証結果詳細: {self.topic.title}')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['topic'] = self.topic
+        context['entries'] = self.topic.entries.select_related('created_by').prefetch_related('images').all()
+        return context
+
+
+class VerificationReportEntryCreateView(FormView):
+    template_name = 'tenasapo_knowledge/verification_report_entry_form.html'
+    form_class = VerificationReportEntryForm
+
+    def dispatch(self, request, *args, **kwargs):
+        self.topic = get_object_or_404(VerificationReportTopic, pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse('verification_report_detail', kwargs={'pk': self.topic.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['topic'] = self.topic
+        context['entry_pdf_url'] = None
+        context['entry_pdf_name'] = None
+        context['entry_images'] = []
+        return context
+
+    def form_valid(self, form):
+        entry = form.save(commit=False)
+        entry.topic = self.topic
+        entry.created_by = self.request.user
+        entry.save()
+        pdf_file = form.cleaned_data.get('pdf_file')
+        if pdf_file:
+            entry.pdf_file = pdf_file
+            entry.save(update_fields=['pdf_file'])
+        self.save_inline_images(entry, form)
+        messages.success(self.request, '検証内容を登録しました。')
+        return super().form_valid(form)
+
+    @staticmethod
+    def save_inline_images(entry, form):
+        for uploaded_file in form.cleaned_data.get('step_images', []):
+            VerificationReportEntryImageAttachment.objects.create(
+                entry=entry,
+                file=uploaded_file,
+                display_name=uploaded_file.name,
+            )
+
+
+class VerificationReportEntryImageDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        image = get_object_or_404(VerificationReportEntryImageAttachment, pk=pk)
+        topic_id = image.entry.topic_id
+        image.file.delete(save=False)
+        image.delete()
+        messages.success(request, '手順画像を削除しました。')
+        return redirect('verification_report_detail', pk=topic_id)
 
 
 class SummaryPDFView(StaffRequiredMixin, View):

@@ -626,6 +626,9 @@ class LoginHistory(models.Model):
         verbose_name='ユーザー',
     )
     username = models.CharField('ユーザー名', max_length=150)
+    auth_provider = models.CharField('認証プロバイダ', max_length=50, blank=True, default='')
+    auth_account_email = models.CharField('認証アカウントメール', max_length=255, blank=True, default='')
+    auth_account_uid = models.CharField('認証アカウントUID', max_length=255, blank=True, default='')
     ip_address = models.CharField('IPアドレス', max_length=64, blank=True)
     user_agent = models.TextField('User-Agent', blank=True)
     logged_in_at = models.DateTimeField('ログイン日時', auto_now_add=True)
@@ -830,3 +833,78 @@ class TipsFavorite(models.Model):
 
     def __str__(self):
         return f'{self.tip_id} - {self.user_id}'
+
+
+class VerificationReportTopic(models.Model):
+    category = models.CharField('カテゴリ', max_length=120)
+    title = models.CharField('タイトル', max_length=200)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verification_report_topics',
+        verbose_name='作成者',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = '検証報告タイトル'
+        verbose_name_plural = '検証報告タイトル'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'[{self.category}] {self.title}'
+
+
+class VerificationReportEntry(models.Model):
+    topic = models.ForeignKey(
+        VerificationReportTopic,
+        on_delete=models.CASCADE,
+        related_name='entries',
+        verbose_name='タイトル',
+    )
+    subtitle = models.CharField('サブタイトル', max_length=200)
+    summary = models.TextField('概要', blank=True)
+    steps = models.TextField('手順', blank=True)
+    cautions = models.TextField('注意事項', blank=True)
+    pdf_file = models.FileField('PDFファイル', upload_to='verification_reports/%Y/%m/', blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verification_report_entries',
+        verbose_name='作成者',
+    )
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = '検証報告詳細'
+        verbose_name_plural = '検証報告詳細'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.topic.title} - {self.subtitle}'
+
+
+class VerificationReportEntryImageAttachment(models.Model):
+    entry = models.ForeignKey(
+        VerificationReportEntry,
+        on_delete=models.CASCADE,
+        related_name='images',
+        verbose_name='検証内容',
+    )
+    file = models.FileField('画像ファイル', upload_to='verification_report_images/%Y/%m/')
+    display_name = models.CharField('表示名', max_length=200, blank=True)
+    uploaded_at = models.DateTimeField('アップロード日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = '検証内容画像'
+        verbose_name_plural = '検証内容画像'
+        ordering = ['uploaded_at', 'id']
+
+    def __str__(self):
+        return self.display_name or self.file.name

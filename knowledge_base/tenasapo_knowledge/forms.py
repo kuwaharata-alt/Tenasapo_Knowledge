@@ -13,6 +13,9 @@ from .models import (
     Manual,
     RelatedTag,
     RevisionHistory,
+    VerificationReportEntry,
+    VerificationReportEntryImageAttachment,
+    VerificationReportTopic,
     default_expires_on,
 )
 
@@ -1008,6 +1011,58 @@ class ManualForm(forms.ModelForm):
         }
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
+        }
+
+    def clean_pdf_file(self):
+        f = self.cleaned_data.get('pdf_file')
+        if f:
+            name = getattr(f, 'name', '')
+            if not name.lower().endswith('.pdf'):
+                raise forms.ValidationError('PDFファイルを選択してください。')
+        return f
+
+
+class VerificationReportTopicForm(forms.ModelForm):
+    class Meta:
+        model = VerificationReportTopic
+        fields = ('category', 'title')
+        labels = {
+            'category': 'カテゴリ',
+            'title': 'タイトル',
+        }
+
+
+class VerificationReportEntryForm(forms.ModelForm):
+    step_images = MultipleImageField(
+        label='手順画像',
+        required=False,
+        widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
+        help_text='手順に差し込む画像を選択し、「手順へ挿入」ボタンで挿入位置を指定してください。',
+    )
+    pdf_file = forms.FileField(
+        label='PDFファイル',
+        required=False,
+        help_text='関連するPDFファイルを保存できます。',
+    )
+    clear_pdf = forms.BooleanField(
+        label='PDFを削除する',
+        required=False,
+    )
+
+    class Meta:
+        model = VerificationReportEntry
+        fields = ('subtitle', 'summary', 'steps', 'cautions', 'pdf_file')
+        labels = {
+            'subtitle': 'サブタイトル',
+            'summary': '概要',
+            'steps': '手順',
+            'cautions': '注意事項',
+            'pdf_file': 'PDFファイル',
+        }
+        widgets = {
+            'summary': forms.Textarea(attrs={'rows': 3}),
+            'steps': forms.Textarea(attrs={'rows': 6}),
+            'cautions': forms.Textarea(attrs={'rows': 3}),
         }
 
     def clean_pdf_file(self):

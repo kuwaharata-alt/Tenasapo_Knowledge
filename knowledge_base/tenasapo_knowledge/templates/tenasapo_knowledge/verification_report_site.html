@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}検証結果 | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-clipboard2-check-fill"></i></span>検証結果
+    </h1>
+    <p class="page-title-sub">カテゴリとタイトルを登録して、検証内容を管理します。</p>
+</div>
+
+<form class="card shadow-sm mb-4" method="post">
+    <div class="card-body p-4">
+        {% csrf_token %}
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="{{ form.category.id_for_label }}">カテゴリ</label>
+                <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}" required>
+                {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="{{ form.title.id_for_label }}">タイトル</label>
+                <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
+                {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="col-12 col-md-2 d-grid">
+                <button class="btn btn-primary" type="submit">登録</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">カテゴリ</th>
+                    <th scope="col">タイトル</th>
+                    <th scope="col" class="text-nowrap">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for topic in topics %}
+                    <tr>
+                        <td>{{ topic.category }}</td>
+                        <td>{{ topic.title }}</td>
+                        <td class="text-nowrap">
+                            <a class="btn btn-outline-primary btn-sm" href="{% url 'verification_report_detail' topic.id %}">詳細</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td class="text-center text-secondary py-4" colspan="3">登録されたタイトルはありません。</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

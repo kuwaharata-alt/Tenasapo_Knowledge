@@ -20,9 +20,20 @@ def record_login_history(sender, request, user, **kwargs):
         logged_out_at__isnull=True,
     ).update(logged_out_at=timezone.now())
 
+    auth_provider = ''
+    auth_account_email = ''
+    auth_account_uid = ''
+    if request is not None:
+        auth_provider = str(request.session.get('auth_provider', '') or '')
+        auth_account_email = str(request.session.get('auth_account_email', '') or '')
+        auth_account_uid = str(request.session.get('auth_account_uid', '') or '')
+
     history = LoginHistory.objects.create(
         user=user,
         username=resolve_user_display_name(user),
+        auth_provider=auth_provider,
+        auth_account_email=auth_account_email,
+        auth_account_uid=auth_account_uid,
         ip_address=client_ip_from_request(request),
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
     )
