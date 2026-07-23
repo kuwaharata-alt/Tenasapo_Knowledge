@@ -20,6 +20,7 @@ local_settings.py
 .env
 .env.local
 .env.*.local
+client_secret_*.apps.googleusercontent.com.json
 
 # IDE
 .vscode/
