@@ -39,6 +39,10 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,172.16.21.22,testserver').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
+# Reverse Proxy (Azure App Service) 経由時に HTTPS を正しく判定する
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # Application definition
 
@@ -208,6 +212,7 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_ADAPTER = 'tenasapo_knowledge.adapters.ExistingUserGoogleAdapter'
 GOOGLE_AUTO_CREATE_USER = os.getenv('GOOGLE_AUTO_CREATE_USER', 'True') == 'True'
 GOOGLE_DEFAULT_COMPANY_NAME = os.getenv('GOOGLE_DEFAULT_COMPANY_NAME', 'Googleログインユーザー')
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
 
 SOCIALACCOUNT_PROVIDERS = {
     'google': {
