@@ -9,6 +9,9 @@
             <div class="card-body p-4 p-md-5">
                 <h1 class="h3 mb-3">Nexusへようこそ</h1>
                 <p class="text-muted mb-4">FAQ・Tips・クイックリファレンスを横断して、業務ナレッジを素早く見つけられます。</p>
+                {% if form_error %}
+                <div class="alert alert-danger" role="alert">{{ form_error }}</div>
+                {% endif %}
                 <div class="row g-3 mb-4">
                     <div class="col-12 col-md-4">
                         <div class="border rounded p-3 h-100 bg-white">
