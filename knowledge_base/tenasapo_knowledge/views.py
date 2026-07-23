@@ -10,6 +10,7 @@ _logger = logging.getLogger(__name__)
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.models import Group
@@ -123,21 +124,222 @@ ACCOUNT_VIEW_MODE_DEMO = 'demo'
 ACCOUNT_VIEW_MODE_CS = 'cs'
 ACCOUNT_VIEW_MODES = {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}
 APPROVAL_MAIL_CC_FIXED = 'hanadary@systena.co.jp'
+FIRST_LOGIN_DEPARTMENT = 'ビジネスソリューション事業本部'
+FIRST_LOGIN_ALLOWED_GROUPS = [
+    '1G',
+    '2G',
+    '3G',
+    '4G',
+    '5G',
+    '6G',
+    '名古屋営業所',
+    '大阪営業所',
+    '推進プリセールス',
+    '推進エンジニア',
+]
+FIRST_LOGIN_ALLOWED_GROUP_SET = set(FIRST_LOGIN_ALLOWED_GROUPS)
+FIRST_LOGIN_ADMIN_GROUP = '推進エンジニア'
 
 
 class HomeRedirectLoginView(LoginView):
     def get_success_url(self):
+        if should_show_first_login_registration(self.request.user):
+            return reverse_lazy('first_login_registration')
         if should_show_login_lp(self.request.user):
             return reverse_lazy('login_lp')
         return reverse_lazy('home')
 
 
+def has_completed_first_login_registration(user):
+    if not user.is_authenticated:
+        return False
+    try:
+        profile = user.knowledge_profile
+    except UserProfile.DoesNotExist:
+        return False
+
+    employee_number = (profile.uid or '').strip()
+    selected_group = (profile.group or '').strip()
+    return bool(employee_number and selected_group in FIRST_LOGIN_ALLOWED_GROUP_SET)
+
+
+def is_google_authenticated_user(user):
+    """ユーザーがGoogle認証でログインしているかを返す"""
+    if not user.is_authenticated:
+        return False
+    return SocialAccount.objects.filter(user=user, provider='google').exists()
+
+
+def should_show_first_login_registration(user):
+    if not is_google_authenticated_user(user):
+        return False
+    # google_first_login_done が False の場合はプロフィール完了状態に関わらずフォームを表示
+    try:
+        profile = user.knowledge_profile
+        if not profile.google_first_login_done:
+            return True
+    except UserProfile.DoesNotExist:
+        return True  # プロフィール未作成 → フォーム表示
+    return not has_completed_first_login_registration(user)
+
+
 def should_show_login_lp(user):
+    if should_show_first_login_registration(user):
+        return False
     try:
         profile = user.knowledge_profile
     except UserProfile.DoesNotExist:
         return True
     return not profile.skip_login_lp
+
+
+class FirstLoginRegistrationView(TemplateView):
+    template_name = 'tenasapo_knowledge/first_login_registration.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        profile = getattr(self.request.user, 'knowledge_profile', None)
+        email = (self.request.user.email or '').strip()
+        default_login_id = (email.split('@')[0] if '@' in email else '').strip() or self.request.user.username
+        context['department_name'] = FIRST_LOGIN_DEPARTMENT
+        context['allowed_groups'] = FIRST_LOGIN_ALLOWED_GROUPS
+        context['initial_login_id'] = self.request.user.username or default_login_id
+        context['initial_user_name'] = (
+            (profile.display_name if profile else '')
+            or self.request.user.get_full_name()
+            or ''
+        )
+        context['initial_employee_number'] = (profile.uid if profile else '') or ''
+        context['selected_group'] = (profile.group if profile else '')
+        context['form_error'] = ''
+        return context
+
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        if not should_show_first_login_registration(request.user):
+            if should_show_login_lp(request.user):
+                return redirect('login_lp')
+            return redirect('home')
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        selected_group = (request.POST.get('group') or '').strip()
+        login_id = (request.POST.get('login_id') or '').strip()
+        user_name = (request.POST.get('user_name') or '').strip()
+        employee_number = (request.POST.get('employee_number') or '').strip()
+
+        if selected_group not in FIRST_LOGIN_ALLOWED_GROUP_SET:
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = '所属グループを選択してください。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id or context['initial_login_id']
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        if not employee_number:
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = '社員番号を入力してください。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id or context['initial_login_id']
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        if not employee_number.isdigit() or len(employee_number) != 6:
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = '社員番号は数字6桁で入力してください。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id or context['initial_login_id']
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        email = (request.user.email or '').strip()
+        expected_login_id = (email.split('@')[0] if '@' in email else '').strip()
+        if expected_login_id and login_id != expected_login_id:
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = 'ログインIDはメールアドレスの@より前の値を入力してください。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        existing_uid_qs = UserProfile.objects.filter(uid=employee_number).exclude(user=request.user)
+        if existing_uid_qs.exists():
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = 'この社員番号は既に使用されています。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        profile, _ = UserProfile.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'company_name': 'システナ',
+                'user_type': UserProfile.USER_TYPE_SYSTENA,
+            },
+        )
+
+        if expected_login_id:
+            request.user.username = expected_login_id
+        is_engineer = selected_group == FIRST_LOGIN_ADMIN_GROUP
+        request.user.is_staff = is_engineer
+        request.user.is_superuser = is_engineer
+        try:
+            request.user.save(update_fields=['username', 'is_staff', 'is_superuser'])
+        except IntegrityError:
+            context = self.get_context_data(**kwargs)
+            context['form_error'] = 'このログインIDは既に利用されています。管理者へ連絡してください。'
+            context['selected_group'] = selected_group
+            context['initial_login_id'] = login_id
+            context['initial_user_name'] = user_name or context['initial_user_name']
+            context['initial_employee_number'] = employee_number
+            return self.render_to_response(context)
+
+        profile.uid = employee_number
+        profile.display_name = user_name or request.user.username
+        profile.department = FIRST_LOGIN_DEPARTMENT
+        profile.group = selected_group
+        profile.user_type = UserProfile.USER_TYPE_SYSTENA
+        profile.company_name = profile.company_name or 'システナ'
+        profile.email_addresses = email
+        profile.skip_login_lp = False
+        profile.google_first_login_done = True
+        profile.save(
+            update_fields=[
+                'uid',
+                'display_name',
+                'department',
+                'group',
+                'user_type',
+                'company_name',
+                'email_addresses',
+                'skip_login_lp',
+                'google_first_login_done',
+            ]
+        )
+
+        contributor_group, _ = Group.objects.get_or_create(name=CONTRIBUTOR_GROUP_NAME)
+        request.user.groups.remove(contributor_group)
+        if is_engineer:
+            request.user.groups.add(contributor_group)
+
+        admin_group, _ = Group.objects.get_or_create(name=ADMIN_GROUP_NAME)
+        request.user.groups.remove(admin_group)
+        if is_engineer:
+            request.user.groups.add(admin_group)
+
+        if is_engineer:
+            messages.success(request, '初回登録を保存しました。権限: 管理者 / 所属役割: 投稿者 を設定しました。')
+        else:
+            messages.success(request, '初回登録を保存しました。権限: ユーザー / 所属役割: 未設定 を設定しました。')
+
+        return redirect('login_lp')
 
 
 class LoginLandingPageView(TemplateView):
@@ -146,6 +348,8 @@ class LoginLandingPageView(TemplateView):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return redirect('login')
+        if should_show_first_login_registration(request.user):
+            return redirect('first_login_registration')
         if not should_show_login_lp(request.user):
             return redirect('home')
         return super().dispatch(request, *args, **kwargs)
@@ -153,11 +357,13 @@ class LoginLandingPageView(TemplateView):
     def post(self, request, *args, **kwargs):
         should_skip_next_login_lp = request.POST.get('skip_login_lp') == 'on'
 
-        try:
-            profile = request.user.knowledge_profile
-        except UserProfile.DoesNotExist:
-            messages.warning(request, 'プロフィールが未登録のため設定を保存できませんでした。')
-            return redirect('home')
+        profile, _ = UserProfile.objects.get_or_create(
+            user=request.user,
+            defaults={
+                'company_name': 'システナ',
+                'user_type': UserProfile.USER_TYPE_SYSTENA,
+            },
+        )
 
         profile.skip_login_lp = should_skip_next_login_lp
         profile.save(update_fields=['skip_login_lp'])
@@ -897,6 +1103,13 @@ def split_registered_and_unregistered_categories(category_text):
 
 class HomeView(TemplateView):
     template_name = 'tenasapo_knowledge/home.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        if request.user.is_authenticated and should_show_first_login_registration(request.user):
+            return redirect('first_login_registration')
+        if request.user.is_authenticated and should_show_login_lp(request.user):
+            return redirect('login_lp')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -4112,7 +4325,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
 
     def form_valid(self, form):
         User = get_user_model()
-        emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
+        email = (form.cleaned_data.get('email_addresses') or '').strip()
         selected_group_names = list(form.cleaned_data['groups'])
         user_type = form.cleaned_data['user_type']
         display_name = form.cleaned_data['display_name'] or form.cleaned_data['username']
@@ -4125,7 +4338,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
         user = User.objects.create_user(
             username=form.cleaned_data['username'],
             password=form.cleaned_data['password'],
-            email=emails[0] if emails else '',
+            email=email,
             is_staff=is_admin,
             is_superuser=is_admin,
         )
@@ -4141,8 +4354,9 @@ class UserCreateView(StaffRequiredMixin, FormView):
             uid=form.cleaned_data.get('uid') or None,
             display_name=display_name,
             company_name=company_name,
+            department=(form.cleaned_data.get('department') or '').strip(),
             user_type=user_type,
-            email_addresses='\n'.join(emails),
+            email_addresses=email,
             note=form.cleaned_data['note'],
         )
 
@@ -4540,15 +4754,19 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
 
     def get_initial(self):
         profile = getattr(self.user_obj, 'knowledge_profile', None)
+        default_groups = list(self.user_obj.groups.values_list('name', flat=True))
+        if not default_groups and '投稿者' in getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', [])):
+            default_groups = ['投稿者']
         return {
             'uid': profile.uid if profile else '',
             'username': self.user_obj.username,
             'display_name': profile.display_name if profile else self.user_obj.username,
             'company_name': profile.company_name if profile else '',
-            'role': UserCreateForm.ROLE_ADMIN if self.user_obj.is_staff else UserCreateForm.ROLE_USER,
+            'role': UserCreateForm.ROLE_ADMIN,
             'user_type': profile.user_type if profile else 'customer',
-            'groups': list(self.user_obj.groups.values_list('name', flat=True)),
-            'email_addresses': profile.email_addresses if profile else '',
+            'groups': default_groups,
+            'email_addresses': (self.user_obj.email or (profile.email_addresses if profile else '')),
+            'department': profile.department if profile else '',
             'note': profile.note if profile else '',
             'skip_login_lp': profile.skip_login_lp if profile else False,
         }
@@ -4598,7 +4816,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
 
     def form_valid(self, form):
         User = get_user_model()
-        emails = UserCreateForm.normalized_emails(form.cleaned_data['email_addresses'])
+        email = (form.cleaned_data.get('email_addresses') or '').strip()
         selected_group_names = list(form.cleaned_data['groups'])
         user_type = form.cleaned_data['user_type']
         display_name = form.cleaned_data['display_name'] or self.user_obj.username
@@ -4611,7 +4829,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         # ユーザー情報を更新
         self.user_obj.is_staff = is_admin
         self.user_obj.is_superuser = is_admin
-        self.user_obj.email = emails[0] if emails else ''
+        self.user_obj.email = email
         
         # パスワードが設定されている場合のみ更新
         password = form.cleaned_data.get('password', '').strip()
@@ -4633,8 +4851,9 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         profile.uid = form.cleaned_data.get('uid') or None
         profile.display_name = display_name
         profile.company_name = company_name
+        profile.department = (form.cleaned_data.get('department') or '').strip()
         profile.user_type = user_type
-        profile.email_addresses = '\n'.join(emails)
+        profile.email_addresses = email
         profile.note = form.cleaned_data['note']
         profile.skip_login_lp = form.cleaned_data.get('skip_login_lp', False)
         profile.save()

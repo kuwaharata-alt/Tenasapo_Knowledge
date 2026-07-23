@@ -797,7 +797,7 @@ class UserCreateForm(forms.Form):
     uid = forms.CharField(
         label='管理番号',
         max_length=6,
-        required=True,
+        required=False,
         help_text='数字6桁で入力してください。',
     )
     username = forms.CharField(label='ログインID', max_length=150)
@@ -820,11 +820,12 @@ class UserCreateForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
     )
     email_addresses = forms.CharField(
-        label='メールアドレス（複数）',
+        label='メールアドレス',
         required=False,
-        widget=forms.Textarea(attrs={'rows': 4}),
-        help_text='改行、カンマ、セミコロンで複数入力できます。',
+        max_length=255,
+        help_text='ログインに使用するメールアドレスを1件入力してください。',
     )
+    department = forms.CharField(label='所属部署', max_length=255, required=False)
     note = forms.CharField(
         label='備考',
         required=False,
@@ -836,11 +837,14 @@ class UserCreateForm(forms.Form):
         self._current_user_pk = None
         role_names = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         self.fields['groups'].choices = [(name, name) for name in role_names]
+        self.fields['role'].initial = self.ROLE_ADMIN
+        if not self.initial.get('groups'):
+            self.initial['groups'] = ['投稿者']
 
     def clean_uid(self):
         value = self.cleaned_data.get('uid', '').strip()
         if not value:
-            raise forms.ValidationError('この項目は必須です。')
+            return ''
         if not value.isdigit() or len(value) != 6:
             raise forms.ValidationError('数字6桁で入力してください。')
         from .models import UserProfile
@@ -871,19 +875,14 @@ class UserCreateForm(forms.Form):
         return company_name
 
     def clean_email_addresses(self):
-        value = self.cleaned_data.get('email_addresses', '')
-        emails = self.normalized_emails(value)
-        errors = []
-        for email in emails:
-            try:
-                validate_email(email)
-            except ValidationError:
-                errors.append(email)
-        if errors:
-            raise forms.ValidationError(
-                'メールアドレスの形式が正しくありません: ' + ', '.join(errors)
-            )
-        return '\n'.join(emails)
+        value = (self.cleaned_data.get('email_addresses') or '').strip()
+        if not value:
+            return ''
+        try:
+            validate_email(value)
+        except ValidationError:
+            raise forms.ValidationError('メールアドレスの形式が正しくありません。')
+        return value
 
     @staticmethod
     def normalized_emails(value):
@@ -905,7 +904,7 @@ class UserUpdateForm(forms.Form):
     uid = forms.CharField(
         label='管理番号',
         max_length=6,
-        required=True,
+        required=False,
         help_text='数字6桁で入力してください。',
     )
     username = forms.CharField(label='ログインID', max_length=150, disabled=True)
@@ -928,11 +927,12 @@ class UserUpdateForm(forms.Form):
         widget=forms.CheckboxSelectMultiple,
     )
     email_addresses = forms.CharField(
-        label='メールアドレス（複数）',
+        label='メールアドレス',
         required=False,
-        widget=forms.Textarea(attrs={'rows': 4}),
-        help_text='改行、カンマ、セミコロンで複数入力できます。',
+        max_length=255,
+        help_text='ログインに使用するメールアドレスを1件入力してください。',
     )
+    department = forms.CharField(label='所属部署', max_length=255, required=False)
     note = forms.CharField(
         label='備考',
         required=False,
@@ -952,7 +952,7 @@ class UserUpdateForm(forms.Form):
     def clean_uid(self):
         value = self.cleaned_data.get('uid', '').strip()
         if not value:
-            raise forms.ValidationError('この項目は必須です。')
+            return ''
         if not value.isdigit() or len(value) != 6:
             raise forms.ValidationError('数字6桁で入力してください。')
         from .models import UserProfile
@@ -965,19 +965,14 @@ class UserUpdateForm(forms.Form):
         return value
 
     def clean_email_addresses(self):
-        value = self.cleaned_data.get('email_addresses', '')
-        emails = UserCreateForm.normalized_emails(value)
-        errors = []
-        for email in emails:
-            try:
-                validate_email(email)
-            except ValidationError:
-                errors.append(email)
-        if errors:
-            raise forms.ValidationError(
-                'メールアドレスの形式が正しくありません: ' + ', '.join(errors)
-            )
-        return '\n'.join(emails)
+        value = (self.cleaned_data.get('email_addresses') or '').strip()
+        if not value:
+            return ''
+        try:
+            validate_email(value)
+        except ValidationError:
+            raise forms.ValidationError('メールアドレスの形式が正しくありません。')
+        return value
 
     def clean_display_name(self):
         display_name = (self.cleaned_data.get('display_name') or '').strip()

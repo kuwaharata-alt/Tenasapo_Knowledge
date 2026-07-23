@@ -68,13 +68,15 @@
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
         <colgroup>
-            <col style="width: 11%">
+            <col style="width: 8%">
+            <col style="width: 10%">
+            <col style="width: 10%">
+            <col style="width: 8%">
+            <col style="width: 8%">
             <col style="width: 12%">
-            <col style="width: 15%">
-            <col style="width: 10%">
-            <col style="width: 10%">
-            <col style="width: 17%">
-            <col style="width: 25%">
+            <col style="width: 12%">
+            <col style="width: 14%">
+            <col style="width: 18%">
         </colgroup>
             <thead class="table-light">
                 <tr>
@@ -83,7 +85,9 @@
                     <th scope="col">ユーザー名</th>
                     <th scope="col" class="text-center">権限</th>
                     <th scope="col" class="text-center">ユーザー区分</th>
+                    <th scope="col">所属部署</th>
                     <th scope="col">所属役割</th>
+                    <th scope="col">メールアドレス</th>
                     <th scope="col">操作</th>
                 </tr>
             </thead>
@@ -119,6 +123,7 @@
                                 <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
+                        <td>{{ account.knowledge_profile.department|default:'-' }}</td>
                         <td>
                             {% if account.groups.all %}
                                 {% for group in account.groups.all %}
@@ -130,6 +135,7 @@
                                 <span class="text-secondary">-</span>
                             {% endif %}
                         </td>
+                        <td>{{ account.email|default:'-' }}</td>
                         <td class="text-nowrap">
                             <div class="d-flex flex-wrap gap-2" role="group">
                                 <a class="btn btn-outline-primary btn-sm" href="{% url 'user_detail' account.id %}">詳細</a>
@@ -147,7 +153,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="7">ユーザーが見つかりません。</td>
+                        <td class="text-center text-secondary py-4" colspan="9">ユーザーが見つかりません。</td>
                     </tr>
                 {% endfor %}
             </tbody>

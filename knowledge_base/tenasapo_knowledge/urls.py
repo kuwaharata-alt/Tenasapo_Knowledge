@@ -8,6 +8,7 @@ from .views import (
     ConvenienceFavoriteToggleView,
     ConvenienceUpdateView,
     ArticleAttachmentDeleteView,
+    FirstLoginRegistrationView,
     HomeView,
     LoginLandingPageView,
     FAQCategoryCreateView,
@@ -65,6 +66,7 @@ from .views import (
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
+    path('first-login-registration/', FirstLoginRegistrationView.as_view(), name='first_login_registration'),
     path('login-lp/', LoginLandingPageView.as_view(), name='login_lp'),
     path('faq/', ArticleListView.as_view(), name='article_list'),
     path('tips/', TipsListView.as_view(), name='tip_list'),

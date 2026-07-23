@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}初回登録 | Nexus{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="h3 mb-3">初回登録</h1>
+                <p class="text-muted mb-4">初回ログオン時のユーザー情報を登録してください。</p>
+                {% if form_error %}
+                <div class="alert alert-danger" role="alert">{{ form_error }}</div>
+                {% endif %}
+                <form method="post" class="d-flex flex-column gap-3">
+                    {% csrf_token %}
+                    <div>
+                        <label class="form-label" for="departmentName">所属部署</label>
+                        <input class="form-control" id="departmentName" type="text" value="{{ department_name }}" readonly>
+                    </div>
+                    <div>
+                        <label class="form-label" for="groupName">所属グループ</label>
+                        <select class="form-select" id="groupName" name="group" required>
+                            <option value="">選択してください</option>
+                            {% for group_name in allowed_groups %}
+                            <option value="{{ group_name }}" {% if selected_group == group_name %}selected{% endif %}>{{ group_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="employeeNumber">社員番号</label>
+                        <input class="form-control" id="employeeNumber" name="employee_number" type="text" maxlength="6" value="{{ initial_employee_number }}" required>
+                        <div class="form-text">数字6桁で入力してください（管理番号として保存されます）。</div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="loginId">ログインID</label>
+                        <input class="form-control" id="loginId" name="login_id" type="text" value="{{ initial_login_id }}" required>
+                        <div class="form-text">メールアドレスの@より前（ユーザー名部分）を入力してください。</div>
+                    </div>
+                    <div>
+                        <label class="form-label" for="userName">ユーザー名（漢字）</label>
+                        <input class="form-control" id="userName" name="user_name" type="text" value="{{ initial_user_name }}">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary">登録</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

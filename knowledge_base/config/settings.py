@@ -47,8 +47,14 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+    'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    'django_extensions',
     'tenasapo_knowledge',
 ]
 
@@ -58,6 +64,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
     'tenasapo_knowledge.middleware.LoginRequiredExceptAssetsMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -190,6 +197,30 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
 
+SITE_ID = int(os.getenv('SITE_ID', '1'))
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    'allauth.account.auth_backends.AuthenticationBackend',
+]
+
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_ADAPTER = 'tenasapo_knowledge.adapters.ExistingUserGoogleAdapter'
+GOOGLE_AUTO_CREATE_USER = os.getenv('GOOGLE_AUTO_CREATE_USER', 'True') == 'True'
+GOOGLE_DEFAULT_COMPANY_NAME = os.getenv('GOOGLE_DEFAULT_COMPANY_NAME', 'Googleログインユーザー')
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': ['profile', 'email'],
+        'AUTH_PARAMS': {'access_type': 'online'},
+        'APP': {
+            'client_id': os.getenv('GOOGLE_OAUTH_CLIENT_ID', ''),
+            'secret': os.getenv('GOOGLE_OAUTH_CLIENT_SECRET', ''),
+            'key': '',
+        },
+    }
+}
+
 SESSION_COOKIE_AGE = 60 * 30
 SESSION_SAVE_EVERY_REQUEST = True
 
@@ -283,3 +314,8 @@ else:
         'GOOGLE_CHAT_GAS_WEB_APP_URL',
         'https://script.google.com/a/macros/systena.co.jp/s/AKfycbxik70T0Xrkv4SJG5rN0OQhh_CiMnOCgzbo29wSttIzgZBmTfPCvKGBcWQigrOMNR6e8g/exec',
     )
+
+# Google Workspace Directory API 設定
+GOOGLE_SERVICE_ACCOUNT_JSON_PATH = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON_PATH', None)
+GOOGLE_WORKSPACE_DOMAIN = os.getenv('GOOGLE_WORKSPACE_DOMAIN', 'systena.co.jp')
+GOOGLE_WORKSPACE_ADMIN_EMAIL = os.getenv('GOOGLE_WORKSPACE_ADMIN_EMAIL', None)

@@ -72,8 +72,16 @@ class UserProfile(models.Model):
         default=USER_TYPE_CUSTOMER,
     )
     email_addresses = models.TextField('メールアドレス（複数）', blank=True)
+    department = models.CharField('所属部署', max_length=255, blank=True)
+    group = models.CharField('グループ', max_length=255, blank=True)
+    position = models.CharField('役職', max_length=255, blank=True)
     note = models.TextField('備考', blank=True)
     skip_login_lp = models.BooleanField('ログイン後LPを表示しない', default=False)
+    google_first_login_done = models.BooleanField(
+        'Google初回ログイン登録完了',
+        default=True,
+        help_text='Google認証で初回ログインした際の初回登録フォーム完了フラグ。False=フォーム表示が必要。',
+    )
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -626,6 +634,9 @@ class LoginHistory(models.Model):
         verbose_name='ユーザー',
     )
     username = models.CharField('ユーザー名', max_length=150)
+    auth_provider = models.CharField('認証プロバイダ', max_length=50, blank=True)
+    auth_account_email = models.CharField('認証アカウントメール', max_length=255, blank=True)
+    auth_account_uid = models.CharField('認証アカウントUID', max_length=255, blank=True)
     ip_address = models.CharField('IPアドレス', max_length=64, blank=True)
     user_agent = models.TextField('User-Agent', blank=True)
     logged_in_at = models.DateTimeField('ログイン日時', auto_now_add=True)

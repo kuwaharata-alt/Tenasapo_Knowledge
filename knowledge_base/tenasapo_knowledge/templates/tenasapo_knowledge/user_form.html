@@ -26,9 +26,9 @@
 
                 <div class="row g-3">
                     <div class="col-12 col-md-4">
-                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号<span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456" required>
-                        <div class="form-text">数字6桁</div>
+                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号（後で社員番号）</label>
+                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
+                        <div class="form-text">未設定可。後で社員番号を設定します。</div>
                         {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     {% if is_edit %}
@@ -54,9 +54,9 @@
                         </div>
                     {% endif %}
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード{% if not is_edit %}<span class="text-danger">*</span>{% else %}<span class="text-muted">(ユーザー一覧から変更)</span>{% endif %}</label>
+                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード{% if not is_edit %}<span class="text-danger">*</span>{% else %}<span class="text-muted">(Googleログインの場合は未使用)</span>{% endif %}</label>
                         <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" {% if not is_edit %}required{% else %}disabled{% endif %}>
-                        {% if is_edit %}<div class="form-text text-muted">パスワードの変更はユーザー一覧から行ってください。</div>{% endif %}
+                        {% if is_edit %}<div class="form-text text-muted">GoogleログインユーザーはGoogle側のパスワードを利用します。</div>{% endif %}
                         {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
@@ -99,8 +99,13 @@
                         {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス（複数）</label>
-                        <textarea class="form-control{% if form.email_addresses.errors %} is-invalid{% endif %}" name="{{ form.email_addresses.html_name }}" id="{{ form.email_addresses.id_for_label }}" rows="4">{{ form.email_addresses.value|default_if_none:'' }}</textarea>
+                        <label class="form-label" for="{{ form.department.id_for_label }}">所属部署</label>
+                        <input class="form-control{% if form.department.errors %} is-invalid{% endif %}" type="text" name="{{ form.department.html_name }}" id="{{ form.department.id_for_label }}" value="{{ form.department.value|default_if_none:'' }}">
+                        {% for error in form.department.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス</label>
+                        <input class="form-control{% if form.email_addresses.errors %} is-invalid{% endif %}" type="email" name="{{ form.email_addresses.html_name }}" id="{{ form.email_addresses.id_for_label }}" value="{{ form.email_addresses.value|default_if_none:'' }}">
                         <div class="form-text">{{ form.email_addresses.help_text }}</div>
                         {% for error in form.email_addresses.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
