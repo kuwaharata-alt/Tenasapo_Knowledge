@@ -634,9 +634,9 @@ class LoginHistory(models.Model):
         verbose_name='ユーザー',
     )
     username = models.CharField('ユーザー名', max_length=150)
-    auth_provider = models.CharField('認証プロバイダ', max_length=50, blank=True)
-    auth_account_email = models.CharField('認証アカウントメール', max_length=255, blank=True)
-    auth_account_uid = models.CharField('認証アカウントUID', max_length=255, blank=True)
+    auth_provider = models.CharField('認証プロバイダ', max_length=50, blank=True, default='')
+    auth_account_email = models.CharField('認証アカウントメール', max_length=255, blank=True, default='')
+    auth_account_uid = models.CharField('認証アカウントUID', max_length=255, blank=True, default='')
     ip_address = models.CharField('IPアドレス', max_length=64, blank=True)
     user_agent = models.TextField('User-Agent', blank=True)
     logged_in_at = models.DateTimeField('ログイン日時', auto_now_add=True)

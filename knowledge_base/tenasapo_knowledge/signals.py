@@ -13,6 +13,13 @@ def client_ip_from_request(request):
     return request.META.get('REMOTE_ADDR', '')
 
 
+def session_text(request, key, default=''):
+    if request is None:
+        return default
+    value = request.session.get(key, default)
+    return str(value or default)
+
+
 @receiver(user_logged_in)
 def record_login_history(sender, request, user, **kwargs):
     LoginHistory.objects.filter(
@@ -23,9 +30,9 @@ def record_login_history(sender, request, user, **kwargs):
     history = LoginHistory.objects.create(
         user=user,
         username=resolve_user_display_name(user),
-        auth_provider=(request.session.get('auth_provider', '') if request else ''),
-        auth_account_email=(request.session.get('auth_account_email', '') if request else ''),
-        auth_account_uid=(request.session.get('auth_account_uid', '') if request else ''),
+        auth_provider=session_text(request, 'auth_provider'),
+        auth_account_email=session_text(request, 'auth_account_email'),
+        auth_account_uid=session_text(request, 'auth_account_uid'),
         ip_address=client_ip_from_request(request),
         user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
     )
