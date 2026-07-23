@@ -25,48 +25,98 @@
     {% endif %}
 {% endfor %}
 
-<form class="row gy-2 gx-2 align-items-end mb-4" method="get">
-    <div class="col-12 col-md-3">
-        <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
-    </div>
-    <div class="col-12 col-md-2">
-        <label class="form-label" for="role">所属役割</label>
-        <select class="form-select" id="role" name="role">
-            <option value="">すべて</option>
-            {% for role in roles %}
-                <option value="{{ role }}" {% if selected_role == role %}selected{% endif %}>{{ role }}</option>
-            {% endfor %}
-            <option value="__none__" {% if selected_role == '__none__' %}selected{% endif %}>（役割なし）</option>
-        </select>
-    </div>
-    <div class="col-12 col-md-2">
-        <label class="form-label" for="authority">権限</label>
-        <select class="form-select" id="authority" name="authority">
-            <option value="">すべて</option>
-            <option value="admin" {% if selected_authority == 'admin' %}selected{% endif %}>管理者</option>
-            <option value="user" {% if selected_authority == 'user' %}selected{% endif %}>ユーザー</option>
-        </select>
-    </div>
-    <div class="col-12 col-md-2">
-        <label class="form-label" for="user_type">ユーザー区分</label>
-        <select class="form-select" id="user_type" name="user_type">
-            <option value="">すべて</option>
-            <option value="systena" {% if selected_user_type == 'systena' %}selected{% endif %}>システナ</option>
-            <option value="customer" {% if selected_user_type == 'customer' %}selected{% endif %}>カスタマー</option>
-        </select>
-    </div>
-    <div class="col-12 col-md-auto">
-        <button class="btn btn-outline-primary" type="submit">検索</button>
-        {% if query or selected_role or selected_authority or selected_user_type %}
-            <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
-        {% endif %}
-    </div>
-</form>
+<div class="row g-4 align-items-start mb-4">
+    <div class="col-12 col-lg-3">
+        <div class="card shadow-sm">
+            <div class="card-body p-3">
+                <h2 class="h6 mb-3">ユーザーフィルター</h2>
+                <div class="d-grid gap-2">
+                    <a class="btn {% if selected_scope == 'all' and not selected_department and not selected_profile_group and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=all">
+                        すべて（{{ user_filter_tree.all_count }}）
+                    </a>
 
-<div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
+                    <div class="border rounded p-2 bg-light-subtle">
+                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'systena' %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena">
+                            システナ（{{ user_filter_tree.systena_count }}）
+                        </a>
+                        <div class="small">
+                            {% for department_node in user_filter_tree.systena_departments %}
+                                <div class="mb-2">
+                                    <a class="fw-semibold text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department and not selected_profile_group %}text-primary{% else %}text-body{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department|urlencode }}">
+                                        {{ department_node.department }}（{{ department_node.count }}）
+                                    </a>
+                                    {% if department_node.groups %}
+                                        <div class="ps-3 mt-1 d-flex flex-column gap-1">
+                                            {% for group_node in department_node.groups %}
+                                                <a class="text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department and selected_profile_group == group_node.name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department|urlencode }}&profile_group={{ group_node.name|urlencode }}">
+                                                    {{ group_node.name }}（{{ group_node.count }}）
+                                                </a>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            {% empty %}
+                                <span class="text-secondary">部署データなし</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="border rounded p-2 bg-light-subtle">
+                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'customer' and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer">
+                            カスタマー（{{ user_filter_tree.customer_count }}）
+                        </a>
+                        <div class="small d-flex flex-column gap-1">
+                            {% for customer_node in user_filter_tree.customers %}
+                                <a class="text-decoration-none {% if selected_scope == 'customer' and selected_customer_name == customer_node.company_name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer&customer_name={{ customer_node.company_name|urlencode }}">
+                                    {{ customer_node.company_name }}（{{ customer_node.count }}）
+                                </a>
+                            {% empty %}
+                                <span class="text-secondary">顧客データなし</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-9">
+        <form class="row gy-2 gx-2 align-items-end mb-3" method="get">
+            <input type="hidden" name="scope" value="{{ selected_scope }}">
+            <input type="hidden" name="department" value="{{ selected_department }}">
+            <input type="hidden" name="profile_group" value="{{ selected_profile_group }}">
+            <input type="hidden" name="customer_name" value="{{ selected_customer_name }}">
+            <div class="col-12 col-md-4">
+                <label class="form-label" for="q">検索</label>
+                <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="role">所属役割</label>
+                <select class="form-select" id="role" name="role">
+                    <option value="">すべて</option>
+                    {% for role in roles %}
+                        <option value="{{ role }}" {% if selected_role == role %}selected{% endif %}>{{ role }}</option>
+                    {% endfor %}
+                    <option value="__none__" {% if selected_role == '__none__' %}selected{% endif %}>（役割なし）</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="authority">権限</label>
+                <select class="form-select" id="authority" name="authority">
+                    <option value="">すべて</option>
+                    <option value="admin" {% if selected_authority == 'admin' %}selected{% endif %}>管理者</option>
+                    <option value="user" {% if selected_authority == 'user' %}selected{% endif %}>ユーザー</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-auto">
+                <button class="btn btn-outline-primary" type="submit">検索</button>
+                <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
+            </div>
+        </form>
+
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
         <colgroup>
             <col style="width: 8%">
             <col style="width: 10%">
@@ -159,35 +209,38 @@
             </tbody>
             </table>
         </div>
-    </div>
+            </div>
+        </div>
 
-{% if is_paginated %}
-    <nav class="mt-4" aria-label="ページネーション">
-        <ul class="pagination flex-wrap">
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">前へ</a>
-                </li>
-            {% endif %}
-            {% for num in page_obj.paginator.page_range %}
-                {% if page_obj.number == num %}
-                    <li class="page-item active" aria-current="page">
-                        <span class="page-link">{{ num }}</span>
-                    </li>
-                {% else %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ num }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">{{ num }}</a>
-                    </li>
-                {% endif %}
-            {% endfor %}
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&role={{ selected_role }}&authority={{ selected_authority }}&user_type={{ selected_user_type }}">次へ</a>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
-{% endif %}
+        {% if is_paginated %}
+            <nav class="mt-4" aria-label="ページネーション">
+                <ul class="pagination flex-wrap">
+                    {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if user_list_querystring %}&{{ user_list_querystring }}{% endif %}">前へ</a>
+                        </li>
+                    {% endif %}
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                            <li class="page-item active" aria-current="page">
+                                <span class="page-link">{{ num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ num }}{% if user_list_querystring %}&{{ user_list_querystring }}{% endif %}">{{ num }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if user_list_querystring %}&{{ user_list_querystring }}{% endif %}">次へ</a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        {% endif %}
+    </div>
+</div>
 
 <div class="modal fade" id="demoAccountIssueModal" tabindex="-1" aria-labelledby="demoAccountIssueModalLabel" aria-hidden="true">
     <div class="modal-dialog">

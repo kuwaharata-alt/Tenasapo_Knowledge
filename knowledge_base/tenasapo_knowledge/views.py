@@ -4481,7 +4481,7 @@ class UserListView(StaffRequiredMixin, ListView):
     context_object_name = 'users'
     paginate_by = 20
 
-    def get_queryset(self):
+    def _base_filtered_queryset(self):
         User = get_user_model()
         queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by(
             'knowledge_profile__uid', 'knowledge_profile__display_name', 'username'
@@ -4507,9 +4507,41 @@ class UserListView(StaffRequiredMixin, ListView):
         elif authority == 'user':
             queryset = queryset.filter(is_staff=False, is_superuser=False)
 
-        user_type = self.request.GET.get('user_type', '').strip()
-        if user_type:
-            queryset = queryset.filter(knowledge_profile__user_type=user_type)
+        return queryset.distinct()
+
+    def get_queryset(self):
+        queryset = self._base_filtered_queryset()
+
+        scope = self.request.GET.get('scope', '').strip()
+        if scope not in {'', 'all', 'systena', 'customer'}:
+            scope = 'all'
+        if not scope:
+            scope = 'all'
+
+        department = self.request.GET.get('department', '').strip()
+        profile_group = self.request.GET.get('profile_group', '').strip()
+        customer_name = self.request.GET.get('customer_name', '').strip()
+
+        if scope == 'systena':
+            queryset = queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA)
+        elif scope == 'customer':
+            queryset = queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER)
+
+        if department:
+            queryset = queryset.filter(
+                knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                knowledge_profile__department=department,
+            )
+        if profile_group:
+            queryset = queryset.filter(
+                knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                knowledge_profile__group=profile_group,
+            )
+        if customer_name:
+            queryset = queryset.filter(
+                knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER,
+                knowledge_profile__company_name=customer_name,
+            )
 
         return queryset.distinct()
 
@@ -4518,10 +4550,91 @@ class UserListView(StaffRequiredMixin, ListView):
         context['query'] = self.request.GET.get('q', '')
         context['selected_role'] = self.request.GET.get('role', '')
         context['selected_authority'] = self.request.GET.get('authority', '')
-        context['selected_user_type'] = self.request.GET.get('user_type', '')
+        context['selected_scope'] = self.request.GET.get('scope', 'all') or 'all'
+        context['selected_department'] = self.request.GET.get('department', '').strip()
+        context['selected_profile_group'] = self.request.GET.get('profile_group', '').strip()
+        context['selected_customer_name'] = self.request.GET.get('customer_name', '').strip()
         context['roles'] = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         context['can_manage_all_users'] = _can_manage_all_users(self.request.user)
         context['issued_demo_account'] = self.request.session.pop('issued_demo_account', None)
+
+        base_queryset = self._base_filtered_queryset()
+
+        departments = list(
+            base_queryset
+            .filter(knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA)
+            .exclude(knowledge_profile__department='')
+            .values_list('knowledge_profile__department', flat=True)
+            .distinct()
+            .order_by('knowledge_profile__department')
+        )
+
+        systena_tree = []
+        for department in departments:
+            group_qs = (
+                base_queryset
+                .filter(
+                    knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                    knowledge_profile__department=department,
+                )
+                .exclude(knowledge_profile__group='')
+            )
+            groups = []
+            for group_name in list(
+                group_qs.values_list('knowledge_profile__group', flat=True)
+                .distinct()
+                .order_by('knowledge_profile__group')
+            ):
+                groups.append({
+                    'name': group_name,
+                    'count': group_qs.filter(knowledge_profile__group=group_name).count(),
+                })
+
+            systena_tree.append({
+                'department': department,
+                'count': (
+                    base_queryset
+                    .filter(
+                        knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                        knowledge_profile__department=department,
+                    )
+                    .count()
+                ),
+                'groups': groups,
+            })
+
+        customers = []
+        customer_qs = base_queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER)
+        for company_name in list(
+            customer_qs
+            .exclude(knowledge_profile__company_name='')
+            .values_list('knowledge_profile__company_name', flat=True)
+            .distinct()
+            .order_by('knowledge_profile__company_name')
+        ):
+            customers.append({
+                'company_name': company_name,
+                'count': customer_qs.filter(knowledge_profile__company_name=company_name).count(),
+            })
+
+        context['user_filter_tree'] = {
+            'all_count': base_queryset.count(),
+            'systena_count': base_queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA).count(),
+            'customer_count': base_queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER).count(),
+            'systena_departments': systena_tree,
+            'customers': customers,
+        }
+
+        filter_params = {
+            'q': context['query'],
+            'role': context['selected_role'],
+            'authority': context['selected_authority'],
+            'scope': context['selected_scope'],
+            'department': context['selected_department'],
+            'profile_group': context['selected_profile_group'],
+            'customer_name': context['selected_customer_name'],
+        }
+        context['user_list_querystring'] = urlencode({k: v for k, v in filter_params.items() if v})
         return context
 
 
