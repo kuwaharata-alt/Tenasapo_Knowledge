@@ -32,7 +32,7 @@
                         </div>
                     </div>
                 </div>
-                <form method="post" class="d-flex flex-column gap-3">
+                <form method="post" class="d-flex flex-column gap-3" id="loginLpForm">
                     {% csrf_token %}
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" value="on" id="skipLoginLp" name="skip_login_lp">
@@ -41,7 +41,7 @@
                         </label>
                     </div>
                     <div>
-                        <button type="submit" class="btn btn-primary">ホームへ進む</button>
+                        <button type="submit" class="btn btn-primary" id="proceedHomeButton">ホームへ進む</button>
                     </div>
                 </form>
             </div>
@@ -49,3 +49,4 @@
     </div>
 </div>
 {% endblock %}
+

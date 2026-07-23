@@ -368,6 +368,9 @@ class LoginLandingPageView(TemplateView):
         profile.skip_login_lp = should_skip_next_login_lp
         profile.save(update_fields=['skip_login_lp'])
 
+        # チェック未選択でも、今回の遷移だけはホームへ進める
+        request.session['login_lp_passed_once'] = True
+
         return redirect('home')
 
 
@@ -1105,9 +1108,10 @@ class HomeView(TemplateView):
     template_name = 'tenasapo_knowledge/home.html'
 
     def dispatch(self, request, *args, **kwargs):
+        passed_once = request.session.pop('login_lp_passed_once', False)
         if request.user.is_authenticated and should_show_first_login_registration(request.user):
             return redirect('first_login_registration')
-        if request.user.is_authenticated and should_show_login_lp(request.user):
+        if request.user.is_authenticated and should_show_login_lp(request.user) and not passed_once:
             return redirect('login_lp')
         return super().dispatch(request, *args, **kwargs)
 
