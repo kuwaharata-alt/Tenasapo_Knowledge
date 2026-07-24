@@ -30,8 +30,13 @@ $alreadyRunning = Get-CimInstance Win32_Process | Where-Object {
 
 if ($alreadyRunning) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "[$timestamp] Startup skipped. Already running: $commandToken" | Add-Content -Path (Join-Path $logDir "django_startup.log") -Encoding UTF8
-    exit 0
+    "[$timestamp] Stopping existing process(es) for restart..." | Add-Content -Path (Join-Path $logDir "django_startup.log") -Encoding UTF8
+    $alreadyRunning | ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 2
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "[$timestamp] Existing process(es) stopped. Starting new process..." | Add-Content -Path (Join-Path $logDir "django_startup.log") -Encoding UTF8
 }
 
 $stdoutLog = Join-Path $logDir "django_stdout.log"

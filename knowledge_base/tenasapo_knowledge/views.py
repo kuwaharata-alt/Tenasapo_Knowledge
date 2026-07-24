@@ -4480,6 +4480,7 @@ class UserListView(StaffRequiredMixin, ListView):
     template_name = 'tenasapo_knowledge/user_list.html'
     context_object_name = 'users'
     paginate_by = 20
+    OTHER_FILTER_VALUE = '__other__'
 
     def _base_filtered_queryset(self):
         User = get_user_model()
@@ -4528,20 +4529,35 @@ class UserListView(StaffRequiredMixin, ListView):
             queryset = queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER)
 
         if department:
-            queryset = queryset.filter(
-                knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
-                knowledge_profile__department=department,
-            )
+            if department == self.OTHER_FILTER_VALUE:
+                queryset = queryset.filter(
+                    knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                ).filter(Q(knowledge_profile__department='') | Q(knowledge_profile__department__isnull=True))
+            else:
+                queryset = queryset.filter(
+                    knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
+                    knowledge_profile__department=department,
+                )
         if profile_group:
-            queryset = queryset.filter(
+            group_filter = queryset.filter(
                 knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA,
                 knowledge_profile__group=profile_group,
             )
+            if department == self.OTHER_FILTER_VALUE:
+                group_filter = group_filter.filter(
+                    Q(knowledge_profile__department='') | Q(knowledge_profile__department__isnull=True)
+                )
+            queryset = group_filter
         if customer_name:
-            queryset = queryset.filter(
-                knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER,
-                knowledge_profile__company_name=customer_name,
-            )
+            if customer_name == self.OTHER_FILTER_VALUE:
+                queryset = queryset.filter(
+                    knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER,
+                ).filter(Q(knowledge_profile__company_name='') | Q(knowledge_profile__company_name__isnull=True))
+            else:
+                queryset = queryset.filter(
+                    knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER,
+                    knowledge_profile__company_name=customer_name,
+                )
 
         return queryset.distinct()
 
@@ -4563,7 +4579,6 @@ class UserListView(StaffRequiredMixin, ListView):
         departments = list(
             base_queryset
             .filter(knowledge_profile__user_type=UserProfile.USER_TYPE_SYSTENA)
-            .exclude(knowledge_profile__department='')
             .values_list('knowledge_profile__department', flat=True)
             .distinct()
             .order_by('knowledge_profile__department')
@@ -4571,6 +4586,10 @@ class UserListView(StaffRequiredMixin, ListView):
 
         systena_tree = []
         for department in departments:
+            is_other_department = not (department or '').strip()
+            department_value = self.OTHER_FILTER_VALUE if is_other_department else department
+            department_label = 'その他' if is_other_department else department
+
             group_qs = (
                 base_queryset
                 .filter(
@@ -4592,6 +4611,8 @@ class UserListView(StaffRequiredMixin, ListView):
 
             systena_tree.append({
                 'department': department,
+                'department_value': department_value,
+                'department_label': department_label,
                 'count': (
                     base_queryset
                     .filter(
@@ -4607,13 +4628,18 @@ class UserListView(StaffRequiredMixin, ListView):
         customer_qs = base_queryset.filter(knowledge_profile__user_type=UserProfile.USER_TYPE_CUSTOMER)
         for company_name in list(
             customer_qs
-            .exclude(knowledge_profile__company_name='')
             .values_list('knowledge_profile__company_name', flat=True)
             .distinct()
             .order_by('knowledge_profile__company_name')
         ):
+            is_other_customer = not (company_name or '').strip()
+            company_value = self.OTHER_FILTER_VALUE if is_other_customer else company_name
+            company_label = 'その他' if is_other_customer else company_name
+
             customers.append({
                 'company_name': company_name,
+                'company_name_value': company_value,
+                'company_name_label': company_label,
                 'count': customer_qs.filter(knowledge_profile__company_name=company_name).count(),
             })
 

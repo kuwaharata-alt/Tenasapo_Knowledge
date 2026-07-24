@@ -42,13 +42,13 @@
                         <div class="small">
                             {% for department_node in user_filter_tree.systena_departments %}
                                 <div class="mb-2">
-                                    <a class="fw-semibold text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department and not selected_profile_group %}text-primary{% else %}text-body{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department|urlencode }}">
-                                        {{ department_node.department }}（{{ department_node.count }}）
+                                    <a class="fw-semibold text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and not selected_profile_group %}text-primary{% else %}text-body{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}">
+                                        {{ department_node.department_label }}（{{ department_node.count }}）
                                     </a>
                                     {% if department_node.groups %}
                                         <div class="ps-3 mt-1 d-flex flex-column gap-1">
                                             {% for group_node in department_node.groups %}
-                                                <a class="text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department and selected_profile_group == group_node.name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department|urlencode }}&profile_group={{ group_node.name|urlencode }}">
+                                                <a class="text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and selected_profile_group == group_node.name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}&profile_group={{ group_node.name|urlencode }}">
                                                     {{ group_node.name }}（{{ group_node.count }}）
                                                 </a>
                                             {% endfor %}
@@ -67,8 +67,8 @@
                         </a>
                         <div class="small d-flex flex-column gap-1">
                             {% for customer_node in user_filter_tree.customers %}
-                                <a class="text-decoration-none {% if selected_scope == 'customer' and selected_customer_name == customer_node.company_name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer&customer_name={{ customer_node.company_name|urlencode }}">
-                                    {{ customer_node.company_name }}（{{ customer_node.count }}）
+                                <a class="text-decoration-none {% if selected_scope == 'customer' and selected_customer_name == customer_node.company_name_value %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer&customer_name={{ customer_node.company_name_value|urlencode }}">
+                                    {{ customer_node.company_name_label }}（{{ customer_node.count }}）
                                 </a>
                             {% empty %}
                                 <span class="text-secondary">顧客データなし</span>
@@ -114,102 +114,139 @@
             </div>
         </form>
 
-        <div class="card shadow-sm">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" style="table-layout: fixed; width: 100%;">
-        <colgroup>
-            <col style="width: 8%">
-            <col style="width: 10%">
-            <col style="width: 10%">
-            <col style="width: 8%">
-            <col style="width: 8%">
-            <col style="width: 12%">
-            <col style="width: 12%">
-            <col style="width: 14%">
-            <col style="width: 18%">
-        </colgroup>
-            <thead class="table-light">
-                <tr>
-                    <th scope="col">管理番号</th>
-                    <th scope="col">ログインID</th>
-                    <th scope="col">ユーザー名</th>
-                    <th scope="col" class="text-center">権限</th>
-                    <th scope="col" class="text-center">ユーザー区分</th>
-                    <th scope="col">所属部署</th>
-                    <th scope="col">所属役割</th>
-                    <th scope="col">メールアドレス</th>
-                    <th scope="col">操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for account in users %}
-                    <tr>
-                        <td>
-                            {% if account.knowledge_profile.uid %}
-                                {{ account.knowledge_profile.uid }}
-                            {% else %}
-                                <span class="text-secondary">-</span>
-                            {% endif %}
-                        </td>
-                        <td class="fw-semibold">{{ account.username }}</td>
-                        <td>{{ account.knowledge_profile.display_name|default:account.username }}</td>
-                        <td class="text-center">
-                            {% if account.is_staff or account.is_superuser %}
-                                <span class="badge text-bg-primary">管理者</span>
-                            {% else %}
-                                <span class="badge text-bg-secondary">ユーザー</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center">
-                            {% if account.knowledge_profile %}
-                                {% if account.knowledge_profile.user_type == 'systena' %}
-                                    <span class="badge text-bg-warning">システナ</span>
-                                {% elif account.knowledge_profile.user_type == 'customer' %}
-                                    <span class="badge text-bg-info">カスタマー</span>
-                                {% else %}
-                                    <span class="text-secondary">-</span>
-                                {% endif %}
-                            {% else %}
-                                <span class="text-secondary">-</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ account.knowledge_profile.department|default:'-' }}</td>
-                        <td>
-                            {% if account.groups.all %}
-                                {% for group in account.groups.all %}
-                                    {% if group.name in roles %}
-                                        <span class="badge text-bg-light">{{ group.name }}</span>
-                                    {% endif %}
-                                {% endfor %}
-                            {% else %}
-                                <span class="text-secondary">-</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ account.email|default:'-' }}</td>
-                        <td class="text-nowrap">
-                            <div class="d-flex flex-wrap gap-2" role="group">
-                                <a class="btn btn-outline-primary btn-sm" href="{% url 'user_detail' account.id %}">詳細</a>
-                                {% if can_manage_all_users or account.id == request.user.id %}
-                                <a class="btn btn-primary btn-sm" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
-                                {% endif %}
-                                {% if can_manage_all_users or account.id == request.user.id %}
-                                <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
-                                {% endif %}
-                                {% if can_manage_all_users or account.id == request.user.id %}
-                                <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
-                                {% endif %}
+        <div class="row row-cols-1 g-3">
+            {% for account in users %}
+                <div class="col">
+                    <div class="card shadow-sm h-100">
+                        <button class="card-header btn btn-text w-100 text-start p-3 mb-0 collapsed border-0 rounded-top" type="button" data-bs-toggle="collapse" data-bs-target="#user-details-{{ account.id }}" aria-expanded="false" aria-controls="user-details-{{ account.id }}" style="background-color: transparent;">
+                            <div class="d-flex justify-content-between align-items-center gap-3">
+                                <div class="flex-grow-1 d-flex flex-column flex-md-row gap-3 gap-md-4">
+                                    <div>
+                                        <div class="small text-secondary">管理番号</div>
+                                        <div class="fw-semibold">{{ account.knowledge_profile.uid|default:'-' }}</div>
+                                    </div>
+                                    <div>
+                                        <div class="small text-secondary">ユーザー名</div>
+                                        <div class="fw-semibold">{{ account.knowledge_profile.display_name|default:account.username }}</div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2 flex-wrap justify-content-end align-items-start">
+                                    <span class="fw-semibold text-secondary">▽</span>
+                                </div>
                             </div>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td class="text-center text-secondary py-4" colspan="9">ユーザーが見つかりません。</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-            </table>
-        </div>
-            </div>
+                        </button>
+                        
+                        <div class="collapse" id="user-details-{{ account.id }}">
+                            <div class="card-body d-flex flex-column gap-3">
+                                <div class="row g-3">
+                                    <div class="col-12 col-xl-6">
+                                        <h6 class="text-muted mb-2">基本情報</h6>
+                                        <table class="table table-sm align-middle mb-0">
+                                            <tr>
+                                                <th style="width: 30%;">ログインID</th>
+                                                <td>{{ account.username }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>ユーザー名</th>
+                                                <td>{{ account.knowledge_profile.display_name|default:account.username }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>管理番号</th>
+                                                <td>{{ account.knowledge_profile.uid|default:'-' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>権限</th>
+                                                <td>
+                                                    {% if account.is_staff or account.is_superuser %}
+                                                        <span class="badge text-bg-primary">管理者</span>
+                                                    {% else %}
+                                                        <span class="badge text-bg-secondary">ユーザー</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>ユーザー区分</th>
+                                                <td>
+                                                    {% if account.knowledge_profile.user_type == 'systena' %}
+                                                        <span class="badge text-bg-warning">システナ</span>
+                                                    {% elif account.knowledge_profile.user_type == 'customer' %}
+                                                        <span class="badge text-bg-info">カスタマー</span>
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>所属役割</th>
+                                                <td>
+                                                    {% if account.groups.all %}
+                                                        {% for group in account.groups.all %}
+                                                            {% if group.name in roles %}
+                                                                <span class="badge text-bg-light">{{ group.name }}</span>
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                    <div class="col-12 col-xl-6">
+                                        <h6 class="text-muted mb-2">その他の情報</h6>
+                                        <table class="table table-sm align-middle mb-0">
+                                            <tr>
+                                                <th style="width: 30%;">会社名</th>
+                                                <td>{{ account.knowledge_profile.company_name|default:'-' }}</td>
+                                            </tr>
+                                            <tr>
+                                                <th>メールアドレス</th>
+                                                <td>
+                                                    {% if account.knowledge_profile.email_addresses %}
+                                                        <div class="text-break">{{ account.knowledge_profile.email_addresses|linebreaksbr }}</div>
+                                                    {% elif account.email %}
+                                                        <div class="text-break">{{ account.email }}</div>
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>備考</th>
+                                                <td>
+                                                    {% if account.knowledge_profile.note %}
+                                                        <div class="text-break">{{ account.knowledge_profile.note|linebreaksbr }}</div>
+                                                    {% else %}
+                                                        <span class="text-secondary">-</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <div class="mt-auto d-flex flex-wrap gap-2" role="group">
+                                    {% if can_manage_all_users or account.id == request.user.id %}
+                                    <a class="btn btn-primary btn-sm" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
+                                    {% endif %}
+                                    {% if can_manage_all_users or account.id == request.user.id %}
+                                    <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
+                                    {% endif %}
+                                    {% if can_manage_all_users or account.id == request.user.id %}
+                                    <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-body text-center text-secondary py-4">ユーザーが見つかりません。</div>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
 
         {% if is_paginated %}
