@@ -364,7 +364,7 @@
                                                     <button
                                                         class="btn btn-outline-primary btn-sm"
                                                         type="button"
-                                                        data-pdf-url="{{ tip.pdf_file.url }}"
+                                                        data-pdf-url="{{ tip.pdf_download_url }}"
                                                         data-pdf-title="{{ tip.title }}"
                                                         onclick="openPdfModal(this)"
                                                     >PDFを見る</button>
@@ -372,6 +372,25 @@
                                             {% endif %}
                                             {% if tip.can_view_content %}
                                                 <div class="faq-body-indent mb-3">{{ tip.body|render_inline_images:tip.inline_images }}</div>
+
+                                                {% if tip.file_attachments and is_google_authenticated_user %}
+                                                    <div class="border-top pt-3 mt-3">
+                                                        <div class="fw-semibold small mb-2">添付ファイル</div>
+                                                        <ul class="list-unstyled mb-0 d-flex flex-column gap-1">
+                                                            {% for attachment in tip.file_attachments %}
+                                                                <li class="d-flex align-items-center gap-2">
+                                                                    <span class="small text-muted flex-grow-1">・{{ attachment.display_name }}</span>
+                                                                    <span class="d-inline-flex align-items-center justify-content-end gap-2" style="min-width: 11rem;">
+                                                                        {% if attachment.can_inline_preview %}
+                                                                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}" target="_blank" rel="noopener">表示</a>
+                                                                        {% endif %}
+                                                                        <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}?download=1">ダウンロード</a>
+                                                                    </span>
+                                                                </li>
+                                                            {% endfor %}
+                                                        </ul>
+                                                    </div>
+                                                {% endif %}
 
                                                 {% if can_edit_tip %}
                                                     {% with related=tip.get_related_articles %}

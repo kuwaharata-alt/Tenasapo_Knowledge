@@ -172,28 +172,30 @@
                     <div class="col-12">
                         <label class="form-label form-subsection-label" for="{{ form.tips_images.id_for_label }}">{{ form.tips_images.label }}</label>
                         {% if form.tips_images.help_text %}<div class="form-text mb-2">{{ form.tips_images.help_text }}</div>{% endif %}
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="tip_image_drop_zone">
                             <input class="form-control{% if form.tips_images.errors %} is-invalid{% endif %}" type="file" name="{{ form.tips_images.html_name }}" id="{{ form.tips_images.id_for_label }}" accept="image/*" multiple>
                         </div>
-                        <div class="form-text">選択後、下の一覧から画像を1枚ずつ本文に挿入できます。</div>
+                        <div class="form-text">画像をここへドラッグ&ドロップ、または選択後に下の一覧から本文へ挿入できます。</div>
                         <div id="tip_image_insert_list" class="mt-2 d-flex flex-column gap-2"></div>
                         {% for error in form.tips_images.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                         {% if tip_images %}
                             <div class="mt-2 d-flex flex-column gap-2">
                                 {% for image in tip_images %}
                                     <div class="d-flex align-items-center gap-2 p-2 border rounded" data-preview-tip-image data-image-name="{{ image.display_name }}" data-image-url="{{ image.file.url }}">
-                                        <span class="small text-muted">{{ image.display_name }}</span>
-                                        <a class="btn btn-outline-secondary btn-sm" href="{{ image.file.url }}" target="_blank" rel="noopener">表示</a>
-                                        <button
-                                            class="btn btn-outline-danger btn-sm"
-                                            type="submit"
-                                            data-skip-editor-validation="true"
-                                            data-skip-preview="true"
-                                            formnovalidate
-                                            formaction="{% url 'tip_image_delete' image.id %}"
-                                            formmethod="post"
-                                            onclick="return confirm('この画像を削除しますか？');"
-                                        >削除</button>
+                                        <span class="small text-muted flex-grow-1">{{ image.display_name }}</span>
+                                        <span class="d-inline-flex align-items-center justify-content-end gap-2" style="min-width: 8.5rem;">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ image.download_url }}" target="_blank" rel="noopener">表示</a>
+                                            <button
+                                                class="btn btn-outline-danger btn-sm"
+                                                type="submit"
+                                                data-skip-editor-validation="true"
+                                                data-skip-preview="true"
+                                                formnovalidate
+                                                formaction="{% url 'tip_image_delete' image.id %}"
+                                                formmethod="post"
+                                                onclick="return confirm('この画像を削除しますか？');"
+                                            >削除</button>
+                                        </span>
                                     </div>
                                 {% endfor %}
                             </div>
@@ -207,7 +209,7 @@
                         <div class="col-12">
                             <div class="d-flex align-items-center gap-3 p-3 border rounded" style="border-color:var(--tk-border)!important; background:#fffaf4;">
                                 <span class="text-muted small">📄 {{ tip_pdf_name }}</span>
-                                <a href="{{ tip_pdf_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">プレビュー</a>
+                                <a href="{{ tip.pdf_download_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">プレビュー</a>
                                 <div class="form-check ms-auto">
                                     <input class="form-check-input" type="checkbox" name="{{ form.clear_pdf.html_name }}" id="id_clear_pdf">
                                     <label class="form-check-label text-danger small" for="id_clear_pdf">PDFを削除する</label>
@@ -222,12 +224,45 @@
                         {% for error in form.pdf_file.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label">参考リンク</label>
+                        <label class="form-label form-section-label">参考</label>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label">参考URL</label>
                         <div class="mb-2">
                             <button type="button" class="btn btn-outline-primary btn-sm" id="add_reference_link_button">追加</button>
                         </div>
                         <div id="reference_links_container"></div>
                         <input type="hidden" name="reference_links" id="reference_links_hidden" value="{{ reference_links_json|default:'[]' }}">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label form-subsection-label" for="{{ form.file_attachments.id_for_label }}">{{ form.file_attachments.label }}</label>
+                        {% if form.file_attachments.help_text %}<div class="form-text mb-2">{{ form.file_attachments.help_text }}</div>{% endif %}
+                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                            <input class="form-control{% if form.file_attachments.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_attachments.html_name }}" id="{{ form.file_attachments.id_for_label }}" multiple>
+                        </div>
+                        {% for error in form.file_attachments.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% if tip_attachments %}
+                            <div class="mt-2 d-flex flex-column gap-2">
+                                {% for attachment in tip_attachments %}
+                                    <div class="d-flex align-items-center gap-2 p-2 border rounded" data-existing-attachment-name="{{ attachment.display_name }}" data-existing-attachment-download-url="{{ attachment.download_url }}" data-existing-attachment-can-inline-preview="{{ attachment.can_inline_preview|yesno:'true,false' }}">
+                                        <span class="small text-muted flex-grow-1">{{ attachment.display_name }}</span>
+                                        <span class="d-inline-flex align-items-center justify-content-end gap-2" style="min-width: 8.5rem;">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}" target="_blank" rel="noopener">表示</a>
+                                            <button
+                                                class="btn btn-outline-danger btn-sm"
+                                                type="submit"
+                                                data-skip-editor-validation="true"
+                                                data-skip-preview="true"
+                                                formnovalidate
+                                                formaction="{% url 'tip_attachment_delete' attachment.id %}"
+                                                formmethod="post"
+                                                onclick="return confirm('この添付ファイルを削除しますか？');"
+                                            >削除</button>
+                                        </span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -272,6 +307,10 @@
                                         <div id="previewTipsRefLinks" class="border-top pt-3 mt-3" style="display:none;">
                                             <div class="fw-semibold small mb-2">参考リンク</div>
                                             <div id="previewTipsRefLinksList" class="d-flex flex-wrap gap-2"></div>
+                                        </div>
+                                        <div id="previewTipsAttachments" class="border-top pt-3 mt-3" style="display:none;">
+                                            <div class="fw-semibold small mb-2">添付ファイル</div>
+                                            <div id="previewTipsAttachmentsList" class="d-flex flex-wrap gap-2"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -927,6 +966,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
 
+                editor.on('drop', function(e) {
+                    const dataTransfer = e.dataTransfer || (e.originalEvent && e.originalEvent.dataTransfer);
+                    if (!dataTransfer) {
+                        return;
+                    }
+
+                    const droppedImageFiles = Array.from(dataTransfer.files || []).filter(function(file) {
+                        return file && file.type && file.type.indexOf('image/') === 0;
+                    });
+                    if (!droppedImageFiles.length) {
+                        return;
+                    }
+
+                    e.preventDefault();
+                    const now = Date.now();
+                    const renamedImageFiles = droppedImageFiles.map(function(file, index) {
+                        const type = String(file.type || 'image/png');
+                        const rawExt = (type.split('/')[1] || 'png').toLowerCase();
+                        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt.replace(/[^a-z0-9]/g, '') || 'png';
+                        const generatedName = 'drop_' + now + '_' + (index + 1) + '.' + ext;
+                        try {
+                            return new File([file], generatedName, {
+                                type: file.type || 'image/png',
+                                lastModified: Date.now(),
+                            });
+                        } catch (error) {
+                            return file;
+                        }
+                    });
+
+                    mergeFilesToInput(tipImagesInput, renamedImageFiles);
+                    renamedImageFiles.forEach(function(file) {
+                        const markerText = markerFromFileName(file.name);
+                        if (markerText) {
+                            insertMarkerToBody(markerText);
+                        }
+                    });
+
+                    editor.nodeChanged();
+                });
+
                 editor.on('BeforeGetContent', function() {
                     markEmptyListWrappers(editor);
                 });
@@ -936,6 +1016,52 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!clipboardData) {
                         return;
                     }
+
+                    const clipboardItems = Array.from(clipboardData.items || []);
+                    const clipboardImageFiles = clipboardItems
+                        .filter(function(item) {
+                            return item && item.kind === 'file' && item.type && item.type.indexOf('image/') === 0;
+                        })
+                        .map(function(item) {
+                            return item.getAsFile();
+                        })
+                        .filter(function(file) {
+                            return !!file;
+                        });
+
+                    if (clipboardImageFiles.length > 0) {
+                        e.preventDefault();
+
+                        const now = Date.now();
+                        const renamedImageFiles = clipboardImageFiles.map(function(file, index) {
+                            const type = String(file.type || 'image/png');
+                            const rawExt = (type.split('/')[1] || 'png').toLowerCase();
+                            const ext = rawExt === 'jpeg' ? 'jpg' : rawExt.replace(/[^a-z0-9]/g, '') || 'png';
+                            const generatedName = 'clipboard_' + now + '_' + (index + 1) + '.' + ext;
+                            try {
+                                return new File([file], generatedName, {
+                                    type: file.type || 'image/png',
+                                    lastModified: Date.now(),
+                                });
+                            } catch (error) {
+                                return file;
+                            }
+                        });
+
+                        if (editor.id === bodyFieldId) {
+                            mergeFilesToInput(tipImagesInput, renamedImageFiles);
+                            renamedImageFiles.forEach(function(file) {
+                                const markerText = markerFromFileName(file.name);
+                                if (markerText) {
+                                    insertMarkerToBody(markerText);
+                                }
+                            });
+                        }
+
+                        editor.nodeChanged();
+                        return;
+                    }
+
                     const plainText = clipboardData.getData('text/plain');
                     if (typeof plainText !== 'string' || plainText === '') {
                         return;
@@ -1387,6 +1513,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const tipImagesInput = document.getElementById('{{ form.tips_images.id_for_label }}');
+    const tipImageDropZone = document.getElementById('tip_image_drop_zone');
     const tipImageInsertList = document.getElementById('tip_image_insert_list');
     const bodyFieldId = '{{ form.body.id_for_label|escapejs }}';
 
@@ -1429,6 +1556,24 @@ document.addEventListener('DOMContentLoaded', function() {
         textarea.focus();
     }
 
+    function removeFileAtIndex(fileInput, targetIndex) {
+        if (!fileInput || typeof DataTransfer === 'undefined') {
+            return;
+        }
+        const files = Array.from(fileInput.files || []);
+        if (targetIndex < 0 || targetIndex >= files.length) {
+            return;
+        }
+        const dataTransfer = new DataTransfer();
+        files.forEach(function(file, index) {
+            if (index !== targetIndex) {
+                dataTransfer.items.add(file);
+            }
+        });
+        fileInput.files = dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
     function renderTipImageInsertList() {
         if (!tipImageInsertList || !tipImagesInput) {
             return;
@@ -1440,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        files.forEach(function(file) {
+        files.forEach(function(file, index) {
             const markerText = markerFromFileName(file.name);
             if (!markerText) {
                 return;
@@ -1461,8 +1606,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 insertMarkerToBody(markerText);
             });
 
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'btn btn-outline-danger btn-sm';
+            removeButton.textContent = '削除';
+            removeButton.addEventListener('click', function() {
+                removeFileAtIndex(tipImagesInput, index);
+            });
+
             row.appendChild(name);
             row.appendChild(button);
+            row.appendChild(removeButton);
             tipImageInsertList.appendChild(row);
         });
     }
@@ -1471,6 +1625,76 @@ document.addEventListener('DOMContentLoaded', function() {
         tipImagesInput.addEventListener('change', renderTipImageInsertList);
         renderTipImageInsertList();
     }
+
+    function mergeFilesToInput(fileInput, incomingFiles) {
+        if (!fileInput || typeof DataTransfer === 'undefined') {
+            return;
+        }
+        const dataTransfer = new DataTransfer();
+        Array.from(fileInput.files || []).forEach(function(file) {
+            dataTransfer.items.add(file);
+        });
+        incomingFiles.forEach(function(file) {
+            dataTransfer.items.add(file);
+        });
+        fileInput.files = dataTransfer.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function setupImageDropZone(dropZone, fileInput, onDropped) {
+        if (!dropZone || !fileInput) {
+            return;
+        }
+
+        function setActive(active) {
+            dropZone.classList.toggle('border', active);
+            dropZone.classList.toggle('border-primary', active);
+            dropZone.classList.toggle('rounded', active);
+            dropZone.classList.toggle('p-2', active);
+            dropZone.classList.toggle('bg-light', active);
+        }
+
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                setActive(true);
+            });
+        });
+
+        ['dragleave', 'dragend'].forEach(function(eventName) {
+            dropZone.addEventListener(eventName, function(event) {
+                event.preventDefault();
+                event.stopPropagation();
+                setActive(false);
+            });
+        });
+
+        dropZone.addEventListener('drop', function(event) {
+            event.preventDefault();
+            event.stopPropagation();
+            setActive(false);
+            const droppedFiles = Array.from((event.dataTransfer && event.dataTransfer.files) || []).filter(function(file) {
+                return file && file.type && file.type.indexOf('image/') === 0;
+            });
+            if (!droppedFiles.length) {
+                return;
+            }
+            mergeFilesToInput(fileInput, droppedFiles);
+            if (typeof onDropped === 'function') {
+                onDropped(droppedFiles);
+            }
+        });
+    }
+
+    setupImageDropZone(tipImageDropZone, tipImagesInput, function(droppedFiles) {
+        droppedFiles.forEach(function(file) {
+            const markerText = markerFromFileName(file.name);
+            if (markerText) {
+                insertMarkerToBody(markerText);
+            }
+        });
+    });
 
     function addPreviewImageAlias(images, name, url) {
         const normalized = (name || '').trim();
@@ -1748,6 +1972,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return y + '/' + m + '/' + day;
         }
 
+        function canInlinePreviewFileName(fileName) {
+            const dotIndex = String(fileName || '').lastIndexOf('.');
+            if (dotIndex < 0) {
+                return false;
+            }
+            const ext = String(fileName || '').slice(dotIndex).toLowerCase();
+            return ['.pdf', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.txt', '.csv', '.json', '.md'].indexOf(ext) >= 0;
+        }
+
         function renderTipsPreview() {
             const title = (document.getElementById('{{ form.title.id_for_label }}') || {}).value || '';
             const sourcePublishedAt = (document.getElementById('{{ form.source_published_at.id_for_label }}') || {}).value || '';
@@ -1755,6 +1988,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const categoryLabels = getSelectedCategoryLabels();
             const targetOsChips = getTargetOsChips();
             const bodyHtml = getRichTextContent('{{ form.body.id_for_label }}');
+            const canShowAttachmentDownloads = '{{ is_google_authenticated_user|yesno:"true,false"|escapejs }}' === 'true';
 
             let refLinks = [];
             try {
@@ -1841,6 +2075,96 @@ document.addEventListener('DOMContentLoaded', function() {
                 refSection.style.display = '';
             } else {
                 refSection.style.display = 'none';
+            }
+
+            const attachmentSection = document.getElementById('previewTipsAttachments');
+            const attachmentList = document.getElementById('previewTipsAttachmentsList');
+            attachmentList.innerHTML = '';
+            const previewAttachments = [];
+            const existingAttachmentNameSet = new Set();
+
+            if (!canShowAttachmentDownloads) {
+                attachmentSection.style.display = 'none';
+            } else {
+                document.querySelectorAll('[data-existing-attachment-name]').forEach(function(row) {
+                    const name = String(row.getAttribute('data-existing-attachment-name') || '').trim();
+                    if (!name || existingAttachmentNameSet.has(name)) {
+                        return;
+                    }
+                    existingAttachmentNameSet.add(name);
+                    previewAttachments.push({
+                        name: name,
+                        downloadUrl: String(row.getAttribute('data-existing-attachment-download-url') || '').trim(),
+                        canInlinePreview: String(row.getAttribute('data-existing-attachment-can-inline-preview') || '').trim() === 'true',
+                    });
+                });
+
+                Array.from((document.getElementById('{{ form.file_attachments.id_for_label }}') || {}).files || []).forEach(function(file) {
+                    if (!file || !file.name || existingAttachmentNameSet.has(file.name)) {
+                        return;
+                    }
+                    previewAttachments.push({
+                        name: file.name,
+                        downloadUrl: '',
+                        canInlinePreview: canInlinePreviewFileName(file.name),
+                    });
+                });
+
+                const ul = document.createElement('ul');
+                ul.className = 'list-unstyled mb-0 d-flex flex-column gap-1';
+
+                previewAttachments.forEach(function(item) {
+                    const li = document.createElement('li');
+                    li.className = 'd-flex align-items-center gap-2';
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'small text-muted flex-grow-1';
+                    nameSpan.textContent = '・' + item.name;
+
+                    const actionBox = document.createElement('span');
+                    actionBox.className = 'd-inline-flex align-items-center justify-content-end gap-2';
+                    actionBox.style.minWidth = '11rem';
+
+                    if (item.canInlinePreview) {
+                        const viewLink = document.createElement(item.downloadUrl ? 'a' : 'button');
+                        viewLink.className = 'btn btn-outline-secondary btn-sm';
+                        viewLink.textContent = '表示';
+                        if (item.downloadUrl) {
+                            viewLink.href = item.downloadUrl;
+                            viewLink.target = '_blank';
+                            viewLink.rel = 'noopener';
+                        } else {
+                            viewLink.type = 'button';
+                            viewLink.disabled = true;
+                        }
+                        actionBox.appendChild(viewLink);
+                    }
+
+                    const downloadLink = document.createElement(item.downloadUrl ? 'a' : 'button');
+                    downloadLink.className = 'btn btn-outline-secondary btn-sm';
+                    downloadLink.textContent = 'ダウンロード';
+                    if (item.downloadUrl) {
+                        downloadLink.href = item.downloadUrl + '?download=1';
+                    } else {
+                        downloadLink.type = 'button';
+                        downloadLink.disabled = true;
+                    }
+                    actionBox.appendChild(downloadLink);
+
+                    li.appendChild(nameSpan);
+                    li.appendChild(actionBox);
+                    ul.appendChild(li);
+                });
+
+                if (previewAttachments.length > 0) {
+                    attachmentList.appendChild(ul);
+                }
+            }
+
+            if (previewAttachments.length > 0 && canShowAttachmentDownloads) {
+                attachmentSection.style.display = '';
+            } else {
+                attachmentSection.style.display = 'none';
             }
 
             const request = fetch(previewRenderUrl, {

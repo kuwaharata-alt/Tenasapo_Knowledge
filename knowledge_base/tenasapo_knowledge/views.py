@@ -18,7 +18,7 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.db.models import Count, F, Q
-from django.http import HttpResponse, JsonResponse, Http404
+from django.http import HttpResponse, JsonResponse, Http404, FileResponse, HttpResponseForbidden
 from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
 
@@ -76,6 +76,7 @@ from .models import (
     TipsFavorite,
     TipsGood,
     TipsArticle,
+    TipsAttachment,
     TipsImageAttachment,
     UserProfile,
     ViewHistory,
@@ -717,6 +718,90 @@ def record_view_history(
 def _render_preview_html(text, image_list=None):
     template = Template('{% load article_extras %}{{ text|render_inline_images:images }}')
     return template.render(Context({'text': text or '', 'images': image_list or []}))
+
+
+PROTECTED_FILE_DOWNLOAD_MAP = {
+    'article-attachment': (ArticleAttachment, 'file'),
+    'article-image': (KnowledgeArticleImageAttachment, 'file'),
+    'tip-image': (TipsImageAttachment, 'file'),
+    'tip-attachment': (TipsAttachment, 'file'),
+    'tip-pdf': (TipsArticle, 'pdf_file'),
+}
+
+INLINE_TEXT_EXTENSIONS = {
+    '.txt',
+    '.csv',
+    '.json',
+    '.md',
+    '.log',
+    '.ini',
+    '.cfg',
+    '.yaml',
+    '.yml',
+    '.xml',
+    '.bat',
+    '.cmd',
+    '.ps1',
+}
+
+TEXT_DECODE_CANDIDATES = (
+    'utf-8-sig',
+    'utf-8',
+    'cp932',
+    'shift_jis',
+    'euc_jp',
+)
+
+
+def build_inline_text_response(file_field, filename):
+    with file_field.open('rb') as file_handle:
+        raw_bytes = file_handle.read()
+
+    decoded_text = None
+    for encoding in TEXT_DECODE_CANDIDATES:
+        try:
+            decoded_text = raw_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+
+    if decoded_text is None:
+        decoded_text = raw_bytes.decode('utf-8', errors='replace')
+
+    response = HttpResponse(decoded_text, content_type='text/plain; charset=utf-8')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+class KnowledgeFileDownloadView(View):
+    def get(self, request, kind, pk):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        if not is_google_authenticated_user(request.user):
+            return HttpResponseForbidden('Google認証でログインしたアカウントのみ利用できます。')
+
+        model_class, field_name = PROTECTED_FILE_DOWNLOAD_MAP.get(kind, (None, None))
+        if model_class is None:
+            raise Http404
+
+        obj = get_object_or_404(model_class, pk=pk)
+        file_field = getattr(obj, field_name, None)
+        if not file_field:
+            raise Http404
+
+        filename = os.path.basename(getattr(file_field, 'name', '') or 'download')
+        extension = os.path.splitext((filename or '').lower())[1]
+        download_param = str(request.GET.get('download', '') or '').strip().lower()
+        as_attachment = download_param in {'1', 'true', 'yes', 'on'}
+
+        if not as_attachment and extension in INLINE_TEXT_EXTENSIONS:
+            return build_inline_text_response(file_field, filename)
+
+        file_handle = file_field.open('rb')
+        response = FileResponse(file_handle, as_attachment=as_attachment, filename=filename)
+        if not as_attachment:
+            response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
 
 
 class PreviewRenderView(View):
@@ -1719,6 +1804,7 @@ class ArticleListView(ListView):
         context['can_approve_article'] = can_approve_article(self.request.user)
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_view_approval_meta'] = can_view_approval_meta
+        context['is_google_authenticated_user'] = is_google_authenticated_user(self.request.user)
 
         visible_articles = list(context['articles'])
         if is_customer_user(self.request.user):
@@ -1978,7 +2064,7 @@ class TipsListView(ListView):
 
     def get_queryset(self):
         queryset = (
-            TipsArticle.objects.prefetch_related('images').filter(is_published=True)
+            TipsArticle.objects.prefetch_related('images', 'attachments').filter(is_published=True)
             .filter(active_until_filter())
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
@@ -2082,6 +2168,7 @@ class TipsListView(ListView):
         context['can_approve_tip'] = can_approve_article(self.request.user)
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['can_view_approval_meta'] = can_view_approval_meta
+        context['is_google_authenticated_user'] = is_google_authenticated_user(self.request.user)
 
         visible_tips = list(context['tips_list'])
         if is_customer_user(self.request.user):
@@ -2130,6 +2217,10 @@ class TipsListView(ListView):
             tip.inline_images = sorted(
                 tip.images.all(),
                 key=lambda image: (image.uploaded_at, image.id),
+            )
+            tip.file_attachments = sorted(
+                tip.attachments.all(),
+                key=lambda attachment: (attachment.uploaded_at, attachment.id),
             )
 
         selected_parent = self.request.GET.get('parent_category', '')
@@ -2337,6 +2428,7 @@ class TipsCreateView(FormView):
         )
         context['target_os_version_map_json'] = json.dumps(TARGET_OS_VERSION_MAP, ensure_ascii=False)
         context['target_os_entries_json'] = json.dumps(target_os_entries_for_form(context['form']), ensure_ascii=False)
+        context['tip_attachments'] = []
         context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
@@ -2368,6 +2460,7 @@ class TipsCreateView(FormView):
             tip.pdf_file = pdf_file
             tip.save(update_fields=['pdf_file'])
         self.save_inline_images(tip, form)
+        self.save_file_attachments(tip, form)
         messages.success(self.request, f'Tips「{tip.title}」を登録しました。')
         return super().form_valid(form)
 
@@ -2375,6 +2468,15 @@ class TipsCreateView(FormView):
     def save_inline_images(tip, form):
         for uploaded_file in form.cleaned_data.get('tips_images', []):
             TipsImageAttachment.objects.create(
+                tip=tip,
+                file=uploaded_file,
+                display_name=uploaded_file.name,
+            )
+
+    @staticmethod
+    def save_file_attachments(tip, form):
+        for uploaded_file in form.cleaned_data.get('file_attachments', []):
+            TipsAttachment.objects.create(
                 tip=tip,
                 file=uploaded_file,
                 display_name=uploaded_file.name,
@@ -2441,6 +2543,7 @@ class TipsUpdateView(FormView):
         context['tip_pdf_url'] = self.tip.pdf_file.url if self.tip.pdf_file else None
         context['tip_pdf_name'] = self.tip.pdf_file.name.split('/')[-1] if self.tip.pdf_file else None
         context['tip_images'] = self.tip.images.all().order_by('uploaded_at', 'id')
+        context['tip_attachments'] = self.tip.attachments.all().order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.tip.reference_links or [])
         candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
         if candidate and url_has_allowed_host_and_scheme(
@@ -2502,6 +2605,7 @@ class TipsUpdateView(FormView):
             update_fields.append('pdf_file')
         self.tip.save(update_fields=update_fields)
         TipsCreateView.save_inline_images(self.tip, form)
+        TipsCreateView.save_file_attachments(self.tip, form)
         messages.success(self.request, f'Tips「{self.tip.title}」を更新しました。')
         return super().form_valid(form)
 
@@ -2603,6 +2707,8 @@ class TipsDeleteView(View):
             tip.pdf_file.delete(save=False)
         for image in tip.images.all():
             image.file.delete(save=False)
+        for attachment in tip.attachments.all():
+            attachment.file.delete(save=False)
         tip.delete()
         messages.success(request, f'Tips「{title}」を削除しました。')
         return redirect('tip_list')
@@ -2619,6 +2725,20 @@ class TipsImageAttachmentDeleteView(View):
         image.file.delete(save=False)
         image.delete()
         messages.success(request, 'Tips画像を削除しました。')
+        return redirect('tip_edit', pk=tip_id)
+
+
+class TipsAttachmentDeleteView(View):
+    def post(self, request, pk):
+        if not can_edit_article(request.user):
+            messages.error(request, 'この操作を実行する権限がありません。')
+            return redirect('tip_list')
+
+        attachment = get_object_or_404(TipsAttachment, pk=pk)
+        tip_id = attachment.tip_id
+        attachment.file.delete(save=False)
+        attachment.delete()
+        messages.success(request, 'Tips添付ファイルを削除しました。')
         return redirect('tip_edit', pk=tip_id)
 
 
@@ -3840,6 +3960,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         )
         self.save_question_images(article, form)
         self.save_answer_images(article, form)
+        self.save_file_attachments(article, form)
         messages.success(self.request, f'FAQ「{article.title}」を登録しました。')
         return super().form_valid(form)
 
@@ -3859,6 +3980,16 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             KnowledgeArticleImageAttachment.objects.create(
                 article=article,
                 file=uploaded_file,
+                display_name=uploaded_file.name,
+            )
+
+    @staticmethod
+    def save_file_attachments(article, form):
+        for uploaded_file in form.cleaned_data.get('file_attachments', []):
+            ArticleAttachment.objects.create(
+                article=article,
+                file=uploaded_file,
+                placement=ArticleAttachment.PLACEMENT_ATTACHMENT,
                 display_name=uploaded_file.name,
             )
 
@@ -3913,6 +4044,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             placement=ArticleAttachment.PLACEMENT_QUESTION
         ).order_by('uploaded_at', 'id')
         context['answer_images'] = self.article.images.all().order_by('uploaded_at', 'id')
+        context['file_attachments'] = self.article.attachments.filter(
+            placement=ArticleAttachment.PLACEMENT_ATTACHMENT
+        ).order_by('uploaded_at', 'id')
         context['reference_links_json'] = json.dumps(self.article.reference_links or [])
         context['category_groups'] = KnowledgeArticleCreateView.category_groups(context['form'])
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
@@ -3987,6 +4121,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         )
         KnowledgeArticleCreateView.save_question_images(self.article, form)
         KnowledgeArticleCreateView.save_answer_images(self.article, form)
+        KnowledgeArticleCreateView.save_file_attachments(self.article, form)
         messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
         return super().form_valid(form)
 
@@ -5448,7 +5583,7 @@ class ArticleManagementView(TemplateView):
             tips_qs = (
                 TipsArticle.objects
                 .select_related('created_by', 'approved_by')
-                .prefetch_related('images')
+                .prefetch_related('images', 'attachments')
                 .annotate(good_count=Count('goods'))
                 .order_by('-created_at')
             )
@@ -5459,6 +5594,10 @@ class ArticleManagementView(TemplateView):
                 inline_images = sorted(
                     tip.images.all(),
                     key=lambda img: (img.uploaded_at, img.id),
+                )
+                file_attachments = sorted(
+                    tip.attachments.all(),
+                    key=lambda attachment: (attachment.uploaded_at, attachment.id),
                 )
 
                 combined.append({
@@ -5479,7 +5618,7 @@ class ArticleManagementView(TemplateView):
                     'obj': tip,
                     'question_images': [],
                     'body_images': [],
-                    'file_attachments': [],
+                    'file_attachments': file_attachments,
                     'inline_images': inline_images,
                 })
 
@@ -5731,6 +5870,10 @@ class TipsArticleDetailView(TemplateView):
         tip.inline_images = sorted(
             tip.images.all(),
             key=lambda image: (image.uploaded_at, image.id),
+        )
+        tip.file_attachments = sorted(
+            tip.attachments.all(),
+            key=lambda attachment: (attachment.uploaded_at, attachment.id),
         )
 
         liked_tip_ids = set(

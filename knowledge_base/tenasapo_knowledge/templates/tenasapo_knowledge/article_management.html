@@ -232,7 +232,7 @@
             {% if item.obj.pdf_file %}
                 <div class="d-flex justify-content-end mb-3">
                     <button class="btn btn-outline-primary btn-sm" type="button"
-                        data-pdf-url="{{ item.obj.pdf_file.url }}"
+                        data-pdf-url="{{ item.obj.pdf_download_url }}"
                         data-pdf-title="{{ item.obj.title }}"
                         onclick="openPdfModal(this)">PDFを見る</button>
                 </div>
@@ -254,7 +254,7 @@
                     <div class="fw-semibold small mb-2">添付ファイル</div>
                     <div class="d-flex flex-wrap gap-2">
                         {% for attachment in item.file_attachments %}
-                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.file.url }}">
+                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}">
                                 {{ attachment }}
                             </a>
                         {% endfor %}
@@ -266,12 +266,24 @@
             {% if item.obj.pdf_file %}
                 <div class="d-flex justify-content-end mb-3">
                     <button class="btn btn-outline-primary btn-sm" type="button"
-                        data-pdf-url="{{ item.obj.pdf_file.url }}"
+                        data-pdf-url="{{ item.obj.pdf_download_url }}"
                         data-pdf-title="{{ item.obj.title }}"
                         onclick="openPdfModal(this)">PDFを見る</button>
                 </div>
             {% endif %}
             <div class="faq-body-indent">{{ item.obj.body|render_inline_images:item.inline_images }}</div>
+            {% if item.file_attachments %}
+                <div class="border-top pt-3 mt-3">
+                    <div class="fw-semibold small mb-2">添付ファイル</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for attachment in item.file_attachments %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}">
+                                {{ attachment }}
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
         {% endif %}
 
         {% if item.obj.reference_links %}

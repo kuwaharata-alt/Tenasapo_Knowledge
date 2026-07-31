@@ -161,6 +161,19 @@ class MultipleImageField(forms.FileField):
         return cleaned_files
 
 
+class MultipleFileField(forms.FileField):
+    widget = MultipleFileInput
+
+    def clean(self, data, initial=None):
+        files = data if isinstance(data, (list, tuple)) else [data]
+        cleaned_files = []
+        for uploaded_file in files:
+            if not uploaded_file:
+                continue
+            cleaned_files.append(super().clean(uploaded_file, initial))
+        return cleaned_files
+
+
 class FAQCategoryCreateForm(forms.ModelForm):
     PARENT_CATEGORY_CHOICES = (
         ('サーバー', 'サーバー'),
@@ -607,6 +620,12 @@ class KnowledgeArticleCreateForm(forms.Form):
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
         help_text='回答に差し込む画像を選択し、「本文へ挿入」ボタンで挿入位置を指定してください。',
     )
+    file_attachments = MultipleFileField(
+        label='添付ファイル',
+        required=False,
+        widget=MultipleFileInput(attrs={'multiple': True}),
+        help_text='画像以外のファイルを添付できます。',
+    )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',
         required=False,
@@ -715,6 +734,12 @@ class TipsCreateForm(forms.Form):
         required=False,
         widget=MultipleFileInput(attrs={'multiple': True, 'accept': 'image/*'}),
         help_text='本文に差し込む画像を選択し、「本文へ挿入」ボタンで挿入位置を指定してください。',
+    )
+    file_attachments = MultipleFileField(
+        label='添付ファイル',
+        required=False,
+        widget=MultipleFileInput(attrs={'multiple': True}),
+        help_text='画像以外のファイルを添付できます。',
     )
     visible_to_customer = forms.BooleanField(
         label='カスタマーユーザーに表示する',

@@ -1,8 +1,30 @@
 from django.db import models
 from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone
 from calendar import monthrange
 from datetime import timedelta
+import os
+
+
+INLINE_PREVIEWABLE_EXTENSIONS = {
+    '.pdf',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.svg',
+    '.txt',
+    '.csv',
+    '.json',
+    '.md',
+}
+
+
+def can_inline_preview_file(file_name: str) -> bool:
+    extension = os.path.splitext((file_name or '').lower())[1]
+    return extension in INLINE_PREVIEWABLE_EXTENSIONS
 
 
 def default_expires_on():
@@ -292,6 +314,10 @@ class KnowledgeArticleImageAttachment(models.Model):
     def __str__(self):
         return f'{self.article.title} - {self.display_name or self.file.name}'
 
+    @property
+    def download_url(self):
+        return reverse('knowledge_file_download', kwargs={'kind': 'article-image', 'pk': self.pk})
+
 
 class TipsArticle(models.Model):
     title = models.CharField('タイトル', max_length=200)
@@ -340,6 +366,12 @@ class TipsArticle(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def pdf_download_url(self):
+        if not self.pdf_file:
+            return ''
+        return reverse('knowledge_file_download', kwargs={'kind': 'tip-pdf', 'pk': self.pk})
 
     def save(self, *args, **kwargs):
         if not self.management_code:
@@ -439,6 +471,38 @@ class TipsImageAttachment(models.Model):
 
     def __str__(self):
         return self.display_name or self.file.name
+
+    @property
+    def download_url(self):
+        return reverse('knowledge_file_download', kwargs={'kind': 'tip-image', 'pk': self.pk})
+
+
+class TipsAttachment(models.Model):
+    tip = models.ForeignKey(
+        TipsArticle,
+        on_delete=models.CASCADE,
+        related_name='attachments',
+        verbose_name='Tips',
+    )
+    file = models.FileField('ファイル', upload_to='tips_attachments/%Y/%m/')
+    display_name = models.CharField('表示名', max_length=200, blank=True)
+    uploaded_at = models.DateTimeField('アップロード日時', auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Tips添付ファイル'
+        verbose_name_plural = 'Tips添付ファイル'
+        ordering = ['uploaded_at', 'id']
+
+    def __str__(self):
+        return self.display_name or self.file.name
+
+    @property
+    def download_url(self):
+        return reverse('knowledge_file_download', kwargs={'kind': 'tip-attachment', 'pk': self.pk})
+
+    @property
+    def can_inline_preview(self):
+        return can_inline_preview_file(getattr(self.file, 'name', ''))
 
 
 class ConvenienceFeature(models.Model):
@@ -596,6 +660,14 @@ class ArticleAttachment(models.Model):
 
     def __str__(self):
         return self.display_name or self.file.name
+
+    @property
+    def download_url(self):
+        return reverse('knowledge_file_download', kwargs={'kind': 'article-attachment', 'pk': self.pk})
+
+    @property
+    def can_inline_preview(self):
+        return can_inline_preview_file(getattr(self.file, 'name', ''))
 
 
 class Manual(models.Model):
