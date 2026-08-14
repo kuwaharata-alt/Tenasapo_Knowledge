@@ -2646,7 +2646,7 @@ class TipsApproveView(View):
         )
         if redirect_url:
             messages.success(request, f'Tips「{tip.title}」を承認しました。メール下書きを作成します。')
-            return _open_gas_newtab_response(request, redirect_url, reverse('tip_list'))
+            return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'tip_list'))
         messages.success(request, f'Tips「{tip.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
@@ -2679,7 +2679,7 @@ class TipsRemandView(View):
         )
         if redirect_url:
             messages.success(request, f'Tips「{tip.title}」を差戻しました。メール下書きを作成します。')
-            return _open_gas_newtab_response(request, redirect_url, reverse('tip_list'))
+            return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'tip_list'))
         messages.success(request, f'Tips「{tip.title}」を差戻しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
@@ -4164,7 +4164,7 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         )
         if redirect_url:
             messages.success(request, f'FAQ「{article.title}」を承認しました。メール下書きを作成します。')
-            return _open_gas_newtab_response(request, redirect_url, reverse('article_list'))
+            return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'article_list'))
         messages.success(request, f'FAQ「{article.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
@@ -4211,7 +4211,7 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         )
         if redirect_url:
             messages.success(request, f'FAQ「{article.title}」を差戻しました。メール下書きを作成します。')
-            return _open_gas_newtab_response(request, redirect_url, reverse('article_list'))
+            return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'article_list'))
         messages.success(request, f'FAQ「{article.title}」を差戻しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
