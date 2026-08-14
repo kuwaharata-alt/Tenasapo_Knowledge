@@ -373,7 +373,7 @@
                                         </form>
                                     {% endif %}
                                 {% elif article_approval_status == 'remanded' %}
-                                    <span class="badge text-bg-warning">差し戻し</span>
+                                    <span class="badge text-bg-warning">差戻し</span>
                                     <button
                                         class="btn btn-outline-warning btn-sm py-0 px-2"
                                         type="button"
@@ -408,7 +408,7 @@
                                         data-bs-target="#articleRemandFormBlock"
                                         aria-expanded="false"
                                         aria-controls="articleRemandFormBlock"
-                                    >差し戻し</button>
+                                    >差戻し</button>
                                 {% endif %}
                             </div>
                         {% endif %}
@@ -423,10 +423,10 @@
                             <div class="card card-body">
                                 <form method="post" action="{% url 'article_remand' article.id %}" class="d-flex flex-column gap-2">
                                     {% csrf_token %}
-                                    <label class="form-label mb-0" for="articleRemandReasonInput">差し戻し理由</label>
+                                    <label class="form-label mb-0" for="articleRemandReasonInput">差戻し理由</label>
                                     <textarea id="articleRemandReasonInput" name="remand_reason" class="form-control" rows="3" required>{% if article_approval_status == 'remanded' %}{{ article.remand_reason }}{% endif %}</textarea>
                                     <div>
-                                        <button class="btn btn-warning" type="submit">差し戻し確定</button>
+                                        <button class="btn btn-warning" type="submit">差戻し確定</button>
                                     </div>
                                 </form>
                             </div>

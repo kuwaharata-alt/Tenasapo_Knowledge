@@ -45,7 +45,7 @@
                 <select class="form-select" id="statusFilter" name="status">
                     <option value="">すべて</option>
                     <option value="registered" {% if status_filter == 'registered' %}selected{% endif %}>登録</option>
-                    <option value="remanded" {% if status_filter == 'remanded' %}selected{% endif %}>差し戻し</option>
+                    <option value="remanded" {% if status_filter == 'remanded' %}selected{% endif %}>差戻し</option>
                     <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>承認済</option>
                 </select>
             </div>
@@ -117,7 +117,7 @@
             </thead>
             <tbody>
                 {% for item in review_items %}
-                    <tr>
+                    <tr id="review-row-{{ item.type }}-{{ item.id }}">
                         <td>
                             {% if item.type == 'faq' %}
                                 <span class="badge text-bg-primary">FAQ</span>
@@ -143,17 +143,26 @@
                         <td class="small text-muted">{{ item.created_at|date:"Y/m/d" }}</td>
                         <td>
                             {% if item.approval_status == 'approved' %}
-                                <span class="badge text-bg-success">承認済</span>
+                                <button
+                                    class="btn badge text-bg-success border-0 review-summary-open-btn"
+                                    type="button"
+                                    data-title="{{ item.title|escape }}"
+                                    data-approval-status="{{ item.approval_status }}"
+                                    data-ai-review="{{ item.ai_review|escape }}"
+                                    data-remand-reason="{{ item.remand_reason|escape }}"
+                                >承認済</button>
                             {% elif item.approval_status == 'remanded' %}
                                 {% if item.remand_reason %}
                                     <button
-                                        class="btn badge text-bg-warning border-0 remand-reason-badge"
+                                        class="btn badge text-bg-warning border-0 review-summary-open-btn"
                                         type="button"
-                                        data-popup-title="差し戻し理由"
+                                        data-title="{{ item.title|escape }}"
+                                        data-approval-status="{{ item.approval_status }}"
+                                        data-ai-review="{{ item.ai_review|escape }}"
                                         data-remand-reason="{{ item.remand_reason|escape }}"
-                                    >差し戻し</button>
+                                    >差戻し</button>
                                 {% else %}
-                                    <span class="badge text-bg-warning">差し戻し</span>
+                                    <span class="badge text-bg-warning">差戻し</span>
                                 {% endif %}
                             {% else %}
                                 <span class="badge text-bg-secondary">登録</span>
@@ -172,6 +181,7 @@
                                     type="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#reviewModal"
+                                    data-focus-key="{{ item.type }}-{{ item.id }}"
                                     data-review-id="review-content-{{ item.type }}-{{ item.id }}"
                                     data-title="{{ item.title|escape }}"
                                     data-approve-url="{% url item.approve_url_name item.id %}"
@@ -257,9 +267,9 @@
                     <button
                         type="button"
                         class="btn btn-outline-warning btn-sm review-text-popup-btn"
-                        data-popup-title="差し戻し理由"
+                        data-popup-title="差戻し理由"
                         data-popup-content="{{ item.remand_reason|escape }}"
-                    >差し戻し理由</button>
+                    >差戻し理由</button>
                 {% endif %}
             </div>
         {% endif %}
@@ -293,13 +303,13 @@
                         </div>
                         <div class="d-flex flex-wrap gap-2 align-items-stretch">
                             <button class="btn btn-success px-4 text-nowrap" type="button" id="reviewApproveBtn">承認</button>
-                            <button class="btn btn-warning px-4 text-nowrap" type="button" id="reviewRemandBtn">差し戻し</button>
+                            <button class="btn btn-warning px-4 text-nowrap" type="button" id="reviewRemandBtn">差戻し</button>
                         </div>
                         <div id="reviewRemandReasonBlock" class="d-none">
-                            <label class="form-label" for="reviewRemandComment">差し戻し理由</label>
+                            <label class="form-label" for="reviewRemandComment">差戻し理由</label>
                             <div class="d-flex flex-wrap gap-2 align-items-stretch">
-                                <textarea class="form-control" id="reviewRemandComment" rows="2" placeholder="差し戻し理由を入力"></textarea>
-                                <button class="btn btn-warning text-nowrap" type="button" id="reviewRemandSubmitBtn">差し戻し確定</button>
+                                <textarea class="form-control" id="reviewRemandComment" rows="2" placeholder="差戻し理由を入力"></textarea>
+                                <button class="btn btn-warning text-nowrap" type="button" id="reviewRemandSubmitBtn">差戻し確定</button>
                             </div>
                         </div>
                     </div>
@@ -323,19 +333,44 @@
     </div>
 </div>
 
+<div class="modal fade" id="reviewSummaryModal" tabindex="-1" aria-labelledby="reviewSummaryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="reviewSummaryModalLabel">レビュー内容</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="fw-semibold small text-muted mb-1">対象タイトル</div>
+                    <div id="reviewSummaryTargetTitle" class="border rounded p-2" style="white-space: pre-wrap; font-size: 0.8rem; line-height: 1.4;">-</div>
+                </div>
+                <div class="mb-3">
+                    <div class="fw-semibold small text-muted mb-1">差戻し理由</div>
+                    <div id="reviewSummaryRemandText" class="border rounded p-2" style="white-space: pre-wrap; font-size: 0.8rem; line-height: 1.4;">（未入力）</div>
+                </div>
+                <div>
+                    <div class="fw-semibold small text-muted mb-1">AIコメント</div>
+                    <div id="reviewSummaryAiText" class="border rounded p-3 bg-light" style="white-space: pre-wrap; line-height: 1.45; font-size: 0.8rem; max-height: 18rem; overflow-y: auto; word-break: break-word;">（未入力）</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% if can_approve_review %}
     <form id="reviewApproveForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="standard_contract_only" id="reviewStandardOnlyValue" value="0">
         <input type="hidden" name="visible_to_customer" id="reviewVisibleToCustomerValue" value="1">
         <input type="hidden" name="ai_review" id="reviewAiReviewValue" value="">
-        <input type="hidden" name="next" value="{{ return_to }}">
+        <input type="hidden" name="next" id="reviewApproveNext" value="{{ return_to }}">
     </form>
     <form id="reviewRemandForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="ai_review" id="reviewAiReviewForRemand" value="">
         <input type="hidden" name="remand_reason" id="reviewRemandReason" value="">
-        <input type="hidden" name="next" value="{{ return_to }}">
+        <input type="hidden" name="next" id="reviewRemandNext" value="{{ return_to }}">
     </form>
 {% endif %}
 
@@ -343,14 +378,54 @@
 document.addEventListener('DOMContentLoaded', function() {
     let currentApproveUrl = '';
     let currentRemandUrl = '';
+    let currentFocusKey = '';
     const previewBody = document.getElementById('reviewPreviewBody');
     const reviewTextModalElement = document.getElementById('reviewTextModal');
     const reviewTextModal = reviewTextModalElement ? new bootstrap.Modal(reviewTextModalElement) : null;
     const reviewTextModalLabel = document.getElementById('reviewTextModalLabel');
     const reviewTextModalBody = document.getElementById('reviewTextModalBody');
+    const reviewSummaryModalElement = document.getElementById('reviewSummaryModal');
+    const reviewSummaryModal = reviewSummaryModalElement ? new bootstrap.Modal(reviewSummaryModalElement) : null;
+    const reviewSummaryTargetTitle = document.getElementById('reviewSummaryTargetTitle');
+    const reviewSummaryRemandText = document.getElementById('reviewSummaryRemandText');
+    const reviewSummaryAiText = document.getElementById('reviewSummaryAiText');
     const remandReasonBlock = document.getElementById('reviewRemandReasonBlock');
     const aiReviewInput = document.getElementById('reviewAiReview');
     const remandReasonInput = document.getElementById('reviewRemandComment');
+
+    const focusKey = new URLSearchParams(window.location.search).get('focus');
+    if (focusKey) {
+        const row = document.getElementById(`review-row-${focusKey}`);
+        if (row) {
+            row.scrollIntoView({ behavior: 'auto', block: 'center' });
+        }
+    }
+
+    function buildNextUrlWithFocus(baseNext, focus) {
+        if (!baseNext || !focus) {
+            return baseNext;
+        }
+        try {
+            const targetUrl = new URL(baseNext, window.location.origin);
+            targetUrl.searchParams.set('focus', focus);
+            return `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+        } catch (error) {
+            return baseNext;
+        }
+    }
+
+    function decodeEscapedText(value) {
+        return String(value || '')
+            .replace(/\\u([0-9a-fA-F]{4})/g, function(_, code) {
+                return String.fromCharCode(parseInt(code, 16));
+            })
+            .replace(/\\r\\n/g, '\n')
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\\\/g, '\\')
+            .trim();
+    }
 
     function openTextModal(title, content) {
         if (!reviewTextModal) {
@@ -365,16 +440,32 @@ document.addEventListener('DOMContentLoaded', function() {
         reviewTextModal.show();
     }
 
-    document.querySelectorAll('.remand-reason-badge').forEach(button => {
-        button.addEventListener('click', function() {
-            const reason = this.dataset.remandReason || '';
-            openTextModal(this.dataset.popupTitle || '差し戻し理由', reason || 'コメントはありません。');
-        });
-    });
-
     document.querySelectorAll('.review-text-popup-btn').forEach(button => {
         button.addEventListener('click', function() {
             openTextModal(this.dataset.popupTitle || '詳細', this.dataset.popupContent || '内容はありません。');
+        });
+    });
+
+    document.querySelectorAll('.review-summary-open-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            if (!reviewSummaryModal) {
+                return;
+            }
+            const title = decodeEscapedText(this.dataset.title) || '（未入力）';
+            const approvalStatus = (this.dataset.approvalStatus || '').trim();
+            const aiReview = decodeEscapedText(this.dataset.aiReview) || '（未入力）';
+            const remandReasonRaw = decodeEscapedText(this.dataset.remandReason);
+            const remandReason = remandReasonRaw || (approvalStatus === 'approved' ? '承認済み' : '（未入力）');
+            if (reviewSummaryTargetTitle) {
+                reviewSummaryTargetTitle.textContent = title;
+            }
+            if (reviewSummaryRemandText) {
+                reviewSummaryRemandText.textContent = remandReason;
+            }
+            if (reviewSummaryAiText) {
+                reviewSummaryAiText.textContent = aiReview;
+            }
+            reviewSummaryModal.show();
         });
     });
 
@@ -412,6 +503,7 @@ document.addEventListener('DOMContentLoaded', function() {
             previewBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">プレビューを表示できません。</div>';
             currentApproveUrl = this.dataset.approveUrl || '';
             currentRemandUrl = this.dataset.remandUrl || '';
+            currentFocusKey = this.dataset.focusKey || '';
 
             const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
             const visibleToCustomerCheckbox = document.getElementById('reviewVisibleToCustomer');
@@ -480,10 +572,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const visibleToCustomerCheckbox = document.getElementById('reviewVisibleToCustomer');
             const visibleToCustomerValue = document.getElementById('reviewVisibleToCustomerValue');
             const aiReviewValue = document.getElementById('reviewAiReviewValue');
+            const approveNext = document.getElementById('reviewApproveNext');
             approveForm.action = currentApproveUrl;
             standardOnlyValue.value = standardOnlyCheckbox.checked ? '1' : '0';
             visibleToCustomerValue.value = visibleToCustomerCheckbox.checked ? '1' : '0';
             aiReviewValue.value = aiReviewInput ? (aiReviewInput.value || '').trim() : '';
+            if (approveNext) {
+                approveNext.value = buildNextUrlWithFocus(approveNext.defaultValue || approveNext.value, currentFocusKey);
+            }
             approveForm.submit();
         });
     }
@@ -512,19 +608,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const reason = remandReasonInput ? (remandReasonInput.value || '').trim() : '';
             if (!reason) {
-                alert('差し戻し理由を入力してください。');
+                alert('差戻し理由を入力してください。');
                 return;
             }
-            if (!confirm('差し戻しにしますか？')) {
+            if (!confirm('差戻しにしますか？')) {
                 return;
             }
 
             const remandForm = document.getElementById('reviewRemandForm');
             const remandReason = document.getElementById('reviewRemandReason');
             const aiReviewValue = document.getElementById('reviewAiReviewForRemand');
+            const remandNext = document.getElementById('reviewRemandNext');
             remandForm.action = currentRemandUrl;
             remandReason.value = reason;
             aiReviewValue.value = aiReviewInput ? (aiReviewInput.value || '').trim() : '';
+            if (remandNext) {
+                remandNext.value = buildNextUrlWithFocus(remandNext.defaultValue || remandNext.value, currentFocusKey);
+            }
             remandForm.submit();
         });
     }

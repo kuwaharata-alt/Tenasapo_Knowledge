@@ -2678,9 +2678,9 @@ class TipsRemandView(View):
             remand_reason=reason,
         )
         if redirect_url:
-            messages.success(request, f'Tips「{tip.title}」を差し戻しました。メール下書きを作成します。')
+            messages.success(request, f'Tips「{tip.title}」を差戻しました。メール下書きを作成します。')
             return _open_gas_newtab_response(request, redirect_url, reverse('tip_list'))
-        messages.success(request, f'Tips「{tip.title}」を差し戻しました。')
+        messages.success(request, f'Tips「{tip.title}」を差戻しました。')
         return redirect(resolve_next_path(request, 'tip_list'))
 
 
@@ -4210,9 +4210,9 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
             remand_reason=reason,
         )
         if redirect_url:
-            messages.success(request, f'FAQ「{article.title}」を差し戻しました。メール下書きを作成します。')
+            messages.success(request, f'FAQ「{article.title}」を差戻しました。メール下書きを作成します。')
             return _open_gas_newtab_response(request, redirect_url, reverse('article_list'))
-        messages.success(request, f'FAQ「{article.title}」を差し戻しました。')
+        messages.success(request, f'FAQ「{article.title}」を差戻しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
 
@@ -5433,12 +5433,18 @@ class ReviewListView(TemplateView):
                         'remand_url_name': 'tip_remand',
                         'edit_url_name': 'tip_edit',
                         'body': tip.body,
-                        'preview_html_code': _render_preview_html(
-                            tip.body,
-                            sorted(
-                                tip.images.all(),
-                                key=lambda image: (image.uploaded_at, image.id),
-                            ),
+                        'preview_html_code': (
+                            '<!-- AI_SUMMARY_SOURCE_START -->\n'
+                            '<tips>\n'
+                            f'  <management_code>{tip.management_code or "-"}</management_code>\n'
+                            f'  <title>{tip.title}</title>\n'
+                            '  <!-- BODY_START -->\n'
+                            '  <body>\n'
+                            f'{_render_preview_html(tip.body, sorted(tip.images.all(), key=lambda image: (image.uploaded_at, image.id)))}\n'
+                            '  </body>\n'
+                            '  <!-- BODY_END -->\n'
+                            '</tips>\n'
+                            '<!-- AI_SUMMARY_SOURCE_END -->'
                         ),
                         'inline_images': sorted(
                             tip.images.all(),

@@ -343,7 +343,7 @@
                                         </form>
                                     {% endif %}
                                 {% elif tip_approval_status == 'remanded' %}
-                                    <span class="badge text-bg-warning">差し戻し</span>
+                                    <span class="badge text-bg-warning">差戻し</span>
                                     <button
                                         class="btn btn-outline-warning btn-sm py-0 px-2"
                                         type="button"
@@ -378,7 +378,7 @@
                                         data-bs-target="#tipRemandFormBlock"
                                         aria-expanded="false"
                                         aria-controls="tipRemandFormBlock"
-                                    >差し戻し</button>
+                                    >差戻し</button>
                                 {% endif %}
                             </div>
                         {% endif %}
@@ -393,10 +393,10 @@
                             <div class="card card-body">
                                 <form method="post" action="{% url 'tip_remand' tip.id %}" class="d-flex flex-column gap-2">
                                     {% csrf_token %}
-                                    <label class="form-label mb-0" for="tipRemandReasonInput">差し戻し理由</label>
+                                    <label class="form-label mb-0" for="tipRemandReasonInput">差戻し理由</label>
                                     <textarea id="tipRemandReasonInput" name="remand_reason" class="form-control" rows="3" required>{% if tip_approval_status == 'remanded' %}{{ tip.remand_reason }}{% endif %}</textarea>
                                     <div>
-                                        <button class="btn btn-warning" type="submit">差し戻し確定</button>
+                                        <button class="btn btn-warning" type="submit">差戻し確定</button>
                                     </div>
                                 </form>
                             </div>

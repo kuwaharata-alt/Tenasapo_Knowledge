@@ -265,7 +265,19 @@
                                                             {% if tip.approval_status == 'approved' %}
                                                                 <span class="badge text-bg-success flex-shrink-0" style="font-size: 0.65rem;">承認済</span>
                                                             {% elif tip.approval_status == 'remanded' %}
-                                                                <span class="badge text-bg-warning flex-shrink-0" style="font-size: 0.65rem;">差戻し</span>
+                                                                {% if tip.remand_reason %}
+                                                                    <button
+                                                                        class="btn badge text-bg-warning border-0 flex-shrink-0 knowledge-review-btn"
+                                                                        style="font-size: 0.65rem;"
+                                                                        type="button"
+                                                                        data-title="{{ tip.title|escapejs }}"
+                                                                        data-approval-status="{{ tip.approval_status|default:'' }}"
+                                                                        data-ai-review="{{ tip.ai_review|default:''|escapejs }}"
+                                                                        data-remand-reason="{{ tip.remand_reason|default:''|escapejs }}"
+                                                                    >差戻し</button>
+                                                                {% else %}
+                                                                    <span class="badge text-bg-warning flex-shrink-0" style="font-size: 0.65rem;">差戻し</span>
+                                                                {% endif %}
                                                             {% else %}
                                                                 <span class="badge text-bg-secondary flex-shrink-0" style="font-size: 0.65rem;">登録</span>
                                                             {% endif %}
@@ -277,11 +289,12 @@
                                                         {% if can_edit_tip %}
                                                             <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
                                                         {% endif %}
-                                                        {% if tip.ai_review or tip.remand_reason %}
+                                                        {% if tip.approval_status == 'approved' or tip.ai_review or tip.remand_reason %}
                                                             <button
                                                                 class="btn btn-outline-primary btn-sm flex-shrink-0 knowledge-review-btn"
                                                                 type="button"
                                                                 data-title="{{ tip.title|escapejs }}"
+                                                                data-approval-status="{{ tip.approval_status|default:'' }}"
                                                                 data-ai-review="{{ tip.ai_review|default:''|escapejs }}"
                                                                 data-remand-reason="{{ tip.remand_reason|default:''|escapejs }}"
                                                             >レビュー</button>
@@ -480,7 +493,7 @@
                     <div id="knowledgeReviewTipsTargetTitle" class="border rounded p-2" style="white-space: pre-wrap; font-size: 0.8rem; line-height: 1.4;">-</div>
                 </div>
                 <div class="mb-3">
-                    <div class="fw-semibold small text-muted mb-1">差し戻し理由</div>
+                    <div class="fw-semibold small text-muted mb-1">差戻し理由</div>
                     <div id="knowledgeReviewTipsRemandText" class="border rounded p-2" style="white-space: pre-wrap; font-size: 0.8rem; line-height: 1.4;">（未入力）</div>
                 </div>
                 <div>
@@ -591,8 +604,10 @@ setTimeout(() => {
                 return;
             }
             const title = decodeEscapedText(this.dataset.title) || '（未入力）';
+            const approvalStatus = (this.dataset.approvalStatus || '').trim();
             const aiReview = decodeEscapedText(this.dataset.aiReview) || '（未入力）';
-            const remandReason = decodeEscapedText(this.dataset.remandReason) || '（未入力）';
+            const remandReasonRaw = decodeEscapedText(this.dataset.remandReason);
+            const remandReason = remandReasonRaw || (approvalStatus === 'approved' ? '承認済み' : '（未入力）');
             if (knowledgeReviewModalTipsLabel) {
                 knowledgeReviewModalTipsLabel.textContent = 'レビュー内容';
             }
