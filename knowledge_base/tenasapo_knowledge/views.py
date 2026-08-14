@@ -2628,14 +2628,16 @@ class TipsApproveView(View):
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
         visible_to_customer_raw = str(request.POST.get('visible_to_customer', '1')).strip().lower()
         visible_to_customer = visible_to_customer_raw in {'1', 'true', 'on', 'yes'}
+        ai_review = (request.POST.get('ai_review') or '').strip()
 
         tip.is_approved = True
         tip.standard_contract_only = standard_contract_only
         tip.visible_to_customer = visible_to_customer
         tip.approved_by = request.user
         tip.approved_by_name = resolve_user_display_name(request.user)
+        tip.ai_review = ai_review
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         redirect_url = _build_approval_mail_draft_redirect_url(
             request=request,
             management_code=tip.management_code,
@@ -2660,12 +2662,14 @@ class TipsRemandView(View):
             return redirect(resolve_next_path(request, 'tip_list'))
 
         reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
+        ai_review = (request.POST.get('ai_review') or '').strip()
 
         tip.is_approved = False
         tip.approved_by = None
         tip.approved_by_name = ''
+        tip.ai_review = ai_review
         tip.remand_reason = reason
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=tip.management_code,
@@ -2690,8 +2694,9 @@ class TipsApprovalResetView(View):
         tip.is_approved = False
         tip.approved_by = None
         tip.approved_by_name = ''
+        tip.ai_review = ''
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'tip_edit', pk=pk))
 
@@ -4141,14 +4146,16 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         standard_contract_only = standard_contract_only_raw in {'1', 'true', 'on', 'yes'}
         visible_to_customer_raw = str(request.POST.get('visible_to_customer', '1')).strip().lower()
         visible_to_customer = visible_to_customer_raw in {'1', 'true', 'on', 'yes'}
+        ai_review = (request.POST.get('ai_review') or '').strip()
 
         article.is_approved = True
         article.standard_contract_only = standard_contract_only
         article.visible_to_customer = visible_to_customer
         article.approved_by = request.user
         article.approved_by_name = resolve_user_display_name(request.user)
+        article.ai_review = ai_review
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         redirect_url = _build_approval_mail_draft_redirect_url(
             request=request,
             management_code=article.management_code,
@@ -4172,8 +4179,9 @@ class KnowledgeArticleApprovalResetView(View):
         article.is_approved = False
         article.approved_by = None
         article.approved_by_name = ''
+        article.ai_review = ''
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'article_edit', pk=pk))
 
@@ -4186,12 +4194,14 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
             return redirect(resolve_next_path(request, 'article_list'))
 
         reason = (request.POST.get('remand_reason') or '').strip() or '差戻し'
+        ai_review = (request.POST.get('ai_review') or '').strip()
 
         article.is_approved = False
         article.approved_by = None
         article.approved_by_name = ''
+        article.ai_review = ai_review
         article.remand_reason = reason
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=article.management_code,
@@ -5361,6 +5371,7 @@ class ReviewListView(TemplateView):
                         'created_at': article.created_at,
                         'updated_at': article.updated_at,
                         'approval_status': approval_status_value(article),
+                        'ai_review': article.ai_review,
                         'remand_reason': article.remand_reason,
                         'standard_contract_only': article.standard_contract_only,
                         'visible_to_customer': article.visible_to_customer,
@@ -5369,6 +5380,24 @@ class ReviewListView(TemplateView):
                         'edit_url_name': 'article_edit',
                         'question': article.summary,
                         'answer': article.body,
+                        'preview_html_code': (
+                            '<!-- AI_SUMMARY_SOURCE_START -->\n'
+                            '<faq>\n'
+                            f'  <management_code>{article.management_code or "-"}</management_code>\n'
+                            f'  <title>{article.title}</title>\n'
+                            '  <!-- QUESTION_START -->\n'
+                            '  <question>\n'
+                            f'{_render_preview_html(article.summary or article.title, question_images)}\n'
+                            '  </question>\n'
+                            '  <!-- QUESTION_END -->\n'
+                            '  <!-- ANSWER_START -->\n'
+                            '  <answer>\n'
+                            f'{_render_preview_html(article.body, answer_images)}\n'
+                            '  </answer>\n'
+                            '  <!-- ANSWER_END -->\n'
+                            '</faq>\n'
+                            '<!-- AI_SUMMARY_SOURCE_END -->'
+                        ),
                         'question_images': question_images,
                         'answer_images': answer_images,
                     }
@@ -5396,6 +5425,7 @@ class ReviewListView(TemplateView):
                         'created_at': tip.created_at,
                         'updated_at': tip.updated_at,
                         'approval_status': approval_status_value(tip),
+                        'ai_review': tip.ai_review,
                         'remand_reason': tip.remand_reason,
                         'standard_contract_only': tip.standard_contract_only,
                         'visible_to_customer': tip.visible_to_customer,
@@ -5403,6 +5433,13 @@ class ReviewListView(TemplateView):
                         'remand_url_name': 'tip_remand',
                         'edit_url_name': 'tip_edit',
                         'body': tip.body,
+                        'preview_html_code': _render_preview_html(
+                            tip.body,
+                            sorted(
+                                tip.images.all(),
+                                key=lambda image: (image.uploaded_at, image.id),
+                            ),
+                        ),
                         'inline_images': sorted(
                             tip.images.all(),
                             key=lambda image: (image.uploaded_at, image.id),
