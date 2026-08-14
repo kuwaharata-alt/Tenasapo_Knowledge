@@ -14,6 +14,37 @@
     .review-title-toggle:active {
         box-shadow: none !important;
     }
+    .review-inline-body,
+    #reviewPreviewBody {
+        min-width: 0;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    .review-inline-body *,
+    #reviewPreviewBody * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+    .review-inline-body img,
+    #reviewPreviewBody img {
+        height: auto;
+    }
+    .review-inline-body pre,
+    #reviewPreviewBody pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        overflow-x: auto;
+    }
+    .review-row-highlight {
+        animation: reviewRowFlash 2.2s ease-out;
+    }
+    @keyframes reviewRowFlash {
+        0% { background-color: rgba(255, 243, 205, 0.95); }
+        100% { background-color: transparent; }
+    }
 </style>
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
@@ -250,7 +281,7 @@
                 <div class="fw-semibold small text-muted">HTMLコード</div>
                 <button type="button" class="btn btn-outline-secondary btn-sm copy-html-code-btn">コピー</button>
             </div>
-            <pre class="small bg-light border rounded p-3 mb-0"><code>{{ item.preview_html_code|escape }}</code></pre>
+            <pre class="small bg-light border rounded p-3 mb-0 review-html-code-block"><code>{{ item.preview_html_code|escape }}</code></pre>
         </div>
 
         {% if item.ai_review or item.remand_reason %}
@@ -376,6 +407,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const REVIEW_LAST_FOCUS_KEY = 'reviewListLastFocusKey';
     let currentApproveUrl = '';
     let currentRemandUrl = '';
     let currentFocusKey = '';
@@ -393,12 +425,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const aiReviewInput = document.getElementById('reviewAiReview');
     const remandReasonInput = document.getElementById('reviewRemandComment');
 
-    const focusKey = new URLSearchParams(window.location.search).get('focus');
+    const queryFocusKey = new URLSearchParams(window.location.search).get('focus');
+    const savedFocusKey = sessionStorage.getItem(REVIEW_LAST_FOCUS_KEY);
+    const focusKey = queryFocusKey || savedFocusKey;
     if (focusKey) {
         const row = document.getElementById(`review-row-${focusKey}`);
         if (row) {
             row.scrollIntoView({ behavior: 'auto', block: 'center' });
+            row.classList.add('review-row-highlight');
+            setTimeout(function() {
+                row.classList.remove('review-row-highlight');
+            }, 2400);
         }
+        sessionStorage.removeItem(REVIEW_LAST_FOCUS_KEY);
     }
 
     function buildNextUrlWithFocus(baseNext, focus) {
@@ -498,6 +537,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.review-open-btn').forEach(button => {
         button.addEventListener('click', function() {
+            if (this.dataset.focusKey) {
+                sessionStorage.setItem(REVIEW_LAST_FOCUS_KEY, this.dataset.focusKey);
+            }
             const reviewId = this.dataset.reviewId;
             const source = reviewId ? document.getElementById(reviewId) : null;
             previewBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">プレビューを表示できません。</div>';
@@ -526,6 +568,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     document.querySelectorAll('.review-title-toggle').forEach(button => {
+        button.addEventListener('click', function() {
+            const row = this.closest('tr[id^="review-row-"]');
+            if (row && row.id) {
+                const key = row.id.replace('review-row-', '');
+                sessionStorage.setItem(REVIEW_LAST_FOCUS_KEY, key);
+            }
+        });
+
         const targetSelector = button.getAttribute('data-bs-target') || '';
         const collapseElement = targetSelector ? document.querySelector(targetSelector) : null;
         if (!collapseElement) {
