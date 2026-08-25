@@ -743,9 +743,32 @@ def _duplicate_file_for_revision(source_file):
     from django.core.files.base import ContentFile
     import os
     try:
-        # FileFieldオブジェクトを開いて中身を複製
-        with source_file.open('rb') as f:
-            content = f.read()
+        # InMemoryUploadedFile や TemporaryUploadedFile 等、ポインタ移動ができる場合は先頭に戻す
+        if hasattr(source_file, 'seek'):
+            try:
+                source_file.seek(0)
+            except Exception:
+                pass
+
+        if hasattr(source_file, 'open'):
+            try:
+                with source_file.open('rb') as f:
+                    content = f.read()
+            except Exception:
+                if hasattr(source_file, 'read'):
+                    content = source_file.read()
+                else:
+                    raise
+        else:
+            content = source_file.read()
+
+        # 別処理での書き込みに備えて元のファイルポインタを再度0に戻す
+        if hasattr(source_file, 'seek'):
+            try:
+                source_file.seek(0)
+            except Exception:
+                pass
+
         filename = os.path.basename(source_file.name)
         return ContentFile(content, name=filename)
     except Exception:
