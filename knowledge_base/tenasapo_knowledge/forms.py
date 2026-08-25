@@ -11,6 +11,7 @@ from .models import (
     ConvenienceFeature,
     FAQCategory,
     Manual,
+    ProjectDocument,
     RelatedTag,
     RevisionHistory,
     default_expires_on,
@@ -808,6 +809,127 @@ class TipsCreateForm(forms.Form):
         legacy_target_os = (self.data.get(self.add_prefix('target_os')) or '').strip()
         if not cleaned_data['target_os'] and legacy_target_os:
             cleaned_data['target_os'] = build_target_os_values(parse_target_os_values(legacy_target_os))
+        return cleaned_data
+
+
+class ProjectDocumentCreateForm(forms.Form):
+    ALLOWED_OFFICE_EXTENSIONS = {
+        '.doc',
+        '.docx',
+        '.xls',
+        '.xlsx',
+        '.ppt',
+        '.pptx',
+    }
+    ALLOWED_PDF_EXTENSIONS = {
+        '.pdf',
+    }
+
+    project_number = forms.CharField(label='案件番号', max_length=60)
+    customer_name = forms.CharField(label='顧客名', max_length=200)
+    product_name = forms.CharField(label='製品名', max_length=150, required=False)
+    product_version = forms.CharField(label='バージョン', max_length=80, required=False)
+    title = forms.CharField(label='ドキュメントタイトル', max_length=200)
+    parent_category = forms.CharField(label='大カテゴリ', required=True)
+    middle_category = forms.CharField(label='中カテゴリ', required=False)
+    child_category = forms.CharField(label='小カテゴリ', required=True)
+    document_type = forms.ChoiceField(
+        label='分類',
+        choices=ProjectDocument.DOCUMENT_TYPE_CHOICES,
+        required=True,
+    )
+    file_office = forms.FileField(
+        label='Officeドキュメント',
+        required=False,
+        help_text='Officeファイル（Word/Excel/PowerPoint）を選択してください。',
+    )
+    file_pdf = forms.FileField(
+        label='PDFドキュメント',
+        required=False,
+        help_text='PDFファイルを選択してください。',
+    )
+
+    def clean_file_office(self):
+        uploaded_file = self.cleaned_data.get('file_office')
+        if not uploaded_file:
+            return uploaded_file
+
+        import os
+        extension = os.path.splitext(getattr(uploaded_file, 'name', '') or '')[1].lower()
+        if extension not in self.ALLOWED_OFFICE_EXTENSIONS:
+            raise forms.ValidationError('Officeファイル（Word/Excel/PowerPoint）を選択してください。')
+        return uploaded_file
+
+    def clean_file_pdf(self):
+        uploaded_file = self.cleaned_data.get('file_pdf')
+        if not uploaded_file:
+            return uploaded_file
+
+        import os
+        extension = os.path.splitext(getattr(uploaded_file, 'name', '') or '')[1].lower()
+        if extension not in self.ALLOWED_PDF_EXTENSIONS:
+            raise forms.ValidationError('PDF以外のファイルが選択されています。')
+        return uploaded_file
+
+    def clean(self):
+        cleaned_data = super().clean()
+        file_office = cleaned_data.get('file_office')
+        file_pdf = cleaned_data.get('file_pdf')
+
+        if not file_office and not file_pdf:
+            raise forms.ValidationError('OfficeドキュメントまたはPDFドキュメントの少なくともどちらか一方はアップロードしてください。')
+
+        parent = (cleaned_data.get('parent_category') or '').strip()
+        middle = (cleaned_data.get('middle_category') or '').strip()
+        child = (cleaned_data.get('child_category') or '').strip()
+
+        if parent and child:
+            q = FAQCategory.objects.filter(parent_name=parent, middle_name=middle, child_name=child)
+            if not q.exists():
+                raise forms.ValidationError('選択されたカテゴリの組み合わせは存在しません。')
+            cleaned_data['category'] = q.first().full_name
+        else:
+            cleaned_data['category'] = ''
+        return cleaned_data
+
+
+class ProjectDocumentUpdateForm(ProjectDocumentCreateForm):
+    revision_note = forms.CharField(
+        label='更新内容',
+        widget=forms.Textarea(attrs={'rows': 4, 'placeholder': '更新内容（改訂履歴）を記述してください。'}),
+        required=True,
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.instance = kwargs.pop('instance', None)
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        # super(ProjectDocumentCreateForm, self) により ProjectDocumentCreateForm.clean をバイパスする
+        cleaned_data = super(ProjectDocumentCreateForm, self).clean()
+        file_office = cleaned_data.get('file_office')
+        file_pdf = cleaned_data.get('file_pdf')
+
+        has_existing_office = False
+        has_existing_pdf = False
+        if self.instance:
+            has_existing_office = bool(self.instance.file_office)
+            has_existing_pdf = bool(self.instance.file_pdf)
+
+        if not file_office and not file_pdf and not has_existing_office and not has_existing_pdf:
+            raise forms.ValidationError('OfficeドキュメントまたはPDFドキュメントの少なくともどちらか一方はアップロードしてください。')
+
+        parent = (cleaned_data.get('parent_category') or '').strip()
+        middle = (cleaned_data.get('middle_category') or '').strip()
+        child = (cleaned_data.get('child_category') or '').strip()
+
+        if parent and child:
+            q = FAQCategory.objects.filter(parent_name=parent, middle_name=middle, child_name=child)
+            if not q.exists():
+                raise forms.ValidationError('選択されたカテゴリの組み合わせは存在しません。')
+            cleaned_data['category'] = q.first().full_name
+        else:
+            cleaned_data['category'] = ''
         return cleaned_data
 
 

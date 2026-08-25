@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+
+{% block title %}ドキュメント保管庫 | Nexus{% endblock %}
+
+{% block content %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="me-md-auto">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-folder2-open"></i></span>ドキュメント保管庫
+            </h1>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
+            {% if can_create_document %}
+                <a class="btn btn-primary" href="{% url 'project_document_create' %}">登録</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="search-panel py-3 mb-4">
+    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+        {% if selected_parent_category %}
+            <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
+        {% endif %}
+        {% if selected_category %}
+            <input type="hidden" name="category" value="{{ selected_category }}">
+        {% endif %}
+        <div class="col-12 col-md-7">
+            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="案件番号・顧客名・製品名・バージョン・タイトルで検索" aria-label="案件番号・顧客名・製品名・バージョン・タイトルで検索">
+        </div>
+        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+            <button class="btn btn-primary" type="submit">検索</button>
+        </div>
+    </form>
+</div>
+
+<div class="row g-4 align-items-start">
+    <aside class="col-12 col-lg-2 category-sidebar-col">
+        <div class="category-sidebar">
+            <div class="category-sidebar-title">カテゴリ</div>
+            <div class="list-group list-group-flush">
+                <a
+                    class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
+                    href="?q={{ query|urlencode }}"
+                >
+                    <span>すべて</span>
+                    <span class="category-count">{{ all_count|default:0 }}件</span>
+                </a>
+                {% for parent_category in parent_categories %}
+                    <a
+                        class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
+                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}"
+                        aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
+                        aria-controls="categoryChildren{{ forloop.counter }}"
+                    >
+                        <span>{{ parent_category.name }}</span>
+                        <span class="category-count">{{ parent_category.count|default:0 }}件</span>
+                    </a>
+                    <div
+                        class="collapse {% if selected_parent_category == parent_category.name %}show{% endif %}"
+                        id="categoryChildren{{ forloop.counter }}"
+                    >
+                        <div class="category-child-list">
+                            {% for child_category in parent_category.children %}
+                                {% if child_category.count > 0 %}
+                                    <a
+                                        class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                    >
+                                        <span>{{ child_category.name }}</span>
+                                        <span class="category-count">{{ child_category.count|default:0 }}件</span>
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                            {% for middle_group in parent_category.middle_groups %}
+                                {% if middle_group.count > 0 %}
+                                    <a
+                                        class="category-child-link category-sidebar-toggle {% if selected_category in middle_group.full_names %}active{% endif %}"
+                                        href="#"
+                                        data-bs-toggle="collapse"
+                                        data-bs-target="#categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                        aria-expanded="{% if selected_category in middle_group.full_names %}true{% else %}false{% endif %}"
+                                        aria-controls="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                        onclick="event.preventDefault();"
+                                    >
+                                        <span>{{ middle_group.name }}</span>
+                                        <span class="category-count">{{ middle_group.count|default:0 }}件</span>
+                                    </a>
+                                    <div
+                                        class="collapse {% if selected_category in middle_group.full_names %}show{% endif %}"
+                                        id="categoryGrandChildren{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                                    >
+                                        <div class="category-child-list ps-3">
+                                            {% for child_category in middle_group.children %}
+                                                {% if child_category.count > 0 %}
+                                                    <a
+                                                        class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
+                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                                    >
+                                                        <span>{{ child_category.name }}</span>
+                                                        <span class="category-count">{{ child_category.count|default:0 }}件</span>
+                                                    </a>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <section class="col-12 col-lg-10 category-content-col">
+        {% if grouped_documents %}
+            <div class="d-flex flex-column gap-3">
+                {% for group in grouped_documents %}
+                    {% if group.parent_name %}
+                        <h2 class="faq-group-title">{{ group.parent_name }}</h2>
+                    {% endif %}
+                    {% for document in group.documents %}
+                        <article class="card shadow-sm" style="border-radius:0.9rem; border-color:var(--tk-border);">
+                            <div class="card-body">
+                                <div class="row g-3 align-items-center">
+                                    <div class="col-12 col-md-8 col-lg-8">
+                                        <!-- ドキュメントタイトル -->
+                                        <h5 class="fw-bold text-dark mb-2">{{ document.title }}</h5>
+
+                                        <!-- 製品名（バージョン） -->
+                                        {% if document.product_name %}
+                                            <div class="text-secondary mb-2" style="font-size:0.95rem;">
+                                                製品名: {{ document.product_name }}{% if document.product_version %}（{{ document.product_version }}）{% endif %}
+                                            </div>
+                                        {% endif %}
+
+                                        <!-- 【案件番号】顧客 -->
+                                        <div class="fw-semibold text-muted mb-0" style="font-size:0.9rem;">
+                                            【{{ document.project_number }}】{{ document.customer_name }}
+                                        </div>
+                                    </div>
+
+                                    <!-- ボタンの配置変更 (7:3くらいのグリッド比率に設定) -->
+                                    <div class="col-12 col-md-4 col-lg-4 d-flex flex-column gap-2 align-items-start align-items-md-end justify-content-center">
+                                        <!-- 上段: 更新 履歴 -->
+                                        <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
+                                            {% if can_create_document %}
+                                                <a class="btn btn-outline-warning btn-sm text-nowrap" href="{% url 'project_document_edit' document.id %}"><i class="bi bi-pencil-square"></i> 更新</a>
+                                            {% endif %}
+                                            <button class="btn btn-outline-success btn-sm text-nowrap" onclick="openHistoryModal(this)" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"><i class="bi bi-clock-history"></i> 履歴</button>
+                                        </div>
+                                        <!-- 下段: Office版 PDF版 表示 -->
+                                        <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
+                                            {% if document.download_office_url %}
+                                                <a class="btn btn-outline-primary btn-sm text-nowrap" href="{{ document.download_office_url }}?download=1"><i class="bi bi-file-earmark-word"></i> Office版</a>
+                                            {% else %}
+                                                <button class="btn btn-outline-primary btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-word"></i> Office版</button>
+                                            {% endif %}
+
+                                            {% if document.download_pdf_url %}
+                                                <a class="btn btn-outline-danger btn-sm text-nowrap" href="{{ document.download_pdf_url }}?download=1"><i class="bi bi-file-earmark-pdf"></i> PDF版</a>
+                                                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openPdfModal(this)" data-pdf-url="{{ document.download_pdf_url }}" data-pdf-title="{{ document.title }}"><i class="bi bi-eye"></i> 表示</button>
+                                            {% else %}
+                                                <button class="btn btn-outline-danger btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-pdf"></i> PDF版</button>
+                                                <button class="btn btn-outline-info btn-sm text-nowrap" disabled><i class="bi bi-eye"></i> 表示</button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                                    <span class="badge faq-category-chip">{{ document.category }}</span>
+                                    <span class="badge faq-meta-badge">{{ document.uploader_display_name|default:'-' }}</span>
+                                    <span class="badge faq-meta-badge">最終更新日：{{ document.updated_at|date:"Y/m/d" }}</span>
+                                </div>
+                            </div>
+                        </article>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="home-panel p-5 text-center">
+                <div style="font-size:3rem;">📭</div>
+                <p class="mt-3 text-muted mb-0">該当するドキュメントはありません。</p>
+            </div>
+        {% endif %}
+    </section>
+</div>
+
+<div class="modal fade" id="pdfModal" tabindex="-1" aria-labelledby="pdfModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content" style="height:90vh; display:flex; flex-direction:column;">
+            <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
+                <h5 class="modal-title" id="pdfModalLabel">PDF閲覧</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body p-2" id="pdfModalBody" style="flex:1; overflow-y:auto; background:#3c3c3c;">
+                <div id="pdfLoadingMsg" class="text-white text-center py-4">読み込み中...</div>
+                <div id="pdfPageStack"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
+                <a id="pdfDownloadLink" href="" download class="btn btn-outline-secondary btn-sm">ダウンロード</a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header" style="border-bottom:1px solid var(--tk-border);">
+                <h5 class="modal-title" id="historyModalLabel">改訂履歴</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body p-3">
+                <h6 id="historyDocTitle" class="mb-3 fw-bold text-primary"></h6>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle mb-0" style="font-size:0.9rem;">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:20%;">更新日時</th>
+                                <th style="width:15%;">更新者</th>
+                                <th style="width:40%;">更新内容</th>
+                                <th style="width:25%;">過去バージョン</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">履歴データを読み込んでいます...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--tk-border);">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+
+window.openHistoryModal = async function(btn) {
+    const documentId = btn.dataset.documentId;
+    const documentTitle = btn.dataset.documentTitle;
+    
+    document.getElementById('historyDocTitle').textContent = documentTitle;
+    const tBody = document.getElementById('historyTableBody');
+    tBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted"><div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>読み込み中...</td></tr>';
+    
+    const modalEl = document.getElementById('historyModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    
+    try {
+        const response = await fetch(`/documents/${documentId}/revisions/`);
+        const data = await response.json();
+        
+        if (data.ok) {
+            tBody.innerHTML = '';
+            if (data.revisions.length === 0) {
+                tBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">更新履歴（改訂履歴）はありません。</td></tr>';
+            } else {
+                data.revisions.forEach(rev => {
+                    const tr = document.createElement('tr');
+                    
+                    const tdTime = document.createElement('td');
+                    tdTime.className = 'text-nowrap';
+                    tdTime.textContent = rev.updated_at;
+                    
+                    const tdUser = document.createElement('td');
+                    tdUser.textContent = rev.updated_by_name;
+                    
+                    const tdNote = document.createElement('td');
+                    tdNote.style.whiteSpace = 'pre-wrap';
+                    tdNote.textContent = rev.revision_note;
+                    
+                    const tdFiles = document.createElement('td');
+                    tdFiles.className = 'd-flex flex-column gap-1';
+                    
+                    if (rev.download_office_url) {
+                        const aOffice = document.createElement('a');
+                        aOffice.className = 'btn btn-outline-primary btn-sm py-0 px-2 text-start';
+                        aOffice.style.fontSize = '0.8rem';
+                        aOffice.href = rev.download_office_url + '?download=1';
+                        aOffice.innerHTML = '<i class="bi bi-file-earmark-word"></i> Office版';
+                        tdFiles.appendChild(aOffice);
+                    }
+                    
+                    if (rev.download_pdf_url) {
+                        const aPdf = document.createElement('a');
+                        aPdf.className = 'btn btn-outline-secondary btn-sm py-0 px-2 text-start mt-1';
+                        aPdf.style.fontSize = '0.8rem';
+                        aPdf.href = rev.download_pdf_url + '?download=1';
+                        aPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> PDF版';
+                        tdFiles.appendChild(aPdf);
+                    }
+                    
+                    if (!rev.download_office_url && !rev.download_pdf_url) {
+                        tdFiles.textContent = 'なし';
+                        tdFiles.className = 'text-muted small';
+                    }
+                    
+                    tr.appendChild(tdTime);
+                    tr.appendChild(tdUser);
+                    tr.appendChild(tdNote);
+                    tr.appendChild(tdFiles);
+                    tBody.appendChild(tr);
+                });
+            }
+        } else {
+            tBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">エラー: ${data.error || 'データの取得に失敗しました。'}</td></tr>`;
+        }
+    } catch (e) {
+        tBody.innerHTML = `<tr><td colspan="4" class="text-center text-danger">通信エラーが発生しました。</td></tr>`;
+        console.error(e);
+    }
+};
+
+window.openPdfModal = async function(btn) {
+    const url = btn.dataset.pdfUrl;
+    const title = btn.dataset.pdfTitle;
+    document.getElementById('pdfModalLabel').textContent = title;
+    document.getElementById('pdfDownloadLink').href = url;
+    const pageStack = document.getElementById('pdfPageStack');
+    const loadingMsg = document.getElementById('pdfLoadingMsg');
+    pageStack.innerHTML = '';
+    loadingMsg.textContent = '読み込み中...';
+    loadingMsg.style.display = 'block';
+
+    const modalEl = document.getElementById('pdfModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    try {
+        const pdfDoc = await pdfjsLib.getDocument(url).promise;
+        loadingMsg.style.display = 'none';
+        const bodyWidth = document.getElementById('pdfModalBody').clientWidth - 32;
+        for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
+            const page = await pdfDoc.getPage(pageNo);
+            const section = document.createElement('section');
+            section.className = 'mb-3';
+            const label = document.createElement('div');
+            label.className = 'small text-white-50 mb-1';
+            label.textContent = pageNo + ' ページ';
+            const frame = document.createElement('div');
+            frame.style.cssText = 'background:#fff;border-radius:.5rem;overflow:hidden;display:flex;justify-content:center;';
+            const canvas = document.createElement('canvas');
+            canvas.style.cssText = 'max-width:100%;display:block;';
+            const base = page.getViewport({ scale: 1 });
+            const scale = Math.max(1, bodyWidth) / base.width;
+            const viewport = page.getViewport({ scale });
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            frame.appendChild(canvas);
+            section.appendChild(label);
+            section.appendChild(frame);
+            pageStack.appendChild(section);
+        }
+    } catch (e) {
+        loadingMsg.textContent = 'PDFの読み込みに失敗しました: ' + e.message;
+        loadingMsg.style.display = 'block';
+        console.error(e);
+    }
+};
+
+document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('pdfPageStack').innerHTML = '';
+    document.getElementById('pdfLoadingMsg').textContent = '読み込み中...';
+    document.getElementById('pdfLoadingMsg').style.display = 'block';
+});
+</script>
+{% endblock %}

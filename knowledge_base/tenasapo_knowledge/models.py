@@ -698,6 +698,101 @@ class Manual(models.Model):
         return self.title
 
 
+class ProjectDocument(models.Model):
+    DOCUMENT_TYPE_PROCEDURE = 'procedure'
+    DOCUMENT_TYPE_HEARING = 'hearing_sheet'
+    DOCUMENT_TYPE_PARAMETER = 'parameter_sheet'
+    DOCUMENT_TYPE_CHOICES = (
+        (DOCUMENT_TYPE_PROCEDURE, '手順書'),
+        (DOCUMENT_TYPE_HEARING, 'ヒアリングシート'),
+        (DOCUMENT_TYPE_PARAMETER, 'パラメータシート'),
+    )
+
+    project_number = models.CharField('案件番号', max_length=60)
+    customer_name = models.CharField('顧客名', max_length=200, default='')
+    product_name = models.CharField('製品名', max_length=150, blank=True, default='')
+    product_version = models.CharField('バージョン', max_length=80, blank=True, default='')
+    title = models.CharField('ドキュメントタイトル', max_length=200)
+    category = models.CharField('カテゴリ', max_length=180)
+    document_type = models.CharField('分類', max_length=30, choices=DOCUMENT_TYPE_CHOICES)
+    file_office = models.FileField('Officeドキュメント', upload_to='documents/%Y/%m/', blank=True, null=True)
+    file_pdf = models.FileField('PDFドキュメント', upload_to='documents/%Y/%m/', blank=True, null=True)
+    is_published = models.BooleanField('公開', default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_project_documents',
+        verbose_name='アップロード者',
+    )
+    created_by_name = models.CharField('アップロード者名', max_length=150, blank=True)
+    created_at = models.DateTimeField('作成日時', auto_now_add=True)
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = 'ドキュメント保管'
+        verbose_name_plural = 'ドキュメント保管'
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'【{self.project_number}】{self.customer_name} - {self.title}'
+
+    @property
+    def download_office_url(self):
+        if self.file_office:
+            return reverse('knowledge_file_download', kwargs={'kind': 'project-document-office', 'pk': self.pk})
+        return ''
+
+    @property
+    def download_pdf_url(self):
+        if self.file_pdf:
+            return reverse('knowledge_file_download', kwargs={'kind': 'project-document-pdf', 'pk': self.pk})
+        return ''
+
+
+class ProjectDocumentRevisionHistory(models.Model):
+    document = models.ForeignKey(
+        ProjectDocument,
+        on_delete=models.CASCADE,
+        related_name='revisions',
+        verbose_name='対象ドキュメント',
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_document_revisions',
+        verbose_name='更新者',
+    )
+    updated_by_name = models.CharField('更新者名', max_length=150)
+    updated_at = models.DateTimeField('更新日時', auto_now_add=True)
+    revision_note = models.TextField('更新内容')
+    file_office = models.FileField('Officeドキュメント', upload_to='documents_revisions/%Y/%m/', blank=True, null=True)
+    file_pdf = models.FileField('PDFドキュメント', upload_to='documents_revisions/%Y/%m/', blank=True, null=True)
+
+    class Meta:
+        verbose_name = 'プロジェクトドキュメント更新履歴'
+        verbose_name_plural = 'プロジェクトドキュメント更新履歴'
+        ordering = ['-updated_at', '-id']
+
+    def __str__(self):
+        return f'{self.updated_at:%Y-%m-%d} {self.updated_by_name} - {self.revision_note[:20]}'
+
+    @property
+    def download_office_url(self):
+        if self.file_office:
+            return reverse('knowledge_file_download', kwargs={'kind': 'project-document-revision-office', 'pk': self.pk})
+        return ''
+
+    @property
+    def download_pdf_url(self):
+        if self.file_pdf:
+            return reverse('knowledge_file_download', kwargs={'kind': 'project-document-revision-pdf', 'pk': self.pk})
+        return ''
+
+
 class LoginHistory(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

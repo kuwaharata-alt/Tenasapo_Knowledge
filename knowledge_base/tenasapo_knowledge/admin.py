@@ -9,6 +9,7 @@ from .models import (
     KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
+    ProjectDocument,
     TipsGood,
     TipsArticle,
     TipsImageAttachment,
@@ -226,3 +227,21 @@ class TipsImageAttachmentAdmin(admin.ModelAdmin):
     list_display = ('__str__', 'tip', 'uploaded_at')
     list_filter = ('uploaded_at',)
     search_fields = ('display_name', 'file', 'tip__title')
+
+
+@admin.register(ProjectDocument)
+class ProjectDocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'project_number',
+        'customer_name',
+        'product_name',
+        'product_version',
+        'title',
+        'category',
+        'document_type',
+        'is_published',
+        'created_by',
+        'created_at',
+    )
+    list_filter = ('document_type', 'is_published', 'category', 'created_at')
+    search_fields = ('project_number', 'customer_name', 'product_name', 'product_version', 'title', 'category')

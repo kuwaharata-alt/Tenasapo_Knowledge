@@ -47,6 +47,8 @@ from .forms import (
     FAQCategoryCreateForm,
     KnowledgeArticleCreateForm,
     ManualForm,
+    ProjectDocumentCreateForm,
+    ProjectDocumentUpdateForm,
     RelatedTagCreateForm,
     get_qr_category_hierarchy,
     RevisionHistoryForm,
@@ -71,6 +73,8 @@ from .models import (
     KnowledgeArticleImageAttachment,
     LoginHistory,
     Manual,
+    ProjectDocument,
+    ProjectDocumentRevisionHistory,
     RelatedTag,
     RevisionHistory,
     TipsFavorite,
@@ -726,7 +730,27 @@ PROTECTED_FILE_DOWNLOAD_MAP = {
     'tip-image': (TipsImageAttachment, 'file'),
     'tip-attachment': (TipsAttachment, 'file'),
     'tip-pdf': (TipsArticle, 'pdf_file'),
+    'project-document-office': (ProjectDocument, 'file_office'),
+    'project-document-pdf': (ProjectDocument, 'file_pdf'),
+    'project-document-revision-office': (ProjectDocumentRevisionHistory, 'file_office'),
+    'project-document-revision-pdf': (ProjectDocumentRevisionHistory, 'file_pdf'),
 }
+
+
+def _duplicate_file_for_revision(source_file):
+    if not source_file:
+        return None
+    from django.core.files.base import ContentFile
+    import os
+    try:
+        # FileFieldオブジェクトを開いて中身を複製
+        with source_file.open('rb') as f:
+            content = f.read()
+        filename = os.path.basename(source_file.name)
+        return ContentFile(content, name=filename)
+    except Exception:
+        return None
+
 
 INLINE_TEXT_EXTENSIONS = {
     '.txt',
@@ -1241,15 +1265,20 @@ class HomeView(TemplateView):
         context['recent_faqs'] = faq_qs.order_by('-updated_at')[:3]
         context['recent_tips'] = tips_qs.order_by('-updated_at')[:3]
         context['is_customer_home'] = is_customer_home
+
+        knowledge_items = [
+            {'label': 'FAQ', 'url_name': 'article_list'},
+            {'label': 'Tips', 'url_name': 'tip_list'},
+            {'label': 'クイックリファレンス', 'url_name': 'convenience_list'},
+        ]
+        if not is_customer_home:
+            knowledge_items.append({'label': 'Doc', 'url_name': 'project_document_list'})
+
         menu_groups = [
             {
                 'name': 'Knowledge',
                 'icon': '📚',
-                'items': [
-                    {'label': 'FAQ', 'url_name': 'article_list'},
-                    {'label': 'Tips', 'url_name': 'tip_list'},
-                    {'label': 'クイックリファレンス', 'url_name': 'convenience_list'},
-                ],
+                'items': knowledge_items,
             },
             {'name': 'Input', 'icon': '✍️', 'items': []},
             {'name': 'Manual', 'icon': '📘', 'items': []},
@@ -1261,6 +1290,7 @@ class HomeView(TemplateView):
             menu_groups[1]['items'].extend(
                 [
                     {'label': 'Knowledge登録', 'url_name': 'knowledge_input'},
+                    {'label': 'ドキュメント登録', 'url_name': 'project_document_create'},
                     {'label': 'レビュー', 'url_name': 'review_list'},
                     {'label': 'カテゴリ登録', 'url_name': 'category_create'},
                 ]
@@ -2556,6 +2586,9 @@ class TipsUpdateView(FormView):
             context['return_to'] = ''
         context['is_demo_user'] = is_demo_user(self.request.user)
         return context
+
+    def get_success_url(self):
+        return resolve_next_path(self.request, 'tip_list')
 
     def form_valid(self, form):
         was_hidden_for_all = is_hidden_for_all_accounts(self.tip)
@@ -4074,6 +4107,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         context['is_demo_user'] = is_demo_user(self.request.user)
         return context
 
+    def get_success_url(self):
+        return resolve_next_path(self.request, 'article_list')
+
     def form_valid(self, form):
         was_hidden_for_all = is_hidden_for_all_accounts(self.article)
         will_be_visible_for_any = (
@@ -5259,6 +5295,355 @@ class ManualDeleteView(StaffRequiredMixin, View):
         manual.delete()
         messages.success(request, f'マニュアル「{title}」を削除しました。')
         return redirect('manual_list')
+
+
+class ProjectDocumentListView(ListView):
+    model = ProjectDocument
+    template_name = 'tenasapo_knowledge/project_document_list.html'
+    context_object_name = 'documents'
+
+    def dispatch(self, request, *args, **kwargs):
+        if is_customer_user(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('home')
+
+        record_view_history(
+            request,
+            'ドキュメント保管庫',
+            search_query=request.GET.get('q', '')[:200],
+            parent_category=request.GET.get('parent_category', '')[:120],
+            category=request.GET.get('category', '')[:120],
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        queryset = (
+            ProjectDocument.objects.select_related('created_by')
+            .filter(is_published=True)
+            .order_by('-created_at', '-id')
+        )
+
+        query = (self.request.GET.get('q') or '').strip()
+        if query:
+            queryset = queryset.filter(
+                Q(project_number__icontains=query)
+                | Q(customer_name__icontains=query)
+                | Q(product_name__icontains=query)
+                | Q(product_version__icontains=query)
+                | Q(title__icontains=query)
+            )
+
+        parent_category = (self.request.GET.get('parent_category') or '').strip()
+        category = (self.request.GET.get('category') or '').strip()
+        if category:
+            queryset = queryset.filter(category=category)
+        elif parent_category:
+            matching_ids = [
+                item.id
+                for item in queryset
+                if self.parent_category_name(item.category) == parent_category
+            ]
+            queryset = queryset.filter(id__in=matching_ids)
+
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        documents = list(context['documents'])
+
+        for item in documents:
+            item.uploader_display_name = resolve_saved_or_user_display_name(
+                item.created_by_name,
+                item.created_by,
+            )
+
+        selected_parent = (self.request.GET.get('parent_category') or '').strip()
+        selected_category = (self.request.GET.get('category') or '').strip()
+        query = (self.request.GET.get('q') or '').strip()
+
+        parent_categories = build_parent_category_groups(user=self.request.user)
+        all_category_texts = list(
+            ProjectDocument.objects.filter(is_published=True).values_list('category', flat=True)
+        )
+        parent_counts, category_counts = self.category_count_maps_from_texts(all_category_texts)
+
+        for parent_category in parent_categories:
+            parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
+            for child_category in parent_category.get('children', []):
+                child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
+            for middle_group in parent_category.get('middle_groups', []):
+                middle_group['count'] = sum(
+                    category_counts.get(full_name, 0)
+                    for full_name in middle_group.get('full_names', [])
+                )
+                for child_category in middle_group.get('children', []):
+                    child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
+
+        if selected_category and not selected_parent:
+            selected_parent = self.parent_category_name(selected_category)
+
+        context['documents'] = documents
+        context['parent_categories'] = parent_categories
+        context['selected_parent_category'] = selected_parent
+        context['selected_category'] = selected_category
+        context['all_count'] = len(all_category_texts)
+        context['query'] = query
+        context['grouped_documents'] = self.group_documents(
+            documents,
+            selected_parent,
+            [group['name'] for group in parent_categories],
+        )
+        context['can_create_document'] = can_edit_article(self.request.user)
+        return context
+
+    @staticmethod
+    def split_categories(value):
+        return [category.strip() for category in (value or '').split(',') if category.strip()]
+
+    @staticmethod
+    def parent_category_name(category):
+        return TipsListView.parent_category_name(category)
+
+    @classmethod
+    def category_count_maps_from_texts(cls, category_texts):
+        parent_counts = {}
+        category_counts = {}
+        for category_text in category_texts:
+            seen_categories = set()
+            seen_parents = set()
+            for category_name in cls.split_categories(category_text):
+                if category_name and category_name not in seen_categories:
+                    category_counts[category_name] = category_counts.get(category_name, 0) + 1
+                    seen_categories.add(category_name)
+
+                parent_name = cls.parent_category_name(category_name)
+                if parent_name and parent_name not in seen_parents:
+                    parent_counts[parent_name] = parent_counts.get(parent_name, 0) + 1
+                    seen_parents.add(parent_name)
+        return parent_counts, category_counts
+
+    @classmethod
+    def document_parent_categories(cls, document):
+        parent_names = [
+            cls.parent_category_name(category)
+            for category in cls.split_categories(document.category)
+        ]
+        return list(dict.fromkeys(parent_names or ['未分類']))
+
+    @classmethod
+    def group_documents(cls, documents, selected_parent='', parent_categories=None):
+        if not selected_parent:
+            return [{'parent_name': '', 'documents': list(documents)}] if documents else []
+
+        grouped_documents = []
+        parent_categories = [selected_parent] if selected_parent else (parent_categories or [])
+        for parent_category in parent_categories:
+            matched_documents = [
+                item
+                for item in documents
+                if parent_category in cls.document_parent_categories(item)
+            ]
+            if matched_documents:
+                grouped_documents.append(
+                    {
+                        'parent_name': parent_category,
+                        'documents': matched_documents,
+                    }
+                )
+        return grouped_documents
+
+
+class ProjectDocumentCreateView(FormView):
+    template_name = 'tenasapo_knowledge/project_document_form.html'
+    form_class = ProjectDocumentCreateForm
+    success_url = reverse_lazy('project_document_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('project_document_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'ドキュメント登録'
+        context['submit_label'] = '登録'
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        return context
+
+    def form_valid(self, form):
+        document = ProjectDocument.objects.create(
+            project_number=form.cleaned_data['project_number'],
+            customer_name=form.cleaned_data['customer_name'],
+            product_name=form.cleaned_data.get('product_name') or '',
+            product_version=form.cleaned_data.get('product_version') or '',
+            title=form.cleaned_data['title'],
+            category=form.cleaned_data['category'],
+            document_type=form.cleaned_data['document_type'],
+            file_office=form.cleaned_data.get('file_office'),
+            file_pdf=form.cleaned_data.get('file_pdf'),
+            created_by=self.request.user,
+            created_by_name=resolve_user_display_name(self.request.user),
+        )
+
+        ProjectDocumentRevisionHistory.objects.create(
+            document=document,
+            updated_by=self.request.user,
+            updated_by_name=document.created_by_name,
+            revision_note='新規作成',
+            file_office=_duplicate_file_for_revision(document.file_office),
+            file_pdf=_duplicate_file_for_revision(document.file_pdf),
+        )
+
+        messages.success(self.request, f'ドキュメント「{document.title}」を登録しました。')
+        return super().form_valid(form)
+
+
+class ProjectDocumentUpdateView(FormView):
+    template_name = 'tenasapo_knowledge/project_document_form.html'
+    form_class = ProjectDocumentUpdateForm
+    success_url = reverse_lazy('project_document_list')
+
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('project_document_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_document(self):
+        if not hasattr(self, '_document'):
+            self._document = get_object_or_404(ProjectDocument, id=self.kwargs.get('pk'))
+        return self._document
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['instance'] = self.get_document()
+        return kwargs
+
+    def get_initial(self):
+        initial = super().get_initial()
+        doc = self.get_document()
+        initial.update({
+            'project_number': doc.project_number,
+            'customer_name': doc.customer_name,
+            'product_name': doc.product_name,
+            'product_version': doc.product_version,
+            'title': doc.title,
+            'document_type': doc.document_type,
+        })
+        category_name = doc.category
+        if category_name:
+            parts = [p.strip() for p in category_name.split('/') if p.strip()]
+            if len(parts) == 3:
+                initial.update({
+                    'parent_category': parts[0],
+                    'middle_category': parts[1],
+                    'child_category': parts[2],
+                })
+            elif len(parts) == 2:
+                initial.update({
+                    'parent_category': parts[0],
+                    'middle_category': '',
+                    'child_category': parts[1],
+                })
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form_title'] = 'ドキュメント更新'
+        context['submit_label'] = '更新'
+        context['is_update'] = True
+        context['document'] = self.get_document()
+        context['category_browser'] = FAQCategoryCreateView.category_browser_data()
+        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        return context
+
+    def form_valid(self, form):
+        document = self.get_document()
+        document.project_number = form.cleaned_data['project_number']
+        document.customer_name = form.cleaned_data['customer_name']
+        document.product_name = form.cleaned_data.get('product_name') or ''
+        document.product_version = form.cleaned_data.get('product_version') or ''
+        document.title = form.cleaned_data['title']
+        document.category = form.cleaned_data['category']
+        document.document_type = form.cleaned_data['document_type']
+
+        if form.cleaned_data.get('file_office'):
+            document.file_office = form.cleaned_data['file_office']
+        if form.cleaned_data.get('file_pdf'):
+            document.file_pdf = form.cleaned_data['file_pdf']
+
+        document.save()
+
+        ProjectDocumentRevisionHistory.objects.create(
+            document=document,
+            updated_by=self.request.user,
+            updated_by_name=resolve_user_display_name(self.request.user),
+            revision_note=form.cleaned_data['revision_note'],
+            file_office=_duplicate_file_for_revision(document.file_office),
+            file_pdf=_duplicate_file_for_revision(document.file_pdf),
+        )
+
+        messages.success(self.request, f'ドキュメント「{document.title}」を更新しました。')
+        return super().form_valid(form)
+
+
+class ProjectDocumentDeleteView(View):
+    def dispatch(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            messages.error(request, 'このページを閲覧する権限がありません。')
+            return redirect('project_document_list')
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        document = get_object_or_404(ProjectDocument, id=self.kwargs.get('pk'))
+        title = document.title
+        document.delete()
+        messages.success(request, f'ドキュメント「{title}」を削除しました。')
+        return redirect('project_document_list')
+
+
+class ProjectDocumentRevisionHistoryAPIView(View):
+    def dispatch(self, request, *args, **kwargs):
+        if is_customer_user(request.user):
+            return JsonResponse({'ok': False, 'error': '閲覧権限がありません。'}, status=403)
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, *args, **kwargs):
+        document = get_object_or_404(ProjectDocument, id=self.kwargs.get('pk'))
+        revisions = list(document.revisions.all().order_by('-updated_at'))
+        
+        has_initial_creation = any(r.revision_note == '新規作成' for r in revisions)
+        
+        revision_list = []
+        for r in revisions:
+            local_time = timezone.localtime(r.updated_at)
+            formatted_date = local_time.strftime('%Y/%m/%d %H:%M:%S')
+            revision_list.append({
+                'updated_by_name': r.updated_by_name,
+                'updated_at': formatted_date,
+                'revision_note': r.revision_note,
+                'download_office_url': r.download_office_url,
+                'download_pdf_url': r.download_pdf_url,
+            })
+
+        if not has_initial_creation:
+            created_local = timezone.localtime(document.created_at)
+            formatted_created = created_local.strftime('%Y/%m/%d %H:%M:%S')
+            revision_list.append({
+                'updated_by_name': resolve_saved_or_user_display_name(document.created_by_name, document.created_by),
+                'updated_at': formatted_created,
+                'revision_note': '新規作成',
+                'download_office_url': document.download_office_url,
+                'download_pdf_url': document.download_pdf_url,
+            })
+        
+        return JsonResponse({
+            'ok': True,
+            'title': document.title,
+            'revisions': revision_list
+        })
 
 
 class ReviewListView(TemplateView):

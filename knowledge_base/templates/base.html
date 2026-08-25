@@ -710,6 +710,9 @@
                     <div class="d-flex align-items-center gap-2">
                         <a class="btn btn-danger btn-sm" href="{% url 'article_list' %}">FAQ</a>
                         <a class="btn btn-info btn-sm text-white" href="{% url 'tip_list' %}">Tips</a>
+                        {% if not current_user_is_customer %}
+                        <a class="btn btn-warning btn-sm" href="{% url 'project_document_list' %}">Doc</a>
+                        {% endif %}
                         <a class="btn btn-success btn-sm" href="{% url 'convenience_list' %}">QR</a>
                         {% if not current_user_is_customer %}
                             <div class="dropdown">
@@ -722,11 +725,13 @@
                                     <li><h6 class="dropdown-header">📚 Knowledge</h6></li>
                                     <li><a class="dropdown-item" href="{% url 'article_list' %}">FAQ</a></li>
                                     <li><a class="dropdown-item" href="{% url 'tip_list' %}">Tips</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'project_document_list' %}">Doc</a></li>
                                     <li><a class="dropdown-item" href="{% url 'convenience_list' %}">QR</a></li>
                                     {% if user.is_staff or user.is_superuser %}
                                         <li><hr class="dropdown-divider"></li>
                                         <li><h6 class="dropdown-header">✍️ Input</h6></li>
                                         <li><a class="dropdown-item" href="{% url 'knowledge_input' %}">Knowledge登録</a></li>
+                                        <li><a class="dropdown-item" href="{% url 'project_document_create' %}">ドキュメント登録</a></li>
                                         <li><a class="dropdown-item" href="{% url 'review_list' %}">レビュー</a></li>
                                         <li><a class="dropdown-item" href="{% url 'category_create' %}">カテゴリ登録</a></li>
                                         <li><hr class="dropdown-divider"></li>

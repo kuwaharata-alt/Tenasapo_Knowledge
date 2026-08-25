@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} | Nexus{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-upload"></i></span>{{ form_title }}
+            </h1>
+        </div>
+
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data" novalidate id="documentForm">
+            <div class="card-body p-4">
+                {% csrf_token %}
+
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.project_number.id_for_label }}">{{ form.project_number.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.project_number.errors %} is-invalid{% endif %}" type="text" name="{{ form.project_number.html_name }}" id="{{ form.project_number.id_for_label }}" value="{{ form.project_number.value|default_if_none:'' }}" required>
+                        {% for error in form.project_number.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.customer_name.id_for_label }}">{{ form.customer_name.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.customer_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.customer_name.html_name }}" id="{{ form.customer_name.id_for_label }}" value="{{ form.customer_name.value|default_if_none:'' }}" required>
+                        {% for error in form.customer_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.product_name.id_for_label }}">{{ form.product_name.label }}</label>
+                        <input class="form-control{% if form.product_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_name.html_name }}" id="{{ form.product_name.id_for_label }}" value="{{ form.product_name.value|default_if_none:'' }}">
+                        {% for error in form.product_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.product_version.id_for_label }}">{{ form.product_version.label }}</label>
+                        <input class="form-control{% if form.product_version.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_version.html_name }}" id="{{ form.product_version.id_for_label }}" value="{{ form.product_version.value|default_if_none:'' }}">
+                        {% for error in form.product_version.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
+                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <!-- 3連動カテゴリプルダウン -->
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="id_parent_category">大カテゴリ <span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.parent_category.errors %} is-invalid{% endif %}" name="parent_category" id="id_parent_category" required>
+                            <option value="">選択してください</option>
+                        </select>
+                        {% for error in form.parent_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="id_middle_category">中カテゴリ</label>
+                        <select class="form-select{% if form.middle_category.errors %} is-invalid{% endif %}" name="middle_category" id="id_middle_category">
+                            <option value="">（なし）</option>
+                        </select>
+                        {% for error in form.middle_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-4">
+                        <label class="form-label" for="id_child_category">小カテゴリ <span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.child_category.errors %} is-invalid{% endif %}" name="child_category" id="id_child_category" required>
+                            <option value="">選択してください</option>
+                        </select>
+                        {% for error in form.child_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <label class="form-label" for="{{ form.document_type.id_for_label }}">{{ form.document_type.label }} <span class="text-danger">*</span></label>
+                        <select class="form-select{% if form.document_type.errors %} is-invalid{% endif %}" name="{{ form.document_type.html_name }}" id="{{ form.document_type.id_for_label }}" required>
+                            {% for value, label in form.document_type.field.choices %}
+                                <option value="{{ value }}" {% if form.document_type.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% for error in form.document_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <!-- 2箇所アップロードエリア -->
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.file_office.id_for_label }}">{{ form.file_office.label }}</label>
+                        {% if is_update and document.file_office %}
+                            <div class="small text-success mb-2">
+                                既存ファイル: <a href="{{ document.download_office_url }}?download=1" target="_blank" class="fw-semibold"><i class="bi bi-file-earmark-word"></i> Office版をダウンロード</a>
+                            </div>
+                        {% endif %}
+                        {% if form.file_office.help_text %}<div class="form-text mb-2">{{ form.file_office.help_text }}</div>{% endif %}
+                        <input class="form-control{% if form.file_office.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_office.html_name }}" id="{{ form.file_office.id_for_label }}" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                        {% for error in form.file_office.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12 col-md-6">
+                        <label class="form-label" for="{{ form.file_pdf.id_for_label }}">{{ form.file_pdf.label }}</label>
+                        {% if is_update and document.file_pdf %}
+                            <div class="small text-success mb-2">
+                                既存ファイル: <a href="{{ document.download_pdf_url }}?download=1" target="_blank" class="fw-semibold"><i class="bi bi-file-earmark-pdf"></i> PDF版をダウンロード</a>
+                            </div>
+                        {% endif %}
+                        {% if form.file_pdf.help_text %}<div class="form-text mb-2">{{ form.file_pdf.help_text }}</div>{% endif %}
+                        <input class="form-control{% if form.file_pdf.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_pdf.html_name }}" id="{{ form.file_pdf.id_for_label }}" accept=".pdf">
+                        {% for error in form.file_pdf.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <!-- 更新履歴（更新時のみ） -->
+                    {% if is_update %}
+                        <div class="col-12 border-top pt-3 mt-3">
+                            <label class="form-label fw-bold text-primary" for="{{ form.revision_note.id_for_label }}">{{ form.revision_note.label }} <span class="text-danger">*</span></label>
+                            <textarea class="form-control{% if form.revision_note.errors %} is-invalid{% endif %}" name="{{ form.revision_note.html_name }}" id="{{ form.revision_note.id_for_label }}" rows="3" placeholder="今回の更新内容（例: 製品バージョンの更新、PDF資料の差し替えなど）を入力してください。" required>{{ form.revision_note.value|default_if_none:'' }}</textarea>
+                            {% for error in form.revision_note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{% url 'project_document_list' %}">戻る</a>
+                <button class="btn btn-primary" type="submit">{{ submit_label|default:'登録' }}</button>
+            </div>
+        </form>
+
+        {% if is_update %}
+            <div class="card shadow-sm border-danger mt-4">
+                <div class="card-body d-flex align-items-center justify-content-between p-3" style="background-color: rgba(220, 53, 69, 0.03);">
+                    <div>
+                        <h6 class="fw-bold text-danger mb-1"><i class="bi bi-exclamation-triangle"></i> ドキュメントの削除</h6>
+                        <small class="text-muted">削除すると登録されたドキュメントと過去の改訂履歴がすべて削除されます。</small>
+                    </div>
+                    <form action="{% url 'project_document_delete' document.id %}" method="post" onsubmit="return confirm('本当にこのドキュメントを削除しますか？\n（この操作は取り消せません）');" class="mb-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> 削除</button>
+                    </form>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const parentSelect = document.getElementById('id_parent_category');
+    const middleSelect = document.getElementById('id_middle_category');
+    const childSelect = document.getElementById('id_child_category');
+
+    // JSONデータのパース
+    const categoryBrowserData = JSON.parse('{{ category_browser_json|escapejs }}');
+
+    // 初期値の格納（バリデーション失敗時などで送信直後の値を復元するため）
+    const initialParent = "{{ form.parent_category.value|default_if_none:''|escapejs }}";
+    const initialMiddle = "{{ form.middle_category.value|default_if_none:''|escapejs }}";
+    const initialChild = "{{ form.child_category.value|default_if_none:''|escapejs }}";
+
+    // 大カテゴリの構築
+    categoryBrowserData.forEach(parent => {
+        const opt = document.createElement('option');
+        opt.value = parent.name;
+        opt.textContent = parent.name;
+        parentSelect.appendChild(opt);
+    });
+
+    // 復元処理
+    if (initialParent) {
+        parentSelect.value = initialParent;
+        updateMiddleCategories(initialParent);
+        if (initialMiddle) {
+            middleSelect.value = initialMiddle;
+        }
+        updateChildCategories(initialParent, middleSelect.value);
+        if (initialChild) {
+            childSelect.value = initialChild;
+        }
+    }
+
+    // イベントリスナー
+    parentSelect.addEventListener('change', function() {
+        const val = this.value;
+        updateMiddleCategories(val);
+        updateChildCategories(val, middleSelect.value);
+    });
+
+    middleSelect.addEventListener('change', function() {
+        updateChildCategories(parentSelect.value, this.value);
+    });
+
+    // 中カテゴリ更新処理
+    function updateMiddleCategories(parentName) {
+        // クリア
+        middleSelect.innerHTML = '<option value="">（なし）</option>';
+
+        if (!parentName) {
+            return;
+        }
+
+        const parentNode = categoryBrowserData.find(e => e.name === parentName);
+        if (!parentNode) {
+            return;
+        }
+
+        parentNode.middles.forEach(middle => {
+            const opt = document.createElement('option');
+            opt.value = middle.name;
+            opt.textContent = middle.name;
+            middleSelect.appendChild(opt);
+        });
+    }
+
+    // 小カテゴリ更新処理
+    function updateChildCategories(parentName, middleName) {
+        // クリア
+        childSelect.innerHTML = '<option value="">選択してください</option>';
+
+        if (!parentName) {
+            return;
+        }
+
+        const parentNode = categoryBrowserData.find(e => e.name === parentName);
+        if (!parentNode) {
+            return;
+        }
+
+        if (middleName) {
+            const middleNode = parentNode.middles.find(e => e.name === middleName);
+            if (middleNode) {
+                // 重複排除用
+                const seen = new Set();
+                middleNode.children.forEach(child => {
+                    if (!seen.has(child.name)) {
+                        const opt = document.createElement('option');
+                        opt.value = child.name;
+                        opt.textContent = child.name;
+                        childSelect.appendChild(opt);
+                        seen.add(child.name);
+                    }
+                });
+            }
+        } else {
+            // 直接の小カテゴリ (direct_children) を設定
+            const seen = new Set();
+            parentNode.direct_children.forEach(child => {
+                if (!seen.has(child.name)) {
+                    const opt = document.createElement('option');
+                    opt.value = child.name;
+                    opt.textContent = child.name;
+                    childSelect.appendChild(opt);
+                    seen.add(child.name);
+                }
+            });
+        }
+    }
+});
+</script>
+{% endblock %}

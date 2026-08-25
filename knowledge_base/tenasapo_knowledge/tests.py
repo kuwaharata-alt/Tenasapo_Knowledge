@@ -2072,3 +2072,120 @@ class RichTextTemplateFilterTests(TestCase):
 
         self.assertIn('color: rgb(224, 62, 45)', rendered)
         self.assertIn('background-color: rgb(250, 197, 28)', rendered)
+
+
+class ProjectDocumentTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        # スタッフ
+        self.staff_user = User.objects.create_superuser(username='staff_member_doc', password='password')
+        self.staff_profile = UserProfile.objects.create(user=self.staff_user, user_type='systena')
+        
+        # カスタマー
+        self.customer_user = User.objects.create_user(username='customer_member_doc', password='password')
+        self.customer_profile = UserProfile.objects.create(user=self.customer_user, user_type='customer', company_name='カスタマー商事')
+        customer_group, _ = Group.objects.get_or_create(name='カスタマー')
+        self.customer_user.groups.add(customer_group)
+        
+        # カテゴリの準備
+        self.category = FAQCategory.objects.create(
+            parent_name='業務システム',
+            middle_name='案件管理',
+            child_name='基本操作',
+        )
+
+    def test_project_document_list_customer_blocked(self):
+        self.client.force_login(self.customer_user)
+        response = self.client.get(reverse('project_document_list'))
+        # リダイレクトされてエラーメッセージ
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('home'), fetch_redirect_response=False)
+
+    def test_project_document_list_staff_allowed(self):
+        self.client.force_login(self.staff_user)
+        response = self.client.get(reverse('project_document_list'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_project_document_crud_and_revisions(self):
+        from .models import ProjectDocument
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.force_login(self.staff_user)
+        
+        office_file = SimpleUploadedFile("document.docx", b"office_content", content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        
+        # Create
+        response = self.client.post(
+            reverse('project_document_create'),
+            {
+                'project_number': 'PRJ-001',
+                'customer_name': 'クライアントA',
+                'product_name': 'SaaSモデル',
+                'product_version': 'v1.0',
+                'title': '要件定義書',
+                'parent_category': '業務システム',
+                'middle_category': '案件管理',
+                'child_category': '基本操作',
+                'document_type': 'procedure',
+                'file_office': office_file,
+            }
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('project_document_list'))
+        
+        doc = ProjectDocument.objects.get(project_number='PRJ-001')
+        self.assertEqual(doc.customer_name, 'クライアントA')
+        self.assertEqual(doc.title, '要件定義書')
+        self.assertEqual(doc.category, '業務システム/案件管理/基本操作')
+        self.assertEqual(doc.created_by, self.staff_user)
+
+        # Update
+        response = self.client.post(
+            reverse('project_document_edit', args=[doc.id]),
+            {
+                'project_number': 'PRJ-001',
+                'customer_name': 'クライアントA（更新）',
+                'product_name': 'SaaSモデル 改',
+                'product_version': 'v1.1',
+                'title': '要件定義書第2版',
+                'parent_category': '業務システム',
+                'middle_category': '案件管理',
+                'child_category': '基本操作',
+                'document_type': 'procedure',
+                'revision_note': '製品バージョンアップと顧客名の更新',
+            }
+        )
+        self.assertEqual(response.status_code, 302)
+        doc.refresh_from_db()
+        self.assertEqual(doc.customer_name, 'クライアントA（更新）')
+        self.assertEqual(doc.title, '要件定義書第2版')
+        
+        # Revision log check
+        revisions = doc.revisions.all().order_by('updated_at')
+        self.assertEqual(revisions.count(), 2)
+        
+        # 最初の履歴 (新規作成)
+        rev_first = revisions[0]
+        self.assertEqual(rev_first.revision_note, '新規作成')
+        self.assertEqual(rev_first.updated_by, self.staff_user)
+        
+        # 次の履歴 (更新)
+        rev_second = revisions[1]
+        self.assertEqual(rev_second.revision_note, '製品バージョンアップと顧客名の更新')
+        self.assertEqual(rev_second.updated_by, self.staff_user)
+        self.assertEqual(rev_second.updated_by_name, doc.created_by_name)
+
+        # Revisions API check
+        response = self.client.get(reverse('project_document_revisions', args=[doc.id]))
+        self.assertEqual(response.status_code, 200)
+        json_data = response.json()
+        self.assertTrue(json_data['ok'])
+        self.assertEqual(json_data['title'], doc.title)
+        self.assertEqual(len(json_data['revisions']), 2)
+        # 降順 (新しいものが上) の確認
+        self.assertEqual(json_data['revisions'][0]['revision_note'], '製品バージョンアップと顧客名の更新')
+        self.assertEqual(json_data['revisions'][1]['revision_note'], '新規作成')
+        
+        # Delete
+        response = self.client.post(reverse('project_document_delete', args=[doc.id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ProjectDocument.objects.filter(id=doc.id).exists())

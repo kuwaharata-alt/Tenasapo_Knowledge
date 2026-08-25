@@ -397,6 +397,10 @@
                                             <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="articleFormStandardOnly{{ article.id }}" {% if article.standard_contract_only %}checked{% endif %}>
                                             <label class="form-check-label small" for="articleFormStandardOnly{{ article.id }}">demoアカウント制限</label>
                                         </div>
+                                        <div class="mt-2 mb-2">
+                                            <label class="form-label small mb-1" for="articleApproveAiReview{{ article.id }}">承認コメント（任意）</label>
+                                            <textarea id="articleApproveAiReview{{ article.id }}" name="ai_review" class="form-control form-control-sm" rows="2" placeholder="承認コメントを入力（任意）">{% if article.ai_review %}{{ article.ai_review }}{% endif %}</textarea>
+                                        </div>
                                         <button class="btn btn-success" type="submit">承認</button>
                                     </form>
                                 {% endif %}

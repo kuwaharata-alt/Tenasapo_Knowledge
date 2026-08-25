@@ -28,6 +28,14 @@
             <small class="mt-2">よく使用するショートカット・コマンド集</small>
         </a>
     </div>
+    {% if not is_customer_home %}
+    <div class="col-12 col-md-4">
+        <a href="{% url 'project_document_list' %}" class="btn btn-warning w-100 py-4 d-flex flex-column align-items-start text-start">
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📁 ドキュメント保管庫</strong>
+            <small class="mt-2">案件ドキュメントの検索・ダウンロード</small>
+        </a>
+    </div>
+    {% endif %}
 </div>
 
 <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
