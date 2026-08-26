@@ -17,4 +17,7 @@ PyJWT==2.13.0
 cryptography==49.0.0
 django-extensions==4.1
 django-sslserver==0.22
+google-auth==2.38.0
+google-api-python-client==2.161.0
+
 

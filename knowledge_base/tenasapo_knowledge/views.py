@@ -741,33 +741,66 @@ def _duplicate_file_for_revision(source_file):
     if not source_file:
         return None
     from django.core.files.base import ContentFile
+    from django.core.files.uploadedfile import UploadedFile
     import os
     try:
-        # InMemoryUploadedFile や TemporaryUploadedFile 等、ポインタ移動ができる場合は先頭に戻す
+        # ポインタ移動ができる場合はあらかじめ先頭に戻す
         if hasattr(source_file, 'seek'):
             try:
                 source_file.seek(0)
             except Exception:
                 pass
 
-        if hasattr(source_file, 'open'):
+        content = None
+
+        # 1. フォームから上がってきたアップロード途中のファイル (InMemoryUploadedFile/TemporaryUploadedFile等) の場合
+        # すでに開いているため、単に read() を呼ぶだけでクローズさせずにデータを読み取ることができます。
+        if isinstance(source_file, UploadedFile):
             try:
-                with source_file.open('rb') as f:
+                content = source_file.read()
+            except Exception:
+                pass
+
+        # 2. FieldFile等のようにDjangoストレージ経由で既に保存されているファイルの場合は、
+        # storage.open() を優先して使用することで、環境ごとの二重オープン・ファイルロックや
+        # クラウドストレージ等の制限を安全に回避します。
+        if content is None and hasattr(source_file, 'storage') and hasattr(source_file, 'name') and source_file.name:
+            try:
+                with source_file.storage.open(source_file.name, 'rb') as f:
                     content = f.read()
             except Exception:
+                pass
+
+        # 3. フォールバック
+        if content is None:
+            if hasattr(source_file, 'open'):
+                try:
+                    # withを使わずに開いてクローズされないようにする
+                    f = source_file.open('rb')
+                    try:
+                        content = f.read()
+                    finally:
+                        if hasattr(f, 'close'):
+                            try: f.close()
+                            except Exception: pass
+                except Exception:
+                    if hasattr(source_file, 'read'):
+                        content = source_file.read()
+                    else:
+                        raise
+            else:
                 if hasattr(source_file, 'read'):
                     content = source_file.read()
-                else:
-                    raise
-        else:
-            content = source_file.read()
 
-        # 別処理での書き込みに備えて元のファイルポインタを再度0に戻す
+        # 別の書き込み処理などに備えて元のファイルポインタを再度0に戻す
         if hasattr(source_file, 'seek'):
             try:
                 source_file.seek(0)
             except Exception:
                 pass
+
+        if content is None:
+            return None
 
         filename = os.path.basename(source_file.name)
         return ContentFile(content, name=filename)
@@ -5496,6 +5529,14 @@ class ProjectDocumentCreateView(FormView):
         return context
 
     def form_valid(self, form):
+        # 1. フォームの raw アップロードファイルから、親の保存処理による共有違反(ファイルロック)の発生前にあらかじめ履歴用の複製を作る
+        uploaded_office = form.cleaned_data.get('file_office')
+        uploaded_pdf = form.cleaned_data.get('file_pdf')
+
+        dup_office = _duplicate_file_for_revision(uploaded_office)
+        dup_pdf = _duplicate_file_for_revision(uploaded_pdf)
+
+        # 2. 親ドキュメントを作成（このときにメディア・ストレージにファイルが書き込まれます）
         document = ProjectDocument.objects.create(
             project_number=form.cleaned_data['project_number'],
             customer_name=form.cleaned_data['customer_name'],
@@ -5504,19 +5545,20 @@ class ProjectDocumentCreateView(FormView):
             title=form.cleaned_data['title'],
             category=form.cleaned_data['category'],
             document_type=form.cleaned_data['document_type'],
-            file_office=form.cleaned_data.get('file_office'),
-            file_pdf=form.cleaned_data.get('file_pdf'),
+            file_office=uploaded_office,
+            file_pdf=uploaded_pdf,
             created_by=self.request.user,
             created_by_name=resolve_user_display_name(self.request.user),
         )
 
+        # 3. 事前に用意した複製データを用いて履歴を作成（共有違反やタイムアウトを完全に回避）
         ProjectDocumentRevisionHistory.objects.create(
             document=document,
             updated_by=self.request.user,
             updated_by_name=document.created_by_name,
             revision_note='新規作成',
-            file_office=_duplicate_file_for_revision(document.file_office),
-            file_pdf=_duplicate_file_for_revision(document.file_pdf),
+            file_office=dup_office,
+            file_pdf=dup_pdf,
         )
 
         messages.success(self.request, f'ドキュメント「{document.title}」を登録しました。')
@@ -5584,6 +5626,25 @@ class ProjectDocumentUpdateView(FormView):
 
     def form_valid(self, form):
         document = self.get_document()
+
+        # 1. 新しくアップロードされたファイルを特定
+        new_uploaded_office = form.cleaned_data.get('file_office')
+        new_uploaded_pdf = form.cleaned_data.get('file_pdf')
+
+        # 2. 履歴（Revision）用にあらかじめ複製を作成する。
+        # 新ファイルがアップロードされた場合は、その生ファイルから複製（ロック違反が起きない）。
+        # アップロードされなかった（既存ファイルを維持する）場合は、元の document.file_office/file_pdf から複製。
+        if new_uploaded_office:
+            dup_office = _duplicate_file_for_revision(new_uploaded_office)
+        else:
+            dup_office = _duplicate_file_for_revision(document.file_office)
+
+        if new_uploaded_pdf:
+            dup_pdf = _duplicate_file_for_revision(new_uploaded_pdf)
+        else:
+            dup_pdf = _duplicate_file_for_revision(document.file_pdf)
+
+        # 3. 親オブジェクトの既存フィールドを更新
         document.project_number = form.cleaned_data['project_number']
         document.customer_name = form.cleaned_data['customer_name']
         document.product_name = form.cleaned_data.get('product_name') or ''
@@ -5592,20 +5653,22 @@ class ProjectDocumentUpdateView(FormView):
         document.category = form.cleaned_data['category']
         document.document_type = form.cleaned_data['document_type']
 
-        if form.cleaned_data.get('file_office'):
-            document.file_office = form.cleaned_data['file_office']
-        if form.cleaned_data.get('file_pdf'):
-            document.file_pdf = form.cleaned_data['file_pdf']
+        if new_uploaded_office:
+            document.file_office = new_uploaded_office
+        if new_uploaded_pdf:
+            document.file_pdf = new_uploaded_pdf
 
+        # 保存処理（この時に新規または上書きファイルが保存されます）
         document.save()
 
+        # 4. あらかじめ安全に複製しておいた履歴ファイルを使って履歴レコードを作成
         ProjectDocumentRevisionHistory.objects.create(
             document=document,
             updated_by=self.request.user,
             updated_by_name=resolve_user_display_name(self.request.user),
             revision_note=form.cleaned_data['revision_note'],
-            file_office=_duplicate_file_for_revision(document.file_office),
-            file_pdf=_duplicate_file_for_revision(document.file_pdf),
+            file_office=dup_office,
+            file_pdf=dup_pdf,
         )
 
         messages.success(self.request, f'ドキュメント「{document.title}」を更新しました。')

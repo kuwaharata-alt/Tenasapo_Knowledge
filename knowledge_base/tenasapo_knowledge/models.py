@@ -27,6 +27,42 @@ def can_inline_preview_file(file_name: str) -> bool:
     return extension in INLINE_PREVIEWABLE_EXTENSIONS
 
 
+from .storage import HybridGoogleDriveStorage
+google_drive_storage = HybridGoogleDriveStorage()
+
+
+def project_document_upload_path(instance, filename):
+    safe_project_number = (instance.project_number or '').strip()
+    safe_customer_name = (instance.customer_name or '').strip()
+    
+    # 【案件番号】顧客名 フォルダ名を構成する
+    folder_part = f"【{safe_project_number}】{safe_customer_name}"
+    if not safe_project_number and not safe_customer_name:
+        folder_part = "未特定案件"
+    elif not safe_project_number:
+        folder_part = safe_customer_name
+    elif not safe_customer_name:
+        folder_part = f"【{safe_project_number}】"
+        
+    return f"{folder_part}/Nexusドキュメント/{filename}"
+
+
+def project_document_revision_upload_path(instance, filename):
+    doc = instance.document
+    safe_project_number = (doc.project_number or '').strip()
+    safe_customer_name = (doc.customer_name or '').strip()
+    
+    folder_part = f"【{safe_project_number}】{safe_customer_name}"
+    if not safe_project_number and not safe_customer_name:
+        folder_part = "未特定案件"
+    elif not safe_project_number:
+        folder_part = safe_customer_name
+    elif not safe_customer_name:
+        folder_part = f"【{safe_project_number}】"
+        
+    return f"{folder_part}/Nexusドキュメント/履歴/{filename}"
+
+
 def default_expires_on():
     today = timezone.localdate()
     year = today.year
@@ -715,8 +751,8 @@ class ProjectDocument(models.Model):
     title = models.CharField('ドキュメントタイトル', max_length=200)
     category = models.CharField('カテゴリ', max_length=180)
     document_type = models.CharField('分類', max_length=30, choices=DOCUMENT_TYPE_CHOICES)
-    file_office = models.FileField('Officeドキュメント', upload_to='documents/%Y/%m/', blank=True, null=True)
-    file_pdf = models.FileField('PDFドキュメント', upload_to='documents/%Y/%m/', blank=True, null=True)
+    file_office = models.FileField('Officeドキュメント', storage=google_drive_storage, upload_to=project_document_upload_path, blank=True, null=True)
+    file_pdf = models.FileField('PDFドキュメント', storage=google_drive_storage, upload_to=project_document_upload_path, blank=True, null=True)
     is_published = models.BooleanField('公開', default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -769,8 +805,8 @@ class ProjectDocumentRevisionHistory(models.Model):
     updated_by_name = models.CharField('更新者名', max_length=150)
     updated_at = models.DateTimeField('更新日時', auto_now_add=True)
     revision_note = models.TextField('更新内容')
-    file_office = models.FileField('Officeドキュメント', upload_to='documents_revisions/%Y/%m/', blank=True, null=True)
-    file_pdf = models.FileField('PDFドキュメント', upload_to='documents_revisions/%Y/%m/', blank=True, null=True)
+    file_office = models.FileField('Officeドキュメント', storage=google_drive_storage, upload_to=project_document_revision_upload_path, blank=True, null=True)
+    file_pdf = models.FileField('PDFドキュメント', storage=google_drive_storage, upload_to=project_document_revision_upload_path, blank=True, null=True)
 
     class Meta:
         verbose_name = 'プロジェクトドキュメント更新履歴'

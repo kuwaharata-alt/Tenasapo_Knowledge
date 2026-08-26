@@ -197,6 +197,10 @@ default_media_root = '/home/site/media' if is_running_on_azure else str(BASE_DIR
 MEDIA_ROOT = os.getenv('MEDIA_ROOT', default_media_root)
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
+# Azure環境等のファイルアップロード一時ストレージ（書き込みエラーによる502 Bad Gateway防止）
+FILE_UPLOAD_TEMP_DIR = os.path.join(MEDIA_ROOT, 'tmp')
+os.makedirs(FILE_UPLOAD_TEMP_DIR, exist_ok=True)
+
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'home'
 LOGOUT_REDIRECT_URL = 'login'
@@ -324,3 +328,7 @@ else:
 GOOGLE_SERVICE_ACCOUNT_JSON_PATH = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON_PATH', None)
 GOOGLE_WORKSPACE_DOMAIN = os.getenv('GOOGLE_WORKSPACE_DOMAIN', 'systena.co.jp')
 GOOGLE_WORKSPACE_ADMIN_EMAIL = os.getenv('GOOGLE_WORKSPACE_ADMIN_EMAIL', None)
+
+# Google Drive Storage 設定
+GOOGLE_DRIVE_ROOT_FOLDER_ID = os.getenv('GOOGLE_DRIVE_ROOT_FOLDER_ID', None)
+
