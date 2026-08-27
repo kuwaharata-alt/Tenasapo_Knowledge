@@ -109,10 +109,12 @@ def _resolve_webhook_url():
     return (getattr(settings, 'GOOGLE_CHAT_WEBHOOK_URL', '') or '').strip()
 
 
-def send_google_chat_message(text):
+def send_google_chat_message(text, webhook_url=None, gas_url=None):
     payload = json.dumps({'text': text}).encode('utf-8')
-    gas_url = (getattr(settings, 'GOOGLE_CHAT_GAS_WEB_APP_URL', '') or '').strip()
-    webhook_url = _resolve_webhook_url()
+    if gas_url is None:
+        gas_url = (getattr(settings, 'GOOGLE_CHAT_GAS_WEB_APP_URL', '') or '').strip()
+    if webhook_url is None:
+        webhook_url = _resolve_webhook_url()
 
     target_urls = []
     if gas_url:
@@ -201,3 +203,114 @@ def create_mail_draft_via_gas(payload):
         raise GoogleChatNotificationError(message)
 
     raise GoogleChatNotificationError('メール下書きの作成に失敗しました。')
+
+
+def send_google_chat_card_with_image(text, image_bytes, webhook_url=None, gas_url=None):
+    """
+    画像を埋め込んだカード型Google Chat通知を送信します。
+    GASが設定されている場合は、GASを経由して画像をGoogleドライブに保存し、公開URLを生成してカードを構築・送信します。
+    GASがない場合は、通常のWebhook直接送信を試み、画像はメディアURLから（Djangoがパブリック公開されている前提で）配信を設定します。
+    """
+    import base64
+    import os
+
+    if gas_url is None:
+        gas_url = (getattr(settings, 'GOOGLE_CHAT_GAS_WEB_APP_URL', '') or '').strip()
+    if webhook_url is None:
+        webhook_url = _resolve_webhook_url()
+
+    # A) GAS (Google Apps Script) 経由の場合（強く推奨: 画像の自動ホスティングが可能なため、ローカル開発やイントラでも稼働）
+    if gas_url:
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        payload_data = {
+            'action': 'post_image_chart',
+            'text': text,
+            'image_base64': f'data:image/png;base64,{image_base64}',
+        }
+        payload = json.dumps(payload_data).encode('utf-8')
+        target_urls = _build_gas_candidate_urls(gas_url)
+
+        last_http_error = None
+        for target_url in target_urls:
+            try:
+                status_code, body = _request_json_post(target_url, payload)
+            except HTTPError as exc:
+                response_body = exc.read().decode('utf-8', errors='replace')
+                last_http_error = (exc.code, response_body or exc.reason or '')
+                continue
+            except URLError as exc:
+                raise GoogleChatNotificationError(f'GAS接続エラー: {exc.reason}') from exc
+            except Exception as exc:
+                raise GoogleChatNotificationError(str(exc)) from exc
+
+            if 200 <= status_code < 300:
+                try:
+                    response_json = json.loads(body)
+                except json.JSONDecodeError:
+                    response_json = {}
+                if response_json.get('ok') is False:
+                    raise GoogleChatNotificationError(response_json.get('body') or 'GASでの図付き通知送信に失敗しました。')
+                return {'status_code': status_code, 'body': body, 'via': 'gas'}
+
+            last_http_error = (status_code, body)
+
+        if last_http_error:
+            status_code, detail = last_http_error
+            raise GoogleChatNotificationError(f'GAS HTTP {status_code}: {_trim_error_text(detail)}')
+
+    # B) Webhook直接送信の場合 (サイトが外部にパブリック公開されていることが前提となります)
+    if webhook_url:
+        # 画像ファイルとして一時保存
+        tmp_dir = os.path.join(settings.MEDIA_ROOT, 'tmp')
+        os.makedirs(tmp_dir, exist_ok=True)
+        filename = 'nexus_monthly_chart.png'
+        filepath = os.path.join(tmp_dir, filename)
+        with open(filepath, 'wb') as f:
+            f.write(image_bytes)
+
+        # 外部公開用URLを組み立てる (SITE_URLが設定されている想定)
+        site_url = getattr(settings, 'SITE_URL', 'http://localhost:8000').rstrip('/')
+        image_url = f"{site_url}{settings.MEDIA_URL}tmp/{filename}"
+
+        card_payload = {
+            "cardsV2": [{
+                "cardId": "monthlyChartCard",
+                "card": {
+                    "header": {
+                        "title": "【Nexus】当月のメンバー投稿状況",
+                        "subtitle": "アナライズ"
+                    },
+                    "sections": [
+                        {
+                            "widgets": [{
+                                "textParagraph": {
+                                    "text": text.replace("\n", "<br>")
+                                }
+                            }]
+                        },
+                        {
+                            "widgets": [{
+                                "image": {
+                                    "imageUrl": image_url
+                                }
+                            }]
+                        }
+                    ]
+                }
+            }]
+        }
+        payload = json.dumps(card_payload).encode('utf-8')
+        try:
+            status_code, body = _request_json_post(webhook_url, payload)
+        except HTTPError as exc:
+            response_body = exc.read().decode('utf-8', errors='replace')
+            raise GoogleChatNotificationError(f'Webhook HTTP {exc.code}: {_trim_error_text(response_body)}') from exc
+        except Exception as exc:
+            raise GoogleChatNotificationError(str(exc)) from exc
+
+        if 200 <= status_code < 300:
+            return {'status_code': status_code, 'body': body, 'via': 'webhook'}
+        
+        raise GoogleChatNotificationError(f'Webhook送信失敗 HTTP {status_code}: {body}')
+
+    raise GoogleChatNotificationError('Google Chat の送信先URL（GASウェブアプリまたはWebhook）が未設定です。')

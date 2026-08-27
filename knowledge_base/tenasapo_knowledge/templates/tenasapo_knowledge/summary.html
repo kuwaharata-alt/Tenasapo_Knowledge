@@ -12,6 +12,9 @@
             <p class="page-title-sub">サマリと社内の投稿状況を確認できます。</p>
         </div>
         <div class="d-flex gap-2">
+            <button id="btnNotifyChat" class="btn btn-outline-success" title="当月の投稿進捗をGoogle Chatへ通知します">
+                <i class="bi bi-chat-dots me-1"></i>チャット通知
+            </button>
             <a href="{% url 'summary_pdf' %}" class="btn btn-outline-primary" target="_blank" title="PDFレポートをダウンロード">
                 <i class="bi bi-file-pdf me-1"></i>PDFレポート
             </a>
@@ -771,6 +774,51 @@ document.addEventListener('DOMContentLoaded', function() {
     renderInternalBarChart('internalPostChart', '投稿数', internalPostData, 'rgba(232, 117, 36, 0.82)');
     renderInternalBarChart('internalReviewChart', 'レビュー数', internalReviewData, 'rgba(73, 136, 232, 0.82)');
     renderInternalBarChart('internalLikeChart', 'いいね数', internalLikeData, 'rgba(46, 173, 127, 0.82)');
+
+    // チャット通知ボタンのイベント設定
+    const btnNotifyChat = document.getElementById('btnNotifyChat');
+    if (btnNotifyChat) {
+        btnNotifyChat.addEventListener('click', function() {
+            if (!confirm('当月のメンバー投稿状況を、表組みテキストで Google Chat へ送信します。よろしいですか？')) {
+                return;
+            }
+            
+            // ボタンをローディング表示に変更
+            const originalHtml = btnNotifyChat.innerHTML;
+            btnNotifyChat.disabled = true;
+            btnNotifyChat.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>送信中...';
+            
+            fetch("{% url 'summary_notify_chat' %}", {
+                method: "POST",
+                headers: {
+                    "X-CSRFToken": "{{ csrf_token }}",
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("HTTP-Error: " + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.ok) {
+                    alert(data.message || "Google Chatへ正常に通知を送信しました！");
+                } else {
+                    alert("送信エラーが発生しました: " + (data.error || "不明な理由"));
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("通信エラーが発生しました。");
+            })
+            .finally(() => {
+                // ボタンの復元
+                btnNotifyChat.disabled = false;
+                btnNotifyChat.innerHTML = originalHtml;
+            });
+        });
+    }
 });
 </script>
 {% endblock %}

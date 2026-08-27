@@ -46,6 +46,7 @@ from .views import (
     ReviewListView,
     SummaryView,
     SummaryPDFView,
+    SummaryNotifyChatAPIView,
     TipsApproveView,
     TipsApprovalResetView,
     TipsRemandView,
@@ -134,6 +135,7 @@ urlpatterns = [
     path('histories/views/', ViewHistoryListView.as_view(), name='view_history_list'),
     path('summary/', SummaryView.as_view(), name='summary'),
     path('summary/pdf/', SummaryPDFView.as_view(), name='summary_pdf'),
+    path('summary/notify/', SummaryNotifyChatAPIView.as_view(), name='summary_notify_chat'),
     path(
         'users/<int:pk>/reset-password/',
         UserPasswordResetView.as_view(),

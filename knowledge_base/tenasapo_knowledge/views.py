@@ -3688,6 +3688,35 @@ class SummaryPDFView(StaffRequiredMixin, View):
                 member_current_month_map[name] = node
             return node
 
+
+class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
+    """
+    アナライズサマリ画面から直接 Google Chat への進捗状況通知を送信する
+    ボタン用 API コールバック。
+    """
+    def post(self, request, *args, **kwargs):
+        from django.core.management import call_command
+        import io
+        from django.http import JsonResponse
+
+        try:
+            # notify_monthly_posts コマンドを内部コールして送信処理
+            out = io.StringIO()
+            call_command('notify_monthly_posts', stdout=out)
+            output_msg = out.getvalue()
+            
+            return JsonResponse({
+                'ok': True,
+                'message': 'Google Chat への状況通知を送信しました！',
+                'detail': output_msg.strip()
+            })
+        except Exception as exc:
+            return JsonResponse({
+                'ok': False,
+                'error': f'送信エラーが発生しました: {str(exc)}'
+            }, status=500)
+
+
         for user in summary_users:
             display_name = resolve_user_display_name(user).strip()
             if self.is_excluded_contributor(display_name):

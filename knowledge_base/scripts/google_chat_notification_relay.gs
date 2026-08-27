@@ -189,6 +189,75 @@ function doPost(e) {
 
     const text = String(payload.text || '通知テスト').trim() || '通知テスト';
 
+    if (action === 'post_image_chart') {
+      const base64Data = payload.image_base64;
+      let imageUrl = '';
+      if (base64Data) {
+        // Base64データをデコードしてGoogleドライブに保存
+        const decoded = Utilities.base64Decode(base64Data.replace(/^data:image\/\w+;base64,/, ''));
+        const blob = Utilities.newBlob(decoded, 'image/png', 'nexus_monthly_chart.png');
+        const file = DriveApp.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        
+        // 直リンク画像URL（Googleドライブのプレビュー/ダウンロードURL）
+        imageUrl = "https://drive.google.com/uc?export=download&id=" + file.getId();
+        Logger.log('Image saved in Google Drive. ID=%s, URL=%s', file.getId(), imageUrl);
+      }
+
+      // cardsV2 リッチカードを構築
+      const cardPayload = {
+        cardsV2: [{
+          cardId: 'monthlyChartCard',
+          card: {
+            header: {
+              title: '【Nexus】当月のメンバー投稿状況',
+              subtitle: 'アナライズ'
+            },
+            sections: [
+              {
+                widgets: [
+                  {
+                    textParagraph: {
+                      text: text.replace(/\n/g, '<br>')
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }]
+      };
+
+      if (imageUrl) {
+        cardPayload.cardsV2[0].card.sections.push({
+          widgets: [
+            {
+              image: {
+                imageUrl: imageUrl
+              }
+            }
+          ]
+        });
+      }
+
+      const response = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
+        method: 'post',
+        contentType: 'application/json; charset=UTF-8',
+        payload: JSON.stringify(cardPayload),
+        muteHttpExceptions: true,
+      });
+
+      return ContentService.createTextOutput(
+        JSON.stringify({
+          ok: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+          action: 'post_image_chart',
+          status: response.getResponseCode(),
+          body: response.getContentText(),
+          driveFileId: imageUrl ? file.getId() : null,
+        })
+      ).setMimeType(ContentService.MimeType.JSON);
+    }
+
     const response = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
       method: 'post',
       contentType: 'application/json; charset=UTF-8',
