@@ -317,7 +317,7 @@ else:
     # 本番環境: 実際の本番URLをデフォルト値とする
     GOOGLE_CHAT_WEBHOOK_URL = os.getenv(
         'GOOGLE_CHAT_WEBHOOK_URL',
-        'https://chat.googleapis.com/v1/spaces/AAQAuHpWqBA/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=y3uEoM2pbNxQk3thuqZYl2gbwZEJ6aEGXrxkUlBFSlY',
+        'https://chat.googleapis.com/v1/spaces/AAQA1Ou2jsg/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ivlj0PxB8QBt77xOJNAQVad6qavNdPxBoU-5iTzmupo',
     )
     GOOGLE_CHAT_GAS_WEB_APP_URL = os.getenv(
         'GOOGLE_CHAT_GAS_WEB_APP_URL',

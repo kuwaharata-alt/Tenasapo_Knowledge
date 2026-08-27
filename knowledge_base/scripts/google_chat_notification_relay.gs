@@ -7,7 +7,7 @@
  * 4. 発行されたURLを Django の GOOGLE_CHAT_GAS_WEB_APP_URL に設定する
  */
 
-const CHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAQAuHpWqBA/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=y3uEoM2pbNxQk3thuqZYl2gbwZEJ6aEGXrxkUlBFSlY';
+const CHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAQA1Ou2jsg/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=ivlj0PxB8QBt77xOJNAQVad6qavNdPxBoU-5iTzmupo';
 
 function escapeHtml(text) {
   return String(text || '')
