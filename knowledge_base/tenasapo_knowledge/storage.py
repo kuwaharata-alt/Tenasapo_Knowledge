@@ -27,15 +27,20 @@ class HybridGoogleDriveStorage(Storage):
             try:
                 from google.oauth2 import service_account
                 from googleapiclient.discovery import build
+                import httplib2
+                
+                # Google API へのリクエストに5秒のタイムアウトを設定し、社内プロキシやAzure内での無制限ハングアップによる502/回線切断を防止します。
+                http_transport = httplib2.Http(timeout=5)
                 
                 credentials = service_account.Credentials.from_service_account_file(
                     json_path,
                     scopes=['https://www.googleapis.com/auth/drive']
                 )
-                self.service = build('drive', 'v3', credentials=credentials)
+                authorized_http = credentials.authorize(http_transport)
+                self.service = build('drive', 'v3', http=authorized_http)
                 self._initialized = True
             except Exception as e:
-                _logger.error(f"Failed to initialize Google Drive Storage: {e}")
+                _logger.error(f"Failed to initialize Google Drive Storage (Timeout parameter set): {e}")
 
     @property
     def is_active(self):
@@ -51,7 +56,10 @@ class HybridGoogleDriveStorage(Storage):
         from googleapiclient.http import MediaIoBaseDownload
         file_id = self._get_file_id_by_path(name)
         if not file_id:
-            raise FileNotFoundError(f"File not found on Google Drive: {name}")
+            # Google Drive上に見つからない場合、ローカルストレージにあるか確認しフォールバックします
+            if self._local_storage.exists(name):
+                return self._local_storage._open(name, mode)
+            raise FileNotFoundError(f"File not found on Google Drive or Local: {name}")
             
         try:
             request = self.service.files().get_media(fileId=file_id)
@@ -63,7 +71,9 @@ class HybridGoogleDriveStorage(Storage):
             fh.seek(0)
             return File(fh, name=os.path.basename(name))
         except Exception as e:
-            _logger.error(f"Error reading file from Google Drive ({name}): {e}")
+            _logger.error(f"Error reading file from Google Drive ({name}), attempting local fallback: {e}")
+            if self._local_storage.exists(name):
+                return self._local_storage._open(name, mode)
             raise IOError(f"Google Drive Read Error: {e}")
 
     def _save(self, name, content):
@@ -121,13 +131,27 @@ class HybridGoogleDriveStorage(Storage):
                 
             return name
         except Exception as e:
-            _logger.error(f"Error saving file to Google Drive ({name}): {e}")
-            raise IOError(f"Google Drive Save Error: {e}")
+            _logger.error(f"Error saving file to Google Drive ({name}), falling back to local storage: {e}")
+            try:
+                # ポインタを受信当初にリセットしてローカルとして保存
+                if hasattr(content, 'seek'):
+                    try: content.seek(0)
+                    except Exception: pass
+                return self._local_storage._save(name, content)
+            except Exception as local_e:
+                _logger.error(f"Secondary fallback to local storage failed: {local_e}")
+                raise IOError(f"Google Drive and Local Storage both failed to save: {e}")
 
     def exists(self, name):
         if not self.is_active:
             return self._local_storage.exists(name)
-        return self._get_file_id_by_path(name) is not None
+        try:
+            found_on_drive = self._get_file_id_by_path(name) is not None
+            if found_on_drive:
+                return True
+        except Exception:
+            pass
+        return self._local_storage.exists(name)
 
     def delete(self, name):
         if not self.is_active:

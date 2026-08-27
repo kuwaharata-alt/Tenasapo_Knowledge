@@ -753,6 +753,7 @@ class ProjectDocument(models.Model):
     document_type = models.CharField('分類', max_length=30, choices=DOCUMENT_TYPE_CHOICES)
     file_office = models.FileField('Officeドキュメント', storage=google_drive_storage, upload_to=project_document_upload_path, blank=True, null=True)
     file_pdf = models.FileField('PDFドキュメント', storage=google_drive_storage, upload_to=project_document_upload_path, blank=True, null=True)
+    is_template = models.BooleanField('テンプレート', default=False)
     is_published = models.BooleanField('公開', default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

@@ -5389,6 +5389,10 @@ class ProjectDocumentListView(ListView):
                 | Q(title__icontains=query)
             )
 
+        temp_only = str(self.request.GET.get('template') or '').strip().lower() in {'1', 'true', 'on', 'yes'}
+        if temp_only:
+            queryset = queryset.filter(is_template=True)
+
         parent_category = (self.request.GET.get('parent_category') or '').strip()
         category = (self.request.GET.get('category') or '').strip()
         if category:
@@ -5416,6 +5420,7 @@ class ProjectDocumentListView(ListView):
         selected_parent = (self.request.GET.get('parent_category') or '').strip()
         selected_category = (self.request.GET.get('category') or '').strip()
         query = (self.request.GET.get('q') or '').strip()
+        temp_only = str(self.request.GET.get('template') or '').strip().lower() in {'1', 'true', 'on', 'yes'}
 
         parent_categories = build_parent_category_groups(user=self.request.user)
         all_category_texts = list(
@@ -5444,6 +5449,7 @@ class ProjectDocumentListView(ListView):
         context['selected_category'] = selected_category
         context['all_count'] = len(all_category_texts)
         context['query'] = query
+        context['temp_only'] = temp_only
         context['grouped_documents'] = self.group_documents(
             documents,
             selected_parent,
@@ -5547,6 +5553,7 @@ class ProjectDocumentCreateView(FormView):
             document_type=form.cleaned_data['document_type'],
             file_office=uploaded_office,
             file_pdf=uploaded_pdf,
+            is_template=form.cleaned_data.get('is_template') or False,
             created_by=self.request.user,
             created_by_name=resolve_user_display_name(self.request.user),
         )
@@ -5596,6 +5603,7 @@ class ProjectDocumentUpdateView(FormView):
             'product_version': doc.product_version,
             'title': doc.title,
             'document_type': doc.document_type,
+            'is_template': doc.is_template,
         })
         category_name = doc.category
         if category_name:
@@ -5652,6 +5660,7 @@ class ProjectDocumentUpdateView(FormView):
         document.title = form.cleaned_data['title']
         document.category = form.cleaned_data['category']
         document.document_type = form.cleaned_data['document_type']
+        document.is_template = form.cleaned_data.get('is_template') or False
 
         if new_uploaded_office:
             document.file_office = new_uploaded_office

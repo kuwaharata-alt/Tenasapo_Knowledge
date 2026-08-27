@@ -109,6 +109,18 @@
                         {% for error in form.file_pdf.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
 
+                    <div class="col-12 py-2">
+                        <div class="form-check form-switch card p-3 shadow-none border bg-light-subtle">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="{{ form.is_template.html_name }}" id="{{ form.is_template.id_for_label }}" {% if form.is_template.value %}checked{% endif %}>
+                            <label class="form-check-label fw-bold text-dark cursor-pointer ms-1" for="{{ form.is_template.id_for_label }}">
+                                {{ form.is_template.label }}
+                            </label>
+                            <div class="form-text text-muted ms-1 mt-1 small">
+                                {{ form.is_template.help_text }}
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 更新履歴（更新時のみ） -->
                     {% if is_update %}
                         <div class="col-12 border-top pt-3 mt-3">

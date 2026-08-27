@@ -4,6 +4,28 @@
 {% block title %}クイックリファレンス | Nexus{% endblock %}
 
 {% block content %}
+<style>
+    /* ターコイズグリーン（ティール系）の上品なボタン用カスタムスタイル */
+    .btn-outline-turquoise {
+        color: #0b9385 !important;
+        border-color: #0b9385 !important;
+        background-color: transparent !important;
+        transition: all 0.2s ease-in-out;
+    }
+    .btn-outline-turquoise:hover,
+    .btn-outline-turquoise:focus,
+    .btn-outline-turquoise:active {
+        color: #ffffff !important;
+        background-color: #0b9385 !important;
+        border-color: #0b9385 !important;
+    }
+    .btn-outline-turquoise:disabled {
+        color: #adb5bd !important;
+        border-color: #e9ecef !important;
+        background-color: transparent !important;
+        cursor: not-allowed;
+    }
+</style>
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
@@ -138,7 +160,7 @@
                                                 <div class="d-inline-flex align-items-center gap-1">
                                                     {% if user.is_staff or user.is_superuser %}
                                                         {% if can_edit_convenience %}
-                                                            <a class="btn btn-outline-secondary btn-sm rounded-2" href="{% url 'convenience_edit' feature.id %}">編集</a>
+                                                            <a class="btn btn-outline-turquoise btn-sm rounded-2" href="{% url 'convenience_edit' feature.id %}">編集</a>
                                                         {% endif %}
                                                         {% if can_use_convenience_favorite %}
                                                             <button

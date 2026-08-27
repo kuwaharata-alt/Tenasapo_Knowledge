@@ -4,6 +4,28 @@
 {% block title %}Tips | Nexus{% endblock %}
 
 {% block content %}
+<style>
+    /* ターコイズグリーン（ティール系）の上品なボタン用カスタムスタイル */
+    .btn-outline-turquoise {
+        color: #0b9385 !important;
+        border-color: #0b9385 !important;
+        background-color: transparent !important;
+        transition: all 0.2s ease-in-out;
+    }
+    .btn-outline-turquoise:hover,
+    .btn-outline-turquoise:focus,
+    .btn-outline-turquoise:active {
+        color: #ffffff !important;
+        background-color: #0b9385 !important;
+        border-color: #0b9385 !important;
+    }
+    .btn-outline-turquoise:disabled {
+        color: #adb5bd !important;
+        border-color: #e9ecef !important;
+        background-color: transparent !important;
+        cursor: not-allowed;
+    }
+</style>
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
         <div class="me-md-auto">
@@ -287,11 +309,11 @@
                                                 <div class="d-flex align-items-center gap-1">
                                                     {% if can_edit_tip %}
                                                         {% if can_edit_tip %}
-                                                            <a class="btn btn-outline-secondary btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
+                                                            <a class="btn btn-outline-turquoise btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
                                                         {% endif %}
                                                         {% if tip.approval_status == 'approved' or tip.ai_review or tip.remand_reason %}
                                                             <button
-                                                                class="btn btn-outline-primary btn-sm flex-shrink-0 knowledge-review-btn"
+                                                                class="btn btn-outline-turquoise btn-sm flex-shrink-0 knowledge-review-btn"
                                                                 type="button"
                                                                 data-title="{{ tip.title|escapejs }}"
                                                                 data-approval-status="{{ tip.approval_status|default:'' }}"
@@ -300,7 +322,7 @@
                                                             >レビュー</button>
                                                         {% else %}
                                                             <button
-                                                                class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                                                class="btn btn-outline-turquoise btn-sm flex-shrink-0"
                                                                 type="button"
                                                                 disabled
                                                                 aria-disabled="true"

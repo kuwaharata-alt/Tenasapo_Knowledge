@@ -3,6 +3,29 @@
 {% block title %}ドキュメント保管庫 | Nexus{% endblock %}
 
 {% block content %}
+<style>
+    /* ターコイズグリーン（ティール系）の上品なボタン用カスタムスタイル */
+    .btn-outline-turquoise {
+        color: #0b9385 !important;
+        border-color: #0b9385 !important;
+        background-color: transparent !important;
+        transition: all 0.2s ease-in-out;
+    }
+    .btn-outline-turquoise:hover,
+    .btn-outline-turquoise:focus,
+    .btn-outline-turquoise:active {
+        color: #ffffff !important;
+        background-color: #0b9385 !important;
+        border-color: #0b9385 !important;
+    }
+    .btn-outline-turquoise:disabled {
+        color: #adb5bd !important;
+        border-color: #e9ecef !important;
+        background-color: transparent !important;
+        cursor: not-allowed;
+    }
+</style>
+
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
         <div class="me-md-auto">
@@ -30,7 +53,11 @@
             <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="案件番号・顧客名・製品名・バージョン・タイトルで検索" aria-label="案件番号・顧客名・製品名・バージョン・タイトルで検索">
         </div>
         <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-            <button class="btn btn-primary" type="submit">検索</button>
+            <button class="btn btn-primary text-nowrap" type="submit" style="min-height:38px;">検索</button>
+            <input type="checkbox" class="btn-check" id="btn-check-temp" name="template" value="true" {% if temp_only %}checked{% endif %} onchange="this.form.submit()">
+            <label class="btn {% if temp_only %}btn-warning text-dark{% else %}btn-outline-warning{% endif %} d-flex align-items-center gap-1 fw-bold text-nowrap" for="btn-check-temp" style="min-height:38px;">
+                <i class="bi {% if temp_only %}bi-star-fill{% else %}bi-star{% endif %}"></i> Tempのみ
+            </label>
         </div>
     </form>
 </div>
@@ -127,7 +154,12 @@
                                 <div class="row g-3 align-items-center">
                                     <div class="col-12 col-md-8 col-lg-8">
                                         <!-- ドキュメントタイトル -->
-                                        <h5 class="fw-bold text-dark mb-2">{{ document.title }}</h5>
+                                        <h5 class="fw-bold text-dark mb-2">
+                                            {% if document.is_template %}
+                                                <span class="badge bg-warning text-dark me-1" style="font-size: 0.75rem; vertical-align: middle;"><i class="bi bi-star-fill"></i> Temp</span>
+                                            {% endif %}
+                                            {{ document.title }}
+                                        </h5>
 
                                         <!-- 製品名（バージョン） -->
                                         {% if document.product_name %}
@@ -147,24 +179,24 @@
                                         <!-- 上段: 更新 履歴 -->
                                         <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
                                             {% if can_create_document %}
-                                                <a class="btn btn-outline-warning btn-sm text-nowrap" href="{% url 'project_document_edit' document.id %}"><i class="bi bi-pencil-square"></i> 更新</a>
+                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{% url 'project_document_edit' document.id %}"><i class="bi bi-pencil-square"></i> 更新</a>
                                             {% endif %}
-                                            <button class="btn btn-outline-success btn-sm text-nowrap" onclick="openHistoryModal(this)" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"><i class="bi bi-clock-history"></i> 履歴</button>
+                                            <button class="btn btn-outline-turquoise btn-sm text-nowrap" onclick="openHistoryModal(this)" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"><i class="bi bi-clock-history"></i> 履歴</button>
                                         </div>
                                         <!-- 下段: Office版 PDF版 表示 -->
                                         <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
                                             {% if document.download_office_url %}
-                                                <a class="btn btn-outline-primary btn-sm text-nowrap" href="{{ document.download_office_url }}?download=1"><i class="bi bi-file-earmark-word"></i> Office版</a>
+                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{{ document.download_office_url }}?download=1"><i class="bi bi-file-earmark-word"></i> Office版</a>
                                             {% else %}
-                                                <button class="btn btn-outline-primary btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-word"></i> Office版</button>
+                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-word"></i> Office版</button>
                                             {% endif %}
 
                                             {% if document.download_pdf_url %}
-                                                <a class="btn btn-outline-danger btn-sm text-nowrap" href="{{ document.download_pdf_url }}?download=1"><i class="bi bi-file-earmark-pdf"></i> PDF版</a>
-                                                <button class="btn btn-outline-info btn-sm text-nowrap" onclick="openPdfModal(this)" data-pdf-url="{{ document.download_pdf_url }}" data-pdf-title="{{ document.title }}"><i class="bi bi-eye"></i> 表示</button>
+                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{{ document.download_pdf_url }}?download=1"><i class="bi bi-file-earmark-pdf"></i> PDF版</a>
+                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" onclick="openPdfModal(this)" data-pdf-url="{{ document.download_pdf_url }}" data-pdf-title="{{ document.title }}"><i class="bi bi-eye"></i> 表示</button>
                                             {% else %}
-                                                <button class="btn btn-outline-danger btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-pdf"></i> PDF版</button>
-                                                <button class="btn btn-outline-info btn-sm text-nowrap" disabled><i class="bi bi-eye"></i> 表示</button>
+                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-pdf"></i> PDF版</button>
+                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-eye"></i> 表示</button>
                                             {% endif %}
                                         </div>
                                     </div>

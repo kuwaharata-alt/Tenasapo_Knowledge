@@ -848,6 +848,11 @@ class ProjectDocumentCreateForm(forms.Form):
         required=False,
         help_text='PDFファイルを選択してください。',
     )
+    is_template = forms.BooleanField(
+        label='テンプレートとして登録',
+        required=False,
+        help_text='このドキュメントをテンプレートとして使用する場合はチェックを入れてください。',
+    )
 
     def clean_file_office(self):
         uploaded_file = self.cleaned_data.get('file_office')
