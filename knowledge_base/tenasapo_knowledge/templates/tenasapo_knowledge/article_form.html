@@ -18,6 +18,7 @@
         <form class="card shadow-sm" method="post" enctype="multipart/form-data" id="articleMainForm">
             <div class="card-body p-4">
                 {% csrf_token %}
+                <input type="hidden" name="submit_action" id="id_submit_action" value="update">
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
@@ -294,7 +295,10 @@
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
                 <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
-                <button class="btn btn-primary" type="submit">{{ submit_label|default:"登録" }}</button>
+                {% if article %}
+                    <button class="btn btn-warning text-dark fw-semibold shadow-sm" type="submit" id="faqCorrectBtn">修正</button>
+                {% endif %}
+                <button class="btn btn-primary" type="submit" id="faqUpdateBtn">{{ submit_label|default:"登録" }}</button>
             </div>
         </form>
 
@@ -2035,6 +2039,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const articleMainForm = document.getElementById('articleMainForm');
+    const faqCorrectBtn = document.getElementById('faqCorrectBtn');
+    const faqUpdateBtn = document.getElementById('faqUpdateBtn');
+    const submitActionHidden = document.getElementById('id_submit_action');
+
+    if (faqCorrectBtn && submitActionHidden) {
+        faqCorrectBtn.addEventListener('click', function() {
+            submitActionHidden.value = 'correct';
+        });
+    }
+    if (faqUpdateBtn && submitActionHidden) {
+        faqUpdateBtn.addEventListener('click', function() {
+            submitActionHidden.value = 'update';
+        });
+    }
+
     let isFaqPreviewConfirmed = false;
     let renderFaqPreviewRequest = null;
     const previewRenderUrl = "{% url 'preview_render' %}";

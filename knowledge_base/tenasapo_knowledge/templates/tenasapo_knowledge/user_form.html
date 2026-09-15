@@ -77,6 +77,22 @@
                         </select>
                         {% for error in form.user_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
+                    <div class="col-12 col-md-6 d-flex align-items-end">
+                        <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center gap-2 py-2 px-3 w-100" style="min-height: 38px;">
+                            <input
+                                class="form-check-input ms-0{% if form.exclude_from_analysis.errors %} is-invalid{% endif %}"
+                                type="checkbox"
+                                role="switch"
+                                name="{{ form.exclude_from_analysis.html_name }}"
+                                id="{{ form.exclude_from_analysis.id_for_label }}"
+                                {% if form.exclude_from_analysis.value %}checked{% endif %}
+                            >
+                            <label class="form-check-label fw-bold cursor-pointer text-dark small" for="{{ form.exclude_from_analysis.id_for_label }}">
+                                {{ form.exclude_from_analysis.label }}
+                            </label>
+                        </div>
+                        {% for error in form.exclude_from_analysis.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
                     <div class="col-12 col-md-6">
                         <label class="form-label">所属役割</label>
                         <div class="border rounded p-3{% if form.groups.errors %} border-danger{% endif %}">

@@ -40,6 +40,11 @@ class Command(BaseCommand):
             action='store_true',
             help='図（画像）の生成と送信を行わず、従来のテキストグラフのみで送信します。',
         )
+        parser.add_argument(
+            '--include-hidden',
+            action='store_true',
+            help='非表示トグルが有効なユーザーも含めて集計・通知を行います。',
+        )
 
     def make_progress_bar(self, count, target=1):
         """10文字の進捗バーの文字列を生成します。"""
@@ -217,6 +222,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         dry_run = options.get('dry_run', False)
         text_only = options.get('text_only', False)
+        include_hidden = options.get('include_hidden', False)
         today = timezone.localdate()
         current_month_start = today.replace(day=1)
 
@@ -229,9 +235,16 @@ class Command(BaseCommand):
         excluded_contributor_names = {'admin'}
 
         # メンバーの取得
-        users = User.objects.filter(
+        users_qs = User.objects.filter(
             groups__name=CONTRIBUTOR_GROUP_NAME
-        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
+        ).distinct().prefetch_related('knowledge_profile')
+
+        if not include_hidden:
+            users_qs = users_qs.filter(
+                knowledge_profile__exclude_from_analysis=False
+            )
+
+        users = users_qs.order_by('knowledge_profile__uid', 'id')
 
         members = []
         member_map = {}

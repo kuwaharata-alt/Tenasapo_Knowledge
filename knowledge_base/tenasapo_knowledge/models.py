@@ -140,6 +140,10 @@ class UserProfile(models.Model):
         default=True,
         help_text='Google認証で初回ログインした際の初回登録フォーム完了フラグ。False=フォーム表示が必要。',
     )
+    exclude_from_analysis = models.BooleanField(
+        'アナライズから除外する',
+        default=False,
+    )
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -212,6 +216,7 @@ class KnowledgeArticle(models.Model):
     body = models.TextField('本文')
     is_published = models.BooleanField('公開', default=True)
     is_approved = models.BooleanField('承認済み', default=True)
+    is_corrected = models.BooleanField('修正済み', default=False)
     standard_contract_only = models.BooleanField('テナサポStandard契約者限定', default=False)
     visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)
@@ -365,6 +370,7 @@ class TipsArticle(models.Model):
     pdf_file = models.FileField('PDFファイル', upload_to='tips_attachments/%Y/%m/', blank=True)
     is_published = models.BooleanField('公開', default=True)
     is_approved = models.BooleanField('承認済み', default=True)
+    is_corrected = models.BooleanField('修正済み', default=False)
     standard_contract_only = models.BooleanField('テナサポStandard契約者限定', default=False)
     visible_to_customer = models.BooleanField('カスタマーユーザー向け表示', default=True)
     visible_to_systena = models.BooleanField('システナユーザー向け表示', default=True)

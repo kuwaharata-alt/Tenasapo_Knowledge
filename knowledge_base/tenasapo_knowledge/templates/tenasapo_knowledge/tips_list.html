@@ -258,7 +258,12 @@
                                                 {% if not current_user_is_customer and tip.management_code %}<span class="badge text-bg-light border text-muted" style="font-size:0.7rem;">{{ tip.management_code }}</span>{% endif %}
                                             </div>
                                             <div class="flex-grow-1">
-                                                   <div class="faq-question-title fw-semibold">{{ tip.title }}</div>
+                                                   <div class="faq-question-title fw-semibold">
+                                                       {% if tip.is_new_badge %}
+                                                           <span class="badge text-bg-danger me-1 flex-shrink-0" style="font-size: 0.65rem; vertical-align: middle;">New</span>
+                                                       {% endif %}
+                                                       <span style="vertical-align: middle;">{{ tip.title }}</span>
+                                                   </div>
                                                 {% if tip.can_view_content and tip.category_chips %}
                                                     <div class="d-flex flex-wrap gap-2 mt-2">
                                                         {% for category in tip.category_chips %}
@@ -276,34 +281,10 @@
                                             </div>
                                             <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
                                                 {% if can_edit_tip %}
-                                                    <div class="d-flex align-items-center gap-1">
-                                                        {% if tip.is_new_badge %}
-                                                            <span class="badge text-bg-danger flex-shrink-0" style="font-size: 0.65rem;">New</span>
-                                                        {% endif %}
-                                                        {% if tip.is_approved and tip.visible_to_customer %}
-                                                            <span class="badge bg-success flex-shrink-0" style="font-size: 0.65rem;">公開中</span>
-                                                        {% endif %}
-                                                        {% if approval_enabled and can_view_approval_meta %}
-                                                            {% if tip.approval_status == 'approved' %}
-                                                                <span class="badge text-bg-success flex-shrink-0" style="font-size: 0.65rem;">承認済</span>
-                                                            {% elif tip.approval_status == 'remanded' %}
-                                                                {% if tip.remand_reason %}
-                                                                    <button
-                                                                        class="btn badge text-bg-warning border-0 flex-shrink-0 knowledge-review-btn"
-                                                                        style="font-size: 0.65rem;"
-                                                                        type="button"
-                                                                        data-title="{{ tip.title|escapejs }}"
-                                                                        data-approval-status="{{ tip.approval_status|default:'' }}"
-                                                                        data-ai-review="{{ tip.ai_review|default:''|escapejs }}"
-                                                                        data-remand-reason="{{ tip.remand_reason|default:''|escapejs }}"
-                                                                    >差戻し</button>
-                                                                {% else %}
-                                                                    <span class="badge text-bg-warning flex-shrink-0" style="font-size: 0.65rem;">差戻し</span>
-                                                                {% endif %}
-                                                            {% else %}
-                                                                <span class="badge text-bg-secondary flex-shrink-0" style="font-size: 0.65rem;">登録</span>
-                                                            {% endif %}
-                                                        {% endif %}
+                                                    <div class="d-flex align-items-center gap-1 mb-1">
+                                                        <span style="font-size: 0.8rem; color: #6c757d;" class="fw-semibold">
+                                                            ステータス：{% if tip.is_approved %}公開中(承認済){% elif tip.approval_status == 'corrected' %}修正{% elif tip.approval_status == 'remanded' %}差戻し{% else %}登録{% endif %}
+                                                        </span>
                                                     </div>
                                                 {% endif %}
                                                 <div class="d-flex align-items-center gap-1">

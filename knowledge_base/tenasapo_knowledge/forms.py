@@ -983,6 +983,11 @@ class UserCreateForm(forms.Form):
         required=False,
         widget=forms.Textarea(attrs={'rows': 4}),
     )
+    exclude_from_analysis = forms.BooleanField(
+        label='アナライズから除外する',
+        required=False,
+        initial=False,
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1093,6 +1098,11 @@ class UserUpdateForm(forms.Form):
     skip_login_lp = forms.BooleanField(
         label='次回ログイン時はLPを表示しない',
         required=False,
+    )
+    exclude_from_analysis = forms.BooleanField(
+        label='アナライズから除外する',
+        required=False,
+        initial=False,
     )
 
     def __init__(self, *args, **kwargs):

@@ -1064,6 +1064,8 @@ def can_use_convenience_favorite(user):
 def approval_status_value(item):
     if item.is_approved:
         return 'approved'
+    if getattr(item, 'is_corrected', False):
+        return 'corrected'
     if (item.remand_reason or '').strip():
         return 'remanded'
     return 'registered'
@@ -2679,9 +2681,16 @@ class TipsUpdateView(FormView):
         self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
         self.tip.reference_links = reference_links
+
+        submit_action = self.request.POST.get('submit_action')
+        is_corrected_click = False
+        if submit_action == 'correct':
+            self.tip.is_corrected = True
+            is_corrected_click = True
+
         update_fields = [
             'title', 'tags', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
-            'visible_to_customer', 'visible_to_systena', 'reference_links', 'updated_at',
+            'visible_to_customer', 'visible_to_systena', 'reference_links', 'is_corrected', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
             self.tip.pdf_file.delete(save=False)
@@ -2695,7 +2704,10 @@ class TipsUpdateView(FormView):
         self.tip.save(update_fields=update_fields)
         TipsCreateView.save_inline_images(self.tip, form)
         TipsCreateView.save_file_attachments(self.tip, form)
-        messages.success(self.request, f'Tips「{self.tip.title}」を更新しました。')
+        if is_corrected_click:
+            messages.success(self.request, f'Tips「{self.tip.title}」をお知らせに「修正」ステータスで提出しました。')
+        else:
+            messages.success(self.request, f'Tips「{self.tip.title}」を更新しました。')
         return super().form_valid(form)
 
 
@@ -2758,7 +2770,8 @@ class TipsRemandView(View):
         tip.approved_by_name = ''
         tip.ai_review = ai_review
         tip.remand_reason = reason
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        tip.is_corrected = False
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=tip.management_code,
@@ -2785,7 +2798,8 @@ class TipsApprovalResetView(View):
         tip.approved_by_name = ''
         tip.ai_review = ''
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        tip.is_corrected = False
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'tip_edit', pk=pk))
 
@@ -3179,10 +3193,20 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             ).order_by('-created_at')
         )
 
+        include_hidden = self.request.GET.get('include_hidden') == '1'
+        context['include_hidden'] = include_hidden
+
         User = get_user_model()
-        summary_users = User.objects.filter(
+        summary_users_qs = User.objects.filter(
             groups__name=CONTRIBUTOR_GROUP_NAME
-        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
+        ).distinct().prefetch_related('knowledge_profile')
+
+        if not include_hidden:
+            summary_users_qs = summary_users_qs.filter(
+                knowledge_profile__exclude_from_analysis=False
+            )
+
+        summary_users = summary_users_qs.order_by('knowledge_profile__uid', 'id')
 
         member_map = {}
         member_monthly_map = {}
@@ -3646,10 +3670,19 @@ class SummaryPDFView(StaffRequiredMixin, View):
             ).order_by('-created_at')
         )
 
+        include_hidden = self.request.GET.get('include_hidden') == '1'
+
         User = get_user_model()
-        summary_users = User.objects.filter(
+        summary_users_qs = User.objects.filter(
             groups__name=CONTRIBUTOR_GROUP_NAME
-        ).distinct().prefetch_related('knowledge_profile').order_by('knowledge_profile__uid', 'id')
+        ).distinct().prefetch_related('knowledge_profile')
+
+        if not include_hidden:
+            summary_users_qs = summary_users_qs.filter(
+                knowledge_profile__exclude_from_analysis=False
+            )
+
+        summary_users = summary_users_qs.order_by('knowledge_profile__uid', 'id')
 
         member_map = {}
         member_current_month_map = {}
@@ -3699,10 +3732,15 @@ class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
         import io
         from django.http import JsonResponse
 
+        include_hidden = (request.POST.get('include_hidden') or request.GET.get('include_hidden')) == '1'
+
         try:
             # notify_monthly_posts コマンドを内部コールして送信処理
             out = io.StringIO()
-            call_command('notify_monthly_posts', stdout=out)
+            kwargs_cmd = {}
+            if include_hidden:
+                kwargs_cmd['include_hidden'] = True
+            call_command('notify_monthly_posts', stdout=out, **kwargs_cmd)
             output_msg = out.getvalue()
             
             return JsonResponse({
@@ -4229,6 +4267,13 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         self.article.source_published_at = form.cleaned_data['source_published_at']
         self.article.expires_on = form.cleaned_data['expires_on']
         self.article.reference_links = reference_links
+
+        submit_action = self.request.POST.get('submit_action')
+        is_corrected_click = False
+        if submit_action == 'correct':
+            self.article.is_corrected = True
+            is_corrected_click = True
+
         self.article.save(
             update_fields=[
                 'category',
@@ -4242,13 +4287,17 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'source_published_at',
                 'expires_on',
                 'reference_links',
+                'is_corrected',
                 'updated_at',
             ]
         )
         KnowledgeArticleCreateView.save_question_images(self.article, form)
         KnowledgeArticleCreateView.save_answer_images(self.article, form)
         KnowledgeArticleCreateView.save_file_attachments(self.article, form)
-        messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
+        if is_corrected_click:
+            messages.success(self.request, f'FAQ「{self.article.title}」をお知らせに「修正」ステータスで提出しました。')
+        else:
+            messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
         return super().form_valid(form)
 
 
@@ -4302,7 +4351,8 @@ class KnowledgeArticleApprovalResetView(View):
         article.approved_by_name = ''
         article.ai_review = ''
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        article.is_corrected = False
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
         messages.success(request, f'FAQ「{article.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'article_edit', pk=pk))
 
@@ -4322,7 +4372,8 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         article.approved_by_name = ''
         article.ai_review = ai_review
         article.remand_reason = reason
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        article.is_corrected = False
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=article.management_code,
@@ -4628,6 +4679,7 @@ class UserCreateView(StaffRequiredMixin, FormView):
             user_type=user_type,
             email_addresses=email,
             note=form.cleaned_data['note'],
+            exclude_from_analysis=form.cleaned_data.get('exclude_from_analysis', False),
         )
 
         customer, _ = Customer.objects.get_or_create(name=company_name)
@@ -5178,6 +5230,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
             'department': profile.department if profile else '',
             'note': profile.note if profile else '',
             'skip_login_lp': profile.skip_login_lp if profile else False,
+            'exclude_from_analysis': profile.exclude_from_analysis if profile else False,
         }
 
     def get_form(self, form_class=None):
@@ -5265,6 +5318,7 @@ class UserUpdateView(StaffOrSelfRequiredMixin, FormView):
         profile.email_addresses = email
         profile.note = form.cleaned_data['note']
         profile.skip_login_lp = form.cleaned_data.get('skip_login_lp', False)
+        profile.exclude_from_analysis = form.cleaned_data.get('exclude_from_analysis', False)
         profile.save()
 
         # 顧客を更新
