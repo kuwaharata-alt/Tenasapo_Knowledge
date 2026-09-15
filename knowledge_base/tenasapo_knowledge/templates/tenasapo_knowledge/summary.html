@@ -723,9 +723,18 @@ document.addEventListener('DOMContentLoaded', function() {
         plugins: [totalLabelPlugin],
         options: {
             maintainAspectRatio: false,
+            layout: {
+                padding: {
+                    top: 25
+                }
+            },
             plugins: {
                 legend: {
                     display: true,
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15
+                    }
                 },
                 tooltip: {
                     callbacks: {
