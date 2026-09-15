@@ -725,7 +725,7 @@ document.addEventListener('DOMContentLoaded', function() {
             maintainAspectRatio: false,
             layout: {
                 padding: {
-                    top: 25
+                    top: 40
                 }
             },
             plugins: {
@@ -733,7 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     display: true,
                     labels: {
                         boxWidth: 12,
-                        padding: 15
+                        padding: 25
                     }
                 },
                 tooltip: {
@@ -752,6 +752,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: {
                     stacked: true,
                     beginAtZero: true,
+                    grace: '25%',
                     ticks: {
                         precision: 0,
                     },
