@@ -3144,6 +3144,11 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         if selected_period not in {'all', 'current', 'previous'}:
             selected_period = 'all'
 
+        sort_by = (self.request.GET.get('sort_by') or 'no').strip().lower()
+        if sort_by not in {'no', 'post_count'}:
+            sort_by = 'no'
+        context['sort_by'] = sort_by
+
         from_date = None
         to_date = None
         today = timezone.localdate()
@@ -3392,13 +3397,23 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
             item['monthly_totals'] = monthly_totals
 
-        member_summaries.sort(
-            key=lambda item: (
-                member_order_map.get(item['name'], 10**9),
-                item['management_uid'] or '999999',
-                item['name'].lower(),
+        if sort_by == 'post_count':
+            member_summaries.sort(
+                key=lambda item: (
+                    -item['post_count_total'],
+                    member_order_map.get(item['name'], 10**9),
+                    item['management_uid'] or '999999',
+                    item['name'].lower(),
+                )
             )
-        )
+        else:
+            member_summaries.sort(
+                key=lambda item: (
+                    member_order_map.get(item['name'], 10**9),
+                    item['management_uid'] or '999999',
+                    item['name'].lower(),
+                )
+            )
 
         context['selected_period'] = selected_period
         context['member_summaries'] = member_summaries
@@ -3671,6 +3686,9 @@ class SummaryPDFView(StaffRequiredMixin, View):
         )
 
         include_hidden = self.request.GET.get('include_hidden') == '1'
+        sort_by = (self.request.GET.get('sort_by') or 'no').strip().lower()
+        if sort_by not in {'no', 'post_count'}:
+            sort_by = 'no'
 
         User = get_user_model()
         summary_users_qs = User.objects.filter(
@@ -3720,40 +3738,6 @@ class SummaryPDFView(StaffRequiredMixin, View):
                 }
                 member_current_month_map[name] = node
             return node
-
-
-class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
-    """
-    アナライズサマリ画面から直接 Google Chat への進捗状況通知を送信する
-    ボタン用 API コールバック。
-    """
-    def post(self, request, *args, **kwargs):
-        from django.core.management import call_command
-        import io
-        from django.http import JsonResponse
-
-        include_hidden = (request.POST.get('include_hidden') or request.GET.get('include_hidden')) == '1'
-
-        try:
-            # notify_monthly_posts コマンドを内部コールして送信処理
-            out = io.StringIO()
-            kwargs_cmd = {}
-            if include_hidden:
-                kwargs_cmd['include_hidden'] = True
-            call_command('notify_monthly_posts', stdout=out, **kwargs_cmd)
-            output_msg = out.getvalue()
-            
-            return JsonResponse({
-                'ok': True,
-                'message': 'Google Chat への状況通知を送信しました！',
-                'detail': output_msg.strip()
-            })
-        except Exception as exc:
-            return JsonResponse({
-                'ok': False,
-                'error': f'送信エラーが発生しました: {str(exc)}'
-            }, status=500)
-
 
         for user in summary_users:
             display_name = resolve_user_display_name(user).strip()
@@ -3836,13 +3820,23 @@ class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
             item['current_month_approved_count_total'] = current_month.get('approved_count_total', 0)
             item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
 
-        member_summaries.sort(
-            key=lambda item: (
-                member_order_map.get(item['name'], 10**9),
-                item['management_uid'] or '999999',
-                item['name'].lower(),
+        if sort_by == 'post_count':
+            member_summaries.sort(
+                key=lambda item: (
+                    -item['post_count_total'],
+                    member_order_map.get(item['name'], 10**9),
+                    item['management_uid'] or '999999',
+                    item['name'].lower(),
+                )
             )
-        )
+        else:
+            member_summaries.sort(
+                key=lambda item: (
+                    member_order_map.get(item['name'], 10**9),
+                    item['management_uid'] or '999999',
+                    item['name'].lower(),
+                )
+            )
 
         summary_totals = {
             'approved_count_total': sum(item['approved_count_total'] for item in member_summaries),
@@ -4007,6 +4001,39 @@ class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
         response = HttpResponse(buffer.read(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="analysis_report_{today.strftime("%Y%m%d")}.pdf"'
         return response
+
+
+class SummaryNotifyChatAPIView(StaffRequiredMixin, View):
+    """
+    アナライズサマリ画面から直接 Google Chat への進捗状況通知を送信する
+    ボタン用 API コールバック。
+    """
+    def post(self, request, *args, **kwargs):
+        from django.core.management import call_command
+        import io
+        from django.http import JsonResponse
+
+        include_hidden = (request.POST.get('include_hidden') or request.GET.get('include_hidden')) == '1'
+
+        try:
+            # notify_monthly_posts コマンドを内部コールして送信処理
+            out = io.StringIO()
+            kwargs_cmd = {}
+            if include_hidden:
+                kwargs_cmd['include_hidden'] = True
+            call_command('notify_monthly_posts', stdout=out, **kwargs_cmd)
+            output_msg = out.getvalue()
+            
+            return JsonResponse({
+                'ok': True,
+                'message': 'Google Chat への状況通知を送信しました！',
+                'detail': output_msg.strip()
+            })
+        except Exception as exc:
+            return JsonResponse({
+                'ok': False,
+                'error': f'送信エラーが発生しました: {str(exc)}'
+            }, status=500)
 
 
 class ArticleEditorRequiredMixin(UserPassesTestMixin):

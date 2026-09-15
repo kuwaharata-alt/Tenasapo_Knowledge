@@ -30,6 +30,25 @@
                     <div class="small text-muted mb-3" style="font-size: 0.75rem; line-height: 1.4;">
                         成果分析から除外されているメンバーのデータも含めて、表示・PDF・チャット通知を行います。
                     </div>
+
+                    <h6 class="dropdown-header px-0 mb-2 border-bottom pb-2 fw-bold text-dark d-flex align-items-center gap-1">
+                        <i class="bi bi-sort-numeric-down"></i> 表示順設定
+                    </h6>
+                    <div class="mb-3">
+                        <div class="form-check cursor-pointer">
+                            <input class="form-check-input cursor-pointer" type="radio" name="sortBy" id="sortNo" value="no" {% if sort_by != 'post_count' %}checked{% endif %}>
+                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="sortNo">
+                                No順
+                            </label>
+                        </div>
+                        <div class="form-check cursor-pointer mt-1">
+                            <input class="form-check-input cursor-pointer" type="radio" name="sortBy" id="sortPostCount" value="post_count" {% if sort_by == 'post_count' %}checked{% endif %}>
+                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="sortPostCount">
+                                投稿数順
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="d-flex justify-content-end gap-1">
                         <button type="button" class="btn btn-primary btn-sm px-3 fw-bold" id="btnApplySettings">適用する</button>
                     </div>
@@ -39,7 +58,7 @@
             <button id="btnNotifyChat" class="btn btn-outline-success" title="当月の投稿進捗をGoogle Chatへ通知します">
                 <i class="bi bi-chat-dots me-1"></i>チャット通知
             </button>
-            <a href="{% url 'summary_pdf' %}{% if include_hidden %}?include_hidden=1{% endif %}" class="btn btn-outline-primary" target="_blank" id="btnPdfReport" title="PDFレポートをダウンロード">
+            <a href="{% url 'summary_pdf' %}?sort_by={{ sort_by }}{% if include_hidden %}&include_hidden=1{% endif %}" class="btn btn-outline-primary" target="_blank" id="btnPdfReport" title="PDFレポートをダウンロード">
                 <i class="bi bi-file-pdf me-1"></i>PDFレポート
             </a>
         </div>
@@ -73,8 +92,21 @@
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-                        <h2 class="h5 faq-group-title mb-0">メンバーの投稿数</h2>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="投稿集計期間">
+                        <div class="d-flex flex-column gap-1">
+                            <h2 class="h5 faq-group-title mb-0">メンバーの投稿数</h2>
+                            <!-- カスタム凡例（メンバー投稿数の真下に配置） -->
+                            <div class="d-flex align-items-center gap-3" style="font-size: 0.8rem; font-weight: 600; color: #555;">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(232, 117, 36, 0.82); vertical-align: middle;"></span>
+                                    <span style="vertical-align: middle;">FAQ</span>
+                                </div>
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(73, 136, 232, 0.82); vertical-align: middle;"></span>
+                                    <span style="vertical-align: middle;">Tips</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="btn-group btn-group-sm align-self-start align-self-md-center" role="group" aria-label="投稿集計期間">
                             <a href="{% url 'summary' %}?period=all" class="btn {% if selected_period == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">全期間</a>
                             <a href="{% url 'summary' %}?period=current" class="btn {% if selected_period == 'current' %}btn-primary{% else %}btn-outline-primary{% endif %}">当月</a>
                             <a href="{% url 'summary' %}?period=previous" class="btn {% if selected_period == 'previous' %}btn-primary{% else %}btn-outline-primary{% endif %}">前月</a>
@@ -661,6 +693,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    // データの最大合計値を算出して suggestedMax を動的に設定（トータルラベルの余白確保＆データ0件のバグ防止）
+    let maxValTotal = 0;
+    for (let i = 0; i < labels.length; i += 1) {
+        const fVal = Number(faqPostCounts[i]) || 0;
+        const tVal = Number(tipsPostCounts[i]) || 0;
+        if (fVal + tVal > maxValTotal) {
+            maxValTotal = fVal + tVal;
+        }
+    }
+    const calculatedSuggestedMax = maxValTotal > 0 ? Math.ceil(maxValTotal * 1.3) : 5;
+
     const totalLabelPlugin = {
         id: 'totalLabelPlugin',
         afterDatasetsDraw(chart) {
@@ -725,16 +768,12 @@ document.addEventListener('DOMContentLoaded', function() {
             maintainAspectRatio: false,
             layout: {
                 padding: {
-                    top: 40
+                    top: 15
                 }
             },
             plugins: {
                 legend: {
-                    display: true,
-                    labels: {
-                        boxWidth: 12,
-                        padding: 25
-                    }
+                    display: false,
                 },
                 tooltip: {
                     callbacks: {
@@ -752,7 +791,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: {
                     stacked: true,
                     beginAtZero: true,
-                    grace: '25%',
+                    suggestedMax: calculatedSuggestedMax,
                     ticks: {
                         precision: 0,
                     },
@@ -816,12 +855,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const toggleIncludeHidden = document.getElementById('toggleIncludeHidden');
             const isChecked = toggleIncludeHidden ? toggleIncludeHidden.checked : false;
             
+            const selectedSort = document.querySelector('input[name="sortBy"]:checked');
+            const sortBy = selectedSort ? selectedSort.value : 'no';
+            
             const url = new URL(window.location.href);
             if (isChecked) {
                 url.searchParams.set('include_hidden', '1');
             } else {
                 url.searchParams.delete('include_hidden');
             }
+            url.searchParams.set('sort_by', sortBy);
             window.location.href = url.toString();
         });
     }
