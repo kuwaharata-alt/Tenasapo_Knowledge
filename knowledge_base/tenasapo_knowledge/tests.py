@@ -2101,6 +2101,16 @@ class ProjectDocumentTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse('home'), fetch_redirect_response=False)
 
+    def test_project_document_list_customer_profile_only_blocked(self):
+        User = get_user_model()
+        profile_only_customer = User.objects.create_user(username='profile_only_customer_doc', password='password')
+        UserProfile.objects.create(user=profile_only_customer, user_type='customer', company_name='プロファイル顧客')
+
+        self.client.force_login(profile_only_customer)
+        response = self.client.get(reverse('project_document_list'))
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse('home'), fetch_redirect_response=False)
+
     def test_project_document_list_staff_allowed(self):
         self.client.force_login(self.staff_user)
         response = self.client.get(reverse('project_document_list'))

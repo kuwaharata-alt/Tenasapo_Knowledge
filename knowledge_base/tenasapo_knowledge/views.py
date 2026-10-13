@@ -1038,11 +1038,18 @@ def is_customer_user(user):
     if forced_mode in ACCOUNT_VIEW_MODES:
         return user.is_authenticated
 
-    return (
-        user.is_authenticated
-        and in_group(user, CUSTOMER_GROUP_NAME)
-        and not (user.is_staff or user.is_superuser)
-    )
+    if not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_superuser:
+        return False
+    if is_demo_user(user):
+        return True
+
+    profile = getattr(user, 'knowledge_profile', None)
+    if profile is not None:
+        return profile.user_type == UserProfile.USER_TYPE_CUSTOMER
+
+    return in_group(user, CUSTOMER_GROUP_NAME)
 
 
 def can_use_favorite(user):
