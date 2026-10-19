@@ -144,6 +144,11 @@ class UserProfile(models.Model):
         'アナライズから除外する',
         default=False,
     )
+    demo_account_expires_at = models.DateTimeField(
+        'デモアカウント有効期限',
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 

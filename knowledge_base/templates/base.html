@@ -670,6 +670,9 @@
             border-radius: 1rem;
             box-shadow: none;
             padding: 1rem 1.2rem;
+            position: sticky;
+            top: calc(var(--tk-navbar-offset) + 0.45rem);
+            z-index: 1020;
         }
         .page-title-main {
             color: var(--tk-primary-dark);
@@ -701,10 +704,11 @@
 <body>
     <nav class="navbar navbar-expand-lg border-bottom fixed-top">
         <div class="container">
-            <a class="navbar-brand brand-title" href="{% url 'home' %}">
+            <a class="navbar-brand brand-title" href="{% block navbar_brand_href %}{% url 'home' %}{% endblock %}">
                 <img class="brand-logo" src="{% static 'systena_logo.png' %}" alt="Systena">
                 <span>Tenasapo Knowledge</span>
             </a>
+            {% block navbar_actions %}
             {% if user.is_authenticated %}
                 <div class="d-flex align-items-center gap-3">
                     <div class="d-flex align-items-center gap-2">
@@ -792,20 +796,23 @@
                     </div>
                 </div>
             {% endif %}
+            {% endblock %}
         </div>
     </nav>
 
     <main class="container py-4">
-        {% if messages %}
-            <div class="mb-4">
-                {% for message in messages %}
-                    <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'debug' %}secondary{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+        {% block page_messages %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for message in messages %}
+                        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'debug' %}secondary{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endblock %}
         {% block content %}{% endblock %}
     </main>
 

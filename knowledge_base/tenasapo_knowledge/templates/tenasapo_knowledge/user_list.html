@@ -2,8 +2,72 @@
 
 {% block title %}ユーザー一覧 | Nexus{% endblock %}
 
+{% block page_messages %}{% endblock %}
+
 {% block content %}
 
+<style>
+@media (min-width: 992px) {
+    html,
+    body {
+        height: 100%;
+        overflow: hidden;
+    }
+    main.container.py-4 {
+        height: calc(100vh - var(--tk-navbar-offset) - 3rem);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    .user-page-shell {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .user-page-shell > .page-title-panel {
+        position: static;
+        top: auto;
+    }
+    .user-list-layout {
+        flex: 1;
+        min-height: 0;
+        align-items: stretch !important;
+    }
+    .user-list-layout > [class*="col-"] {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .user-filter-sticky {
+        height: 100%;
+        max-height: 100%;
+        overflow-y: auto;
+    }
+    .user-list-right {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+    }
+    .user-search-sticky {
+        background: var(--tk-bg);
+        padding-bottom: 0.5rem;
+    }
+    .user-list-scroll {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+    .user-list-pagination-sticky {
+        background: var(--tk-bg);
+        padding-top: 0.6rem;
+    }
+}
+</style>
+
+<div class="user-page-shell">
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
@@ -13,42 +77,53 @@
             <p class="page-title-sub">管理者アカウントのみ利用できます。</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary" type="button" data-bs-toggle="modal" data-bs-target="#demoAccountIssueModal">デモアカウント発行</button>
+            <div class="dropdown">
+                <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">アカウント発行</button>
+                <ul class="dropdown-menu">
+                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#contractAccountIssueModal">契約アカウントの発行</button></li>
+                    <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#demoAccountIssueModal">デモアカウントの発行</button></li>
+                </ul>
+            </div>
             <a class="btn btn-primary" href="{% url 'user_create' %}">ユーザー作成</a>
         </div>
     </div>
 </div>
 
-{% for message in messages %}
-    {% if 'user' in message.tags %}
-        <div class="alert alert-{{ message.level_tag }}" role="alert">{{ message }}</div>
-    {% endif %}
-{% endfor %}
+{% if messages %}
+    <div class="mb-4">
+        {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'debug' %}secondary{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
 
-<div class="row g-4 align-items-start mb-4">
+<div class="row g-4 align-items-start mb-0 user-list-layout">
     <div class="col-12 col-lg-3">
-        <div class="card shadow-sm">
+        <div class="card shadow-sm user-filter-sticky">
             <div class="card-body p-3">
                 <h2 class="h6 mb-3">ユーザーフィルター</h2>
                 <div class="d-grid gap-2">
-                    <a class="btn {% if selected_scope == 'all' and not selected_department and not selected_profile_group and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=all">
+                    <a class="btn {% if selected_scope == 'all' and not selected_department and not selected_profile_group and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=all">
                         すべて（{{ user_filter_tree.all_count }}）
                     </a>
 
                     <div class="border rounded p-2 bg-light-subtle">
-                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'systena' %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena">
+                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'systena' %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena">
                             システナ（{{ user_filter_tree.systena_count }}）
                         </a>
                         <div class="small">
                             {% for department_node in user_filter_tree.systena_departments %}
                                 <div class="mb-2">
-                                    <a class="fw-semibold text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and not selected_profile_group %}text-primary{% else %}text-body{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}">
+                                    <a class="fw-semibold text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and not selected_profile_group %}text-primary{% else %}text-body{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}">
                                         {{ department_node.department_label }}（{{ department_node.count }}）
                                     </a>
                                     {% if department_node.groups %}
                                         <div class="ps-3 mt-1 d-flex flex-column gap-1">
                                             {% for group_node in department_node.groups %}
-                                                <a class="text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and selected_profile_group == group_node.name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}&profile_group={{ group_node.name|urlencode }}">
+                                                <a class="text-decoration-none {% if selected_scope == 'systena' and selected_department == department_node.department_value and selected_profile_group == group_node.name %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=systena&department={{ department_node.department_value|urlencode }}&profile_group={{ group_node.name|urlencode }}">
                                                     {{ group_node.name }}（{{ group_node.count }}）
                                                 </a>
                                             {% endfor %}
@@ -62,12 +137,12 @@
                     </div>
 
                     <div class="border rounded p-2 bg-light-subtle">
-                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'customer' and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer">
+                        <a class="btn btn-sm w-100 mb-2 {% if selected_scope == 'customer' and not selected_customer_name %}btn-primary{% else %}btn-outline-primary{% endif %} text-start" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer">
                             カスタマー（{{ user_filter_tree.customer_count }}）
                         </a>
                         <div class="small d-flex flex-column gap-1">
                             {% for customer_node in user_filter_tree.customers %}
-                                <a class="text-decoration-none {% if selected_scope == 'customer' and selected_customer_name == customer_node.company_name_value %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_role %}role={{ selected_role|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer&customer_name={{ customer_node.company_name_value|urlencode }}">
+                                <a class="text-decoration-none {% if selected_scope == 'customer' and selected_customer_name == customer_node.company_name_value %}text-primary fw-semibold{% else %}text-body-secondary{% endif %}" href="{% url 'user_list' %}?{% if query %}q={{ query|urlencode }}&{% endif %}{% if selected_authority %}authority={{ selected_authority|urlencode }}&{% endif %}scope=customer&customer_name={{ customer_node.company_name_value|urlencode }}">
                                     {{ customer_node.company_name_label }}（{{ customer_node.count }}）
                                 </a>
                             {% empty %}
@@ -80,63 +155,100 @@
         </div>
     </div>
 
-    <div class="col-12 col-lg-9">
-        <form class="row gy-2 gx-2 align-items-end mb-3" method="get">
-            <input type="hidden" name="scope" value="{{ selected_scope }}">
-            <input type="hidden" name="department" value="{{ selected_department }}">
-            <input type="hidden" name="profile_group" value="{{ selected_profile_group }}">
-            <input type="hidden" name="customer_name" value="{{ selected_customer_name }}">
-            <div class="col-12 col-md-4">
-                <label class="form-label" for="q">検索</label>
-                <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
+    <div class="col-12 col-lg-9 user-list-right">
+        <div class="user-search-sticky card shadow-sm mb-3">
+            <div class="card-body p-3">
+            <form class="row gy-2 gx-2 align-items-end mb-0" method="get">
+                <input type="hidden" name="scope" value="{{ selected_scope }}">
+                <input type="hidden" name="department" value="{{ selected_department }}">
+                <input type="hidden" name="profile_group" value="{{ selected_profile_group }}">
+                <input type="hidden" name="customer_name" value="{{ selected_customer_name }}">
+                <div class="col-12 col-md-6">
+                    <label class="form-label" for="q">検索</label>
+                    <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名・管理番号で検索">
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label" for="authority">権限</label>
+                    <select class="form-select" id="authority" name="authority">
+                        <option value="">すべて</option>
+                        <option value="super_admin" {% if selected_authority == 'super_admin' %}selected{% endif %}>上位管理者</option>
+                        <option value="admin" {% if selected_authority == 'admin' %}selected{% endif %}>管理者</option>
+                        <option value="user" {% if selected_authority == 'user' %}selected{% endif %}>ユーザー</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-auto">
+                    <button class="btn btn-outline-primary" type="submit">検索</button>
+                    <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
+                </div>
+            </form>
             </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label" for="role">所属役割</label>
-                <select class="form-select" id="role" name="role">
-                    <option value="">すべて</option>
-                    {% for role in roles %}
-                        <option value="{{ role }}" {% if selected_role == role %}selected{% endif %}>{{ role }}</option>
-                    {% endfor %}
-                    <option value="__none__" {% if selected_role == '__none__' %}selected{% endif %}>（役割なし）</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label" for="authority">権限</label>
-                <select class="form-select" id="authority" name="authority">
-                    <option value="">すべて</option>
-                    <option value="admin" {% if selected_authority == 'admin' %}selected{% endif %}>管理者</option>
-                    <option value="user" {% if selected_authority == 'user' %}selected{% endif %}>ユーザー</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-auto">
-                <button class="btn btn-outline-primary" type="submit">検索</button>
-                <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">クリア</a>
-            </div>
-        </form>
+        </div>
 
-        <div class="row row-cols-1 g-3">
+        <div class="user-list-scroll card shadow-sm">
+        <div class="card-body p-3">
+        <div class="row row-cols-1 g-3" id="userListAccordion">
             {% for account in users %}
                 <div class="col">
                     <div class="card shadow-sm h-100">
-                        <button class="card-header btn btn-text w-100 text-start p-3 mb-0 collapsed border-0 rounded-top" type="button" data-bs-toggle="collapse" data-bs-target="#user-details-{{ account.id }}" aria-expanded="false" aria-controls="user-details-{{ account.id }}" style="background-color: transparent;">
-                            <div class="d-flex justify-content-between align-items-center gap-3">
-                                <div class="flex-grow-1 d-flex flex-column flex-md-row gap-3 gap-md-4">
-                                    <div>
-                                        <div class="small text-secondary">管理番号</div>
-                                        <div class="fw-semibold">{{ account.knowledge_profile.uid|default:'-' }}</div>
+                        <div class="card-header p-0 border-0 bg-transparent">
+                            <div class="d-flex align-items-stretch">
+                                <button class="btn btn-text w-100 text-start p-3 mb-0 collapsed border-0 rounded-0 rounded-start" type="button" data-bs-toggle="collapse" data-bs-target="#user-details-{{ account.id }}" aria-expanded="false" aria-controls="user-details-{{ account.id }}" style="background-color: transparent;">
+                                    <div class="d-flex justify-content-between align-items-center gap-3">
+                                        <div class="flex-grow-1 d-flex flex-column flex-md-row gap-3 gap-md-4">
+                                            <div>
+                                                <div class="small text-secondary">管理番号</div>
+                                                <div class="fw-semibold">{{ account.knowledge_profile.uid|default:'-' }}</div>
+                                            </div>
+                                            <div>
+                                                <div class="small text-secondary">ユーザー名</div>
+                                                <div class="fw-semibold">{{ account.knowledge_profile.display_name|default:account.username }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex gap-2 flex-wrap justify-content-end align-items-start">
+                                            {% if account.knowledge_profile.user_type == 'systena' %}
+                                                <span class="badge text-bg-primary">システナ</span>
+                                            {% elif account.knowledge_profile.user_type == 'customer' %}
+                                                <span class="badge text-bg-info">カスタマー</span>
+                                            {% else %}
+                                                <span class="badge text-bg-secondary">未設定</span>
+                                            {% endif %}
+                                            {% if account.knowledge_profile.exclude_from_analysis %}
+                                                <span class="badge text-bg-warning">分析除外</span>
+                                            {% else %}
+                                                <span class="badge text-bg-success">分析対象</span>
+                                            {% endif %}
+                                            <span class="fw-semibold text-secondary">▽</span>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="small text-secondary">ユーザー名</div>
-                                        <div class="fw-semibold">{{ account.knowledge_profile.display_name|default:account.username }}</div>
-                                    </div>
+                                </button>
+                                {% if can_manage_all_users or account.id == request.user.id or can_staff_reissue_customer_password and account.knowledge_profile.user_type == 'customer' %}
+                                <div class="dropdown border-start">
+                                    <button class="btn btn-text h-100 px-3 rounded-0 rounded-end" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="操作メニュー" title="操作メニュー">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        {% if can_manage_all_users or account.id == request.user.id %}
+                                        <li><a class="dropdown-item" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a></li>
+                                        {% endif %}
+                                        {% if can_manage_all_users or account.id == request.user.id or can_staff_reissue_customer_password and account.knowledge_profile.user_type == 'customer' %}
+                                        <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button></li>
+                                        <li>
+                                            <form method="post" action="{% url 'user_password_reset_link_issue' account.id %}">
+                                                {% csrf_token %}
+                                                <button class="dropdown-item" type="submit" onclick="return confirm('このユーザーのパスワード再設定リンクを発行しますか？');">再設定リンク発行</button>
+                                            </form>
+                                        </li>
+                                        {% endif %}
+                                        {% if can_manage_all_users or account.id == request.user.id %}
+                                        <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button></li>
+                                        {% endif %}
+                                    </ul>
                                 </div>
-                                <div class="d-flex gap-2 flex-wrap justify-content-end align-items-start">
-                                    <span class="fw-semibold text-secondary">▽</span>
-                                </div>
+                                {% endif %}
                             </div>
-                        </button>
+                        </div>
                         
-                        <div class="collapse" id="user-details-{{ account.id }}">
+                        <div class="collapse" id="user-details-{{ account.id }}" data-bs-parent="#userListAccordion">
                             <div class="card-body d-flex flex-column gap-3">
                                 <div class="row g-3">
                                     <div class="col-12 col-xl-6">
@@ -157,7 +269,9 @@
                                             <tr>
                                                 <th>権限</th>
                                                 <td>
-                                                    {% if account.is_staff or account.is_superuser %}
+                                                    {% if account.username|lower in password_manager_usernames %}
+                                                        <span class="badge text-bg-danger">上位管理者</span>
+                                                    {% elif account.is_staff or account.is_superuser %}
                                                         <span class="badge text-bg-primary">管理者</span>
                                                     {% else %}
                                                         <span class="badge text-bg-secondary">ユーザー</span>
@@ -168,7 +282,7 @@
                                                 <th>ユーザー区分</th>
                                                 <td>
                                                     {% if account.knowledge_profile.user_type == 'systena' %}
-                                                        <span class="badge text-bg-warning">システナ</span>
+                                                        <span class="badge text-bg-primary">システナ</span>
                                                     {% elif account.knowledge_profile.user_type == 'customer' %}
                                                         <span class="badge text-bg-info">カスタマー</span>
                                                     {% else %}
@@ -224,18 +338,6 @@
                                         </table>
                                     </div>
                                 </div>
-
-                                <div class="mt-auto d-flex flex-wrap gap-2" role="group">
-                                    {% if can_manage_all_users or account.id == request.user.id %}
-                                    <a class="btn btn-primary btn-sm" href="{% url 'user_edit' account.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
-                                    {% endif %}
-                                    {% if can_manage_all_users or account.id == request.user.id %}
-                                    <button class="btn btn-success btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#passwordChangeModal{{ account.id }}">PW変更</button>
-                                    {% endif %}
-                                    {% if can_manage_all_users or account.id == request.user.id %}
-                                    <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button>
-                                    {% endif %}
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -248,9 +350,11 @@
                 </div>
             {% endfor %}
         </div>
+        </div>
+        </div>
 
         {% if is_paginated %}
-            <nav class="mt-4" aria-label="ページネーション">
+            <nav class="mt-3 user-list-pagination-sticky" aria-label="ページネーション">
                 <ul class="pagination flex-wrap">
                     {% if page_obj.has_previous %}
                         <li class="page-item">
@@ -278,6 +382,7 @@
         {% endif %}
     </div>
 </div>
+</div>
 
 <div class="modal fade" id="demoAccountIssueModal" tabindex="-1" aria-labelledby="demoAccountIssueModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -289,11 +394,54 @@
             <form method="post" action="{% url 'user_demo_issue' %}">
                 <div class="modal-body">
                     {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <div class="mb-3">
                         <label class="form-label" for="demoCompanyName">会社名<span class="text-danger">*</span></label>
                         <input class="form-control" id="demoCompanyName" type="text" name="company_name" maxlength="120" required>
                     </div>
                     <p class="form-text mb-0">ログインID・管理番号・パスワードは自動生成されます。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">発行</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="contractAccountIssueModal" tabindex="-1" aria-labelledby="contractAccountIssueModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="contractAccountIssueModalLabel">契約アカウント発行</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'user_contract_issue' %}">
+                <div class="modal-body">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="contractDisplayName">ユーザー名<span class="text-danger">*</span></label>
+                        <input class="form-control" id="contractDisplayName" type="text" name="display_name" maxlength="150" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contractCompanyName">会社名<span class="text-danger">*</span></label>
+                        <input class="form-control" id="contractCompanyName" type="text" name="company_name" maxlength="120" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contractDepartment">所属部署</label>
+                        <input class="form-control" id="contractDepartment" type="text" name="department" maxlength="255">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="contractEmail">メールアドレス<span class="text-danger">*</span></label>
+                        <input class="form-control" id="contractEmail" type="email" name="email_addresses" maxlength="255" required>
+                    </div>
+                    <div class="mb-0">
+                        <label class="form-label" for="contractNote">備考</label>
+                        <textarea class="form-control" id="contractNote" name="note" rows="3"></textarea>
+                    </div>
+                    <p class="form-text mt-2 mb-0">管理番号（800001〜）は自動生成されます。ログインIDはメールアドレス、初期パスワードはメールアドレスの@前です。</p>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
@@ -325,6 +473,41 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" id="issuedDemoCopyBtn">コピー</button>
                 <button type="button" class="btn btn-outline-primary" id="issuedDemoSaveBtn">保存</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if issued_password_reset_link %}
+<div class="modal fade" id="issuedPasswordResetLinkModal" tabindex="-1" aria-labelledby="issuedPasswordResetLinkModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="issuedPasswordResetLinkModalLabel">パスワード再設定リンク発行完了</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2 text-muted small">対象ユーザー: {{ issued_password_reset_link.display_name }}（{{ issued_password_reset_link.username }}）</div>
+                <label class="form-label" for="issuedPasswordResetLink">再設定リンク</label>
+                <input class="form-control" id="issuedPasswordResetLink" type="text" value="{{ issued_password_reset_link.reset_url }}" readonly>
+                <div class="mt-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="issuedPasswordResetLinkCopyBtn">再設定リンクをコピー</button>
+                </div>
+                <div class="mt-3">
+                    <label class="form-label" for="issuedPasswordResetMailBody">送付メール用</label>
+                    <textarea class="form-control" id="issuedPasswordResetMailBody" rows="7" readonly>パスワード再発行用URLをお送りいたします。
+
+以下のリンクにアクセスし、新しいパスワードをご設定ください。
+
+{{ issued_password_reset_link.reset_url }}</textarea>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="issuedPasswordResetMailCopyBtn">送付メール用をコピー</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
             </div>
         </div>
@@ -393,6 +576,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
                 <form class="d-inline" method="post" action="{% url 'user_delete' account.id %}">
                     {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-danger">削除</button>
                 </form>
             </div>
@@ -403,6 +587,42 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const issuedResetLinkModalEl = document.getElementById('issuedPasswordResetLinkModal');
+    if (issuedResetLinkModalEl && typeof bootstrap !== 'undefined') {
+        const issuedResetLinkInput = document.getElementById('issuedPasswordResetLink');
+        const issuedResetMailBodyInput = document.getElementById('issuedPasswordResetMailBody');
+        const issuedResetLinkCopyBtn = document.getElementById('issuedPasswordResetLinkCopyBtn');
+        const issuedResetMailCopyBtn = document.getElementById('issuedPasswordResetMailCopyBtn');
+
+        const issuedResetLinkModal = new bootstrap.Modal(issuedResetLinkModalEl);
+        issuedResetLinkModal.show();
+
+        function bindCopyButton(buttonEl, valueGetter) {
+            if (!buttonEl) {
+                return;
+            }
+            buttonEl.addEventListener('click', function() {
+                const copiedValue = valueGetter();
+                navigator.clipboard.writeText(copiedValue).then(() => {
+                    const originalText = buttonEl.textContent;
+                    buttonEl.textContent = 'コピーしました';
+                    setTimeout(() => {
+                        buttonEl.textContent = originalText;
+                    }, 2000);
+                });
+            });
+        }
+
+        bindCopyButton(
+            issuedResetLinkCopyBtn,
+            function() { return issuedResetLinkInput ? issuedResetLinkInput.value : ''; }
+        );
+        bindCopyButton(
+            issuedResetMailCopyBtn,
+            function() { return issuedResetMailBodyInput ? issuedResetMailBodyInput.value : ''; }
+        );
+    }
+
     const issuedModalEl = document.getElementById('demoAccountResultModal');
     if (issuedModalEl && typeof bootstrap !== 'undefined') {
         const issuedLoginId = document.getElementById('issuedDemoLoginId');

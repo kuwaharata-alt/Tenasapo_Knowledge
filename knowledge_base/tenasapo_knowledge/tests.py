@@ -1,5 +1,6 @@
 import tempfile
 import json
+import re
 from datetime import timedelta
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -1139,8 +1140,122 @@ class UserCreateViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'ユーザー一覧')
+        self.assertContains(response, 'アカウント発行')
         self.assertContains(response, 'ユーザー作成')
         self.assertContains(response, self.staff.username)
+
+    def test_staff_can_issue_contract_account_with_required_defaults(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_contract_issue'),
+            {
+                'display_name': '契約ユーザーA',
+                'company_name': '株式会社テスト契約',
+                'department': '情報システム部',
+                'email_addresses': 'contract-a@example.com',
+                'note': '契約発行テスト',
+            },
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        issued = get_user_model().objects.get(username='contract-a@example.com')
+        profile = issued.knowledge_profile
+
+        self.assertFalse(issued.is_staff)
+        self.assertFalse(issued.is_superuser)
+        self.assertTrue(issued.has_usable_password())
+        self.assertTrue(issued.check_password('contract-a'))
+        self.assertEqual(profile.uid, '800001')
+        self.assertEqual(profile.display_name, '契約ユーザーA')
+        self.assertEqual(profile.user_type, UserProfile.USER_TYPE_CUSTOMER)
+        self.assertEqual(profile.company_name, '株式会社テスト契約')
+        self.assertEqual(profile.department, '情報システム部')
+        self.assertEqual(profile.email_addresses, 'contract-a@example.com')
+        self.assertEqual(profile.note, '契約発行テスト')
+        self.assertTrue(profile.exclude_from_analysis)
+        self.assertEqual(issued.groups.count(), 0)
+        self.assertTrue(Customer.objects.get(name='株式会社テスト契約').users.filter(id=issued.id).exists())
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_contract_issue_does_not_send_password_setup_email(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_contract_issue'),
+            {
+                'display_name': '契約ユーザーB',
+                'company_name': '株式会社メール確認',
+                'department': '',
+                'email_addresses': 'contract-b@example.com',
+                'note': '',
+            },
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_user_edit_initial_values_reflect_actual_role_and_groups(self):
+        self.client.force_login(self.admin_account)
+        User = get_user_model()
+        issued = User.objects.create_user(
+            username='plain-user',
+            password='plain-user',
+            is_staff=False,
+            is_superuser=False,
+        )
+        UserProfile.objects.create(
+            user=issued,
+            uid='812345',
+            display_name='一般ユーザー',
+            company_name='株式会社テスト',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+            exclude_from_analysis=True,
+        )
+
+        response = self.client.get(reverse('user_edit', args=[issued.id]))
+
+        self.assertEqual(response.status_code, 200)
+        form = response.context['form']
+        self.assertEqual(form.initial.get('role'), 'user')
+        self.assertEqual(form.initial.get('groups'), [])
+
+    def test_demo_issue_uses_900001_sequence(self):
+        self.client.force_login(self.staff)
+
+        existing_demo = get_user_model().objects.create_user(
+            username='CSDemo900001',
+            password='password',
+        )
+        UserProfile.objects.create(
+            user=existing_demo,
+            uid='900001',
+            display_name='Demoアカウント',
+            company_name='既存デモ会社',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+        )
+
+        response = self.client.post(
+            reverse('user_demo_issue'),
+            {
+                'company_name': '新規デモ会社',
+            },
+        )
+
+        self.assertRedirects(response, reverse('user_list'))
+        issued = get_user_model().objects.get(username='CSDemo900002')
+        profile = issued.knowledge_profile
+        group_names = set(issued.groups.values_list('name', flat=True))
+
+        self.assertFalse(issued.is_staff)
+        self.assertFalse(issued.is_superuser)
+        self.assertTrue(profile.exclude_from_analysis)
+        self.assertIsNotNone(profile.demo_account_expires_at)
+        self.assertGreater(profile.demo_account_expires_at, timezone.now())
+        self.assertEqual(len(group_names), 1)
+        self.assertTrue(any(name.lower() == 'demo' or name == 'デモ' for name in group_names))
+        self.assertEqual(profile.uid, '900002')
+        self.assertEqual(profile.company_name, '新規デモ会社')
 
     def test_non_staff_cannot_view_user_list_page(self):
         self.client.force_login(self.member)
@@ -1234,6 +1349,20 @@ class UserCreateViewTests(TestCase):
         self.member.refresh_from_db()
         self.assertTrue(self.member.check_password('password'))
 
+    def test_manual_password_must_meet_password_policy(self):
+        self.client.force_login(self.systena_admin_account)
+
+        response = self.client.post(
+            reverse('user_password_reset', args=[self.member.id]),
+            {'reset_mode': 'manual', 'new_password': 'password'},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '手動パスワードが要件を満たしていません。')
+        self.member.refresh_from_db()
+        self.assertTrue(self.member.check_password('password'))
+
     def test_staff_stays_logged_in_after_resetting_own_password(self):
         self.client.force_login(self.staff)
 
@@ -1258,9 +1387,81 @@ class UserCreateViewTests(TestCase):
 
         response = self.client.post(reverse('user_password_reset', args=[self.member.id]))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('user_list'))
+        self.member.refresh_from_db()
+        self.assertFalse(self.member.check_password('password'))
+
+    def test_staff_account_cannot_reset_other_staff_password(self):
+        User = get_user_model()
+        other_staff = User.objects.create_user(
+            username='other-staff',
+            password='password',
+            is_staff=True,
+        )
+        UserProfile.objects.create(
+            user=other_staff,
+            uid='700001',
+            display_name='他スタッフ',
+            company_name='システナ',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.post(reverse('user_password_reset', args=[other_staff.id]))
+
+        self.assertRedirects(response, reverse('user_list'))
+        other_staff.refresh_from_db()
+        self.assertTrue(other_staff.check_password('password'))
         self.member.refresh_from_db()
         self.assertTrue(self.member.check_password('password'))
+
+    def test_admin_account_can_issue_password_reset_link(self):
+        self.client.force_login(self.admin_account)
+
+        response = self.client.post(
+            reverse('user_password_reset_link_issue', args=[self.member.id]),
+        )
+
+        self.assertRedirects(response, reverse('user_list'), fetch_redirect_response=False)
+        issued = self.client.session.get('issued_password_reset_link')
+        self.assertIsNotNone(issued)
+        self.assertEqual(issued.get('username'), self.member.username)
+        self.assertIn('/accounts/reset/', issued.get('reset_url', ''))
+
+    def test_staff_account_cannot_issue_password_reset_link_for_other_user(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            reverse('user_password_reset_link_issue', args=[self.member.id]),
+        )
+
+        self.assertRedirects(response, reverse('user_list'), fetch_redirect_response=False)
+        issued = self.client.session.get('issued_password_reset_link')
+        self.assertIsNotNone(issued)
+        self.assertEqual(issued.get('username'), self.member.username)
+
+    def test_staff_account_cannot_issue_password_reset_link_for_other_staff(self):
+        User = get_user_model()
+        other_staff = User.objects.create_user(
+            username='other-staff-link',
+            password='password',
+            is_staff=True,
+        )
+        UserProfile.objects.create(
+            user=other_staff,
+            uid='700002',
+            display_name='他スタッフリンク',
+            company_name='システナ',
+            user_type=UserProfile.USER_TYPE_SYSTENA,
+        )
+
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            reverse('user_password_reset_link_issue', args=[other_staff.id]),
+        )
+
+        self.assertRedirects(response, reverse('user_list'), fetch_redirect_response=False)
+        self.assertIsNone(self.client.session.get('issued_password_reset_link'))
 
     def test_user_can_update_skip_login_lp_from_user_edit(self):
         UserProfile.objects.create(
@@ -1291,6 +1492,168 @@ class UserCreateViewTests(TestCase):
         self.assertRedirects(response, reverse('user_list'), fetch_redirect_response=False)
         self.member.knowledge_profile.refresh_from_db()
         self.assertTrue(self.member.knowledge_profile.skip_login_lp)
+
+
+class PasswordResetFlowTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username='reset-user',
+            password='old-password-123',
+            email='reset-user@example.com',
+        )
+
+    def test_login_page_shows_forgot_password_link(self):
+        response = self.client.get(reverse('login'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'パスワードを忘れたときは')
+        self.assertContains(response, reverse('password_reset'))
+
+    def test_password_reset_page_shows_contact_guidance(self):
+        response = self.client.get(reverse('password_reset'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'パスワードの再発行について')
+        self.assertContains(response, 'テナサポ問い合わせ窓口までご連絡ください。')
+        self.assertContains(response, 'パスワード再発行専用URLをメールにてお送りいたします。')
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_password_reset_post_does_not_send_mail(self):
+        response = self.client.post(reverse('password_reset'), {}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'パスワードの再発行は、テナサポ問い合わせ窓口までご連絡ください。')
+        self.assertEqual(len(mail.outbox), 0)
+
+
+class FirstLoginPasswordChangeTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(
+            username='CSUser800123',
+            password='CSUser800123',
+            email='first-login@example.com',
+        )
+
+    def test_first_login_redirects_to_password_change_when_password_equals_login_id(self):
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'CSUser800123',
+                'password': 'CSUser800123',
+            },
+        )
+
+        self.assertRedirects(response, reverse('password_change'))
+
+    def test_forced_user_cannot_navigate_other_pages_until_password_changed(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('home'))
+
+        self.assertRedirects(response, reverse('password_change'))
+
+    def test_initial_password_change_does_not_require_old_password(self):
+        self.client.force_login(self.user)
+
+        form_response = self.client.get(reverse('password_change'))
+        self.assertEqual(form_response.status_code, 200)
+        self.assertNotContains(form_response, '現在のパスワード')
+
+        response = self.client.post(
+            reverse('password_change'),
+            {
+                'new_password1': 'New-Strong-Password-123',
+                'new_password2': 'New-Strong-Password-123',
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password('New-Strong-Password-123'))
+
+    def test_first_login_redirects_when_email_login_password_is_local_part(self):
+        User = get_user_model()
+        email_user = User.objects.create_user(
+            username='contract-c@example.com',
+            password='contract-c',
+            email='contract-c@example.com',
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'contract-c@example.com',
+                'password': 'contract-c',
+            },
+        )
+
+        self.assertRedirects(response, reverse('password_change'))
+
+    def test_demo_user_is_not_forced_to_password_change_on_first_login(self):
+        User = get_user_model()
+        demo_user = User.objects.create_user(
+            username='CSDemo900999',
+            password='CSDemo900999',
+            email='',
+            is_staff=False,
+            is_superuser=False,
+        )
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        demo_user.groups.add(demo_group)
+        UserProfile.objects.create(
+            user=demo_user,
+            uid='900999',
+            display_name='Demoアカウント',
+            company_name='テストデモ会社',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+            exclude_from_analysis=True,
+            demo_account_expires_at=timezone.now() + timedelta(days=30),
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'CSDemo900999',
+                'password': 'CSDemo900999',
+            },
+        )
+
+        self.assertRedirects(response, reverse('login_lp'))
+
+    def test_expired_demo_user_cannot_login(self):
+        User = get_user_model()
+        expired_demo_user = User.objects.create_user(
+            username='CSDemo900998',
+            password='CSDemo900998',
+            email='',
+            is_staff=False,
+            is_superuser=False,
+        )
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        expired_demo_user.groups.add(demo_group)
+        UserProfile.objects.create(
+            user=expired_demo_user,
+            uid='900998',
+            display_name='期限切れDemo',
+            company_name='テストデモ会社',
+            user_type=UserProfile.USER_TYPE_CUSTOMER,
+            exclude_from_analysis=True,
+            demo_account_expires_at=timezone.now() - timedelta(days=1),
+        )
+
+        response = self.client.post(
+            reverse('login'),
+            {
+                'username': 'CSDemo900998',
+                'password': 'CSDemo900998',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'アカウントまたはパスワードが正しくありません。')
+        self.assertNotIn('_auth_user_id', self.client.session)
 
 
 class LoginHistorySignalTests(TestCase):

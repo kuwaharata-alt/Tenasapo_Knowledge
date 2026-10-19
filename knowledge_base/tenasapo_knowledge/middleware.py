@@ -1,11 +1,21 @@
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.middleware import LoginRequiredMiddleware
 from django.contrib.sessions.exceptions import SessionInterrupted
 from django.contrib.sessions.middleware import SessionMiddleware
+from django.shortcuts import redirect
+from django.urls import reverse
 
 
 ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
 ACCOUNT_VIEW_MODES = {'demo', 'cs'}
+PUBLIC_AUTH_PATH_PREFIXES = (
+    '/accounts/login/',
+    '/accounts/logout/',
+    '/accounts/password-reset/',
+    '/accounts/reset/',
+)
 
 
 class SafeSessionMiddleware(SessionMiddleware):
@@ -37,5 +47,20 @@ class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
             return None
         if media_url and path.startswith(media_url):
             return None
+        for prefix in PUBLIC_AUTH_PATH_PREFIXES:
+            if path.startswith(prefix):
+                return None
+
+        if user and getattr(user, 'is_authenticated', False):
+            from .views import is_demo_account_expired, should_force_password_change
+
+            if is_demo_account_expired(user):
+                logout(request)
+                messages.error(request, 'デモアカウントの有効期限が切れています。管理者へ連絡してください。')
+                return redirect('login')
+
+            password_change_path = reverse('password_change')
+            if should_force_password_change(user) and not path.startswith(password_change_path):
+                return redirect(password_change_path)
 
         return super().process_view(request, view_func, view_args, view_kwargs)

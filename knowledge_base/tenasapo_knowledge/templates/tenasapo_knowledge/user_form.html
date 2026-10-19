@@ -2,6 +2,8 @@
 
 {% block title %}{% if is_edit %}ユーザー編集{% else %}ユーザー作成{% endif %} | Nexus{% endblock %}
 
+{% block page_messages %}{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-12 col-lg-8">
@@ -24,129 +26,221 @@
                     <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
 
-                <div class="row g-3">
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号（後で社員番号）</label>
-                        <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
-                        <div class="form-text">未設定可。後で社員番号を設定します。</div>
-                        {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    {% if is_edit %}
-                        <div class="col-12 col-md-4">
-                            <label class="form-label">ログインID</label>
-                            <input class="form-control" type="text" value="{{ user_obj.username }}" readonly>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
-                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}">
-                            {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                        </div>
-                    {% else %}
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="{{ form.username.id_for_label }}">ログインID<span class="text-danger">*</span></label>
-                            <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
-                            {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
-                            <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}">
-                            {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                        </div>
-                    {% endif %}
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード{% if not is_edit %}<span class="text-danger">*</span>{% else %}<span class="text-muted">(Googleログインの場合は未使用)</span>{% endif %}</label>
-                        <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" {% if not is_edit %}required{% else %}disabled{% endif %}>
-                        {% if is_edit %}<div class="form-text text-muted">GoogleログインユーザーはGoogle側のパスワードを利用します。</div>{% endif %}
-                        {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.role.id_for_label }}">権限<span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.role.errors %} is-invalid{% endif %}" name="{{ form.role.html_name }}" id="{{ form.role.id_for_label }}" required>
-                            {% for value, label in form.fields.role.choices %}
-                                <option value="{{ value }}"{% if form.role.value == value %} selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        {% for error in form.role.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.user_type.id_for_label }}">ユーザー区分<span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.user_type.errors %} is-invalid{% endif %}" name="{{ form.user_type.html_name }}" id="{{ form.user_type.id_for_label }}" required>
-                            {% for value, label in form.fields.user_type.choices %}
-                                <option value="{{ value }}"{% if form.user_type.value == value %} selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        {% for error in form.user_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6 d-flex align-items-end">
-                        <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center gap-2 py-2 px-3 w-100" style="min-height: 38px;">
-                            <input
-                                class="form-check-input ms-0{% if form.exclude_from_analysis.errors %} is-invalid{% endif %}"
-                                type="checkbox"
-                                role="switch"
-                                name="{{ form.exclude_from_analysis.html_name }}"
-                                id="{{ form.exclude_from_analysis.id_for_label }}"
-                                {% if form.exclude_from_analysis.value %}checked{% endif %}
-                            >
-                            <label class="form-check-label fw-bold cursor-pointer text-dark small" for="{{ form.exclude_from_analysis.id_for_label }}">
-                                {{ form.exclude_from_analysis.label }}
-                            </label>
-                        </div>
-                        {% for error in form.exclude_from_analysis.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label">所属役割</label>
-                        <div class="border rounded p-3{% if form.groups.errors %} border-danger{% endif %}">
-                            {% if form.fields.groups.choices %}
-                                {% for value, label in form.fields.groups.choices %}
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="checkbox" name="{{ form.groups.html_name }}" id="group_{{ forloop.counter }}" value="{{ value }}"{% if value in form.groups.value %} checked{% endif %}>
-                                        <label class="form-check-label" for="group_{{ forloop.counter }}">{{ label }}</label>
-                                    </div>
-                                {% endfor %}
+                <div class="row g-4">
+                    <div class="col-12">
+                        <h2 class="h5 mb-4">アカウント情報</h2>
+                        <div class="row g-3 border rounded p-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="{{ form.uid.id_for_label }}">管理番号（社員番号）</label>
+                                <input class="form-control{% if form.uid.errors %} is-invalid{% endif %}" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="{{ form.uid.html_name }}" id="{{ form.uid.id_for_label }}" value="{{ form.uid.value|default_if_none:'' }}" placeholder="123456">
+                                {% for error in form.uid.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            {% if is_edit %}
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label">ログインID</label>
+                                    <input class="form-control" type="text" value="{{ user_obj.username }}" readonly>
+                                </div>
                             {% else %}
-                                <div class="text-secondary">設定済み役割がありません。</div>
+                                <div class="col-12 col-md-4">
+                                    <label class="form-label" for="{{ form.username.id_for_label }}">ログインID<span class="text-danger">*</span></label>
+                                    <input class="form-control{% if form.username.errors %} is-invalid{% endif %}" type="text" name="{{ form.username.html_name }}" id="{{ form.username.id_for_label }}" value="{{ form.username.value|default_if_none:'' }}" required>
+                                    {% for error in form.username.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
                             {% endif %}
-                        </div>
-                        {% for error in form.groups.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名<span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
-                        {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label" for="{{ form.department.id_for_label }}">所属部署</label>
-                        <input class="form-control{% if form.department.errors %} is-invalid{% endif %}" type="text" name="{{ form.department.html_name }}" id="{{ form.department.id_for_label }}" value="{{ form.department.value|default_if_none:'' }}">
-                        {% for error in form.department.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス</label>
-                        <input class="form-control{% if form.email_addresses.errors %} is-invalid{% endif %}" type="email" name="{{ form.email_addresses.html_name }}" id="{{ form.email_addresses.id_for_label }}" value="{{ form.email_addresses.value|default_if_none:'' }}">
-                        <div class="form-text">{{ form.email_addresses.help_text }}</div>
-                        {% for error in form.email_addresses.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label" for="{{ form.note.id_for_label }}">備考</label>
-                        <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="4">{{ form.note.value|default_if_none:'' }}</textarea>
-                        {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    {% if is_edit %}
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input
-                                    class="form-check-input{% if form.skip_login_lp.errors %} is-invalid{% endif %}"
-                                    type="checkbox"
-                                    name="{{ form.skip_login_lp.html_name }}"
-                                    id="{{ form.skip_login_lp.id_for_label }}"
-                                    {% if form.skip_login_lp.value %}checked{% endif %}
-                                >
-                                <label class="form-check-label" for="{{ form.skip_login_lp.id_for_label }}">
-                                    {{ form.skip_login_lp.label }}
-                                </label>
-                                {% for error in form.skip_login_lp.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            <div class="col-12 col-md-4">
+                                <label class="form-label" for="{{ form.display_name.id_for_label }}">ユーザー名</label>
+                                <input class="form-control{% if form.display_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.display_name.html_name }}" id="{{ form.display_name.id_for_label }}" value="{{ form.display_name.value|default_if_none:'' }}">
+                                {% for error in form.display_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="{{ form.email_addresses.id_for_label }}">メールアドレス</label>
+                                <input class="form-control{% if form.email_addresses.errors %} is-invalid{% endif %}" type="email" name="{{ form.email_addresses.html_name }}" id="{{ form.email_addresses.id_for_label }}" value="{{ form.email_addresses.value|default_if_none:'' }}">
+                                <div class="form-text">{{ form.email_addresses.help_text }}</div>
+                                {% for error in form.email_addresses.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="{{ form.company_name.id_for_label }}">会社名<span class="text-danger">*</span></label>
+                                <input class="form-control{% if form.company_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.company_name.html_name }}" id="{{ form.company_name.id_for_label }}" value="{{ form.company_name.value|default_if_none:'' }}" required>
+                                {% for error in form.company_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="{{ form.department.id_for_label }}">所属部署</label>
+                                <input class="form-control{% if form.department.errors %} is-invalid{% endif %}" type="text" name="{{ form.department.html_name }}" id="{{ form.department.id_for_label }}" value="{{ form.department.value|default_if_none:'' }}">
+                                {% for error in form.department.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             </div>
                         </div>
-                    {% endif %}
+                    </div>
+
+                    <div class="col-12">
+                        <h2 class="h5 mb-4">アカウント権限</h2>
+                        <div class="row g-3 border rounded p-3">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label" for="{{ form.role.id_for_label }}">管理者権限</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    <input type="hidden" name="{{ form.role.html_name }}" value="user">
+                                    <input
+                                        class="form-check-input ms-0{% if form.role.errors %} is-invalid{% endif %}"
+                                        type="checkbox"
+                                        role="switch"
+                                        name="{{ form.role.html_name }}"
+                                        id="{{ form.role.id_for_label }}"
+                                        value="admin"
+                                        {% if form.role.value == 'admin' %}checked{% endif %}
+                                    >
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                                {% for error in form.role.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <label class="form-label text-nowrap" {% if not is_edit %}for="{{ form.user_type.id_for_label }}"{% endif %}>ユーザー区分{% if is_edit %}<span class="text-muted">（変更不可）</span>{% endif %}</label>
+                                {% if is_edit %}
+                                    <div class="form-control bg-light">
+                                        {% if form.user_type.value == 'systena' %}システナ{% else %}カスタマー{% endif %}
+                                    </div>
+                                    <input type="hidden" name="{{ form.user_type.html_name }}" value="{{ form.user_type.value|default:'customer' }}">
+                                {% else %}
+                                    <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                        <span class="small text-secondary">カスタマー</span>
+                                        <input type="hidden" name="{{ form.user_type.html_name }}" value="customer">
+                                        <input
+                                            class="form-check-input ms-0{% if form.user_type.errors %} is-invalid{% endif %}"
+                                            type="checkbox"
+                                            role="switch"
+                                            name="{{ form.user_type.html_name }}"
+                                            id="{{ form.user_type.id_for_label }}"
+                                            value="systena"
+                                            {% if form.user_type.value == 'systena' %}checked{% endif %}
+                                        >
+                                        <span class="small fw-bold text-primary">システナ</span>
+                                    </div>
+                                {% endif %}
+                                {% for error in form.user_type.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="col-12">
+                                <h3 class="h6 mb-0 fw-bold">システナアカウント権限</h3>
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">投稿者</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    {% for value, label in form.fields.groups.choices %}
+                                        {% if value == '投稿者' %}
+                                            <input class="form-check-input ms-0" type="checkbox" role="switch" name="{{ form.groups.html_name }}" id="group_contributor" value="{{ value }}"{% if value in form.groups.value %} checked{% endif %}>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">承認者</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    {% for value, label in form.fields.groups.choices %}
+                                        {% if value == '承認者' %}
+                                            <input class="form-check-input ms-0" type="checkbox" role="switch" name="{{ form.groups.html_name }}" id="group_reviewer" value="{{ value }}"{% if value in form.groups.value %} checked{% endif %}>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <label class="form-label" for="analysisTargetSwitch">アナライズ対象</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    <input
+                                        class="form-check-input ms-0"
+                                        type="checkbox"
+                                        role="switch"
+                                        id="analysisTargetSwitch"
+                                    >
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                                <input
+                                    class="d-none{% if form.exclude_from_analysis.errors %} is-invalid{% endif %}"
+                                    type="checkbox"
+                                    name="{{ form.exclude_from_analysis.html_name }}"
+                                    id="{{ form.exclude_from_analysis.id_for_label }}"
+                                    {% if form.exclude_from_analysis.value %}checked{% endif %}
+                                >
+                                {% for error in form.exclude_from_analysis.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+
+                            <div class="col-12 mt-2">
+                                <h3 class="h6 mb-0 fw-bold">カスタマーアカウント権限</h3>
+                            </div>
+
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">デモアカウント</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    {% for value, label in form.fields.groups.choices %}
+                                        {% if value == 'デモ' or value|lower == 'demo' %}
+                                            <input class="form-check-input ms-0" type="checkbox" role="switch" name="{{ form.groups.html_name }}" id="group_demo" value="{{ value }}"{% if value in form.groups.value %} checked{% endif %}>
+                                        {% endif %}
+                                    {% endfor %}
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+
+                            {% if form.groups.value %}
+                                {% for value, label in form.fields.groups.choices %}
+                                    {% if value in form.groups.value and value != '投稿者' and value != '承認者' and value != 'デモ' and value|lower != 'demo' %}
+                                        <input type="hidden" name="{{ form.groups.html_name }}" value="{{ value }}">
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+
+                            {% if not is_edit %}
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="{{ form.password.id_for_label }}">パスワード<span class="text-danger">*</span></label>
+                                    <input class="form-control{% if form.password.errors %} is-invalid{% endif %}" type="password" name="{{ form.password.html_name }}" id="{{ form.password.id_for_label }}" required>
+                                    {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="col-12">
+                        <h2 class="h5 mb-3">その他</h2>
+                        <div class="border rounded p-3">
+                            <div class="row g-3">
+                                {% if is_edit %}
+                                    <div class="col-12 col-md-3">
+                                        <label class="form-label" for="showLpSwitch">次回以降LPを表示する</label>
+                                        <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                            <span class="small text-secondary">OFF</span>
+                                            <input
+                                                class="form-check-input ms-0{% if form.skip_login_lp.errors %} is-invalid{% endif %}"
+                                                type="checkbox"
+                                                role="switch"
+                                                id="showLpSwitch"
+                                            >
+                                            <span class="small fw-bold text-primary">ON</span>
+                                        </div>
+                                        <input
+                                            class="d-none"
+                                            type="checkbox"
+                                            name="{{ form.skip_login_lp.html_name }}"
+                                            id="{{ form.skip_login_lp.id_for_label }}"
+                                            {% if form.skip_login_lp.value %}checked{% endif %}
+                                        >
+                                        {% for error in form.skip_login_lp.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                                    </div>
+                                {% endif %}
+                                <div class="col-12">
+                                    <label class="form-label" for="{{ form.note.id_for_label }}">備考</label>
+                                    <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="4">{{ form.note.value|default_if_none:'' }}</textarea>
+                                    {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
@@ -162,28 +256,45 @@
 {{ block.super }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    const userTypeSelect = document.getElementById('{{ form.user_type.id_for_label }}');
+    const userTypeToggle = document.getElementById('{{ form.user_type.id_for_label }}');
     const companyInput = document.getElementById('{{ form.company_name.id_for_label }}');
-    if (!userTypeSelect || !companyInput) {
-        return;
-    }
+    const analysisTargetSwitch = document.getElementById('analysisTargetSwitch');
+    const excludeFromAnalysisInput = document.getElementById('{{ form.exclude_from_analysis.id_for_label }}');
+    const showLpSwitch = document.getElementById('showLpSwitch');
+    const skipLoginLpInput = document.getElementById('{{ form.skip_login_lp.id_for_label }}');
 
-    function updateCompanyFieldByUserType() {
-        if (userTypeSelect.value === 'systena') {
-            companyInput.value = 'システナ';
-            companyInput.setAttribute('readonly', 'readonly');
-            companyInput.classList.add('bg-light');
-        } else {
-            companyInput.removeAttribute('readonly');
-            companyInput.classList.remove('bg-light');
-            if (companyInput.value === 'システナ') {
-                companyInput.value = '';
+    if (userTypeToggle && companyInput && userTypeToggle.type === 'checkbox') {
+        function updateCompanyFieldByUserType() {
+            if (userTypeToggle.checked) {
+                companyInput.value = 'システナ';
+                companyInput.setAttribute('readonly', 'readonly');
+                companyInput.classList.add('bg-light');
+            } else {
+                companyInput.removeAttribute('readonly');
+                companyInput.classList.remove('bg-light');
+                if (companyInput.value === 'システナ') {
+                    companyInput.value = '';
+                }
             }
         }
+
+        userTypeToggle.addEventListener('change', updateCompanyFieldByUserType);
+        updateCompanyFieldByUserType();
     }
 
-    userTypeSelect.addEventListener('change', updateCompanyFieldByUserType);
-    updateCompanyFieldByUserType();
+    if (analysisTargetSwitch && excludeFromAnalysisInput) {
+        analysisTargetSwitch.checked = !excludeFromAnalysisInput.checked;
+        analysisTargetSwitch.addEventListener('change', function () {
+            excludeFromAnalysisInput.checked = !analysisTargetSwitch.checked;
+        });
+    }
+
+    if (showLpSwitch && skipLoginLpInput) {
+        showLpSwitch.checked = !skipLoginLpInput.checked;
+        showLpSwitch.addEventListener('change', function () {
+            skipLoginLpInput.checked = !showLpSwitch.checked;
+        });
+    }
 });
 </script>
 {% endblock %}

@@ -3,6 +3,7 @@ import json
 from django import forms
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 
@@ -116,6 +117,46 @@ def parse_target_os_values(value):
             continue
         values.append(parse_target_os_value(raw))
     return values
+
+
+class CustomPasswordResetForm(PasswordResetForm):
+    def get_users(self, email):
+        user_model = get_user_model()
+        active_users = user_model._default_manager.filter(**{
+            f'{user_model.get_email_field_name()}__iexact': email,
+            'is_active': True,
+        })
+        return (user for user in active_users)
+
+
+class EmailVerifiedSetPasswordForm(SetPasswordForm):
+    email = forms.EmailField(label='登録メールアドレス', required=True)
+
+    @staticmethod
+    def _split_emails(value):
+        text = str(value or '')
+        for separator in (',', ';', '、', '\r'):
+            text = text.replace(separator, '\n')
+        return [item.strip().lower() for item in text.split('\n') if item.strip()]
+
+    def clean_email(self):
+        input_email = (self.cleaned_data.get('email') or '').strip().lower()
+        if not input_email:
+            raise forms.ValidationError('登録メールアドレスを入力してください。')
+
+        candidates = set()
+        login_email = (getattr(self.user, 'email', '') or '').strip().lower()
+        if login_email:
+            candidates.add(login_email)
+
+        profile = getattr(self.user, 'knowledge_profile', None)
+        if profile is not None:
+            for email in self._split_emails(getattr(profile, 'email_addresses', '')):
+                candidates.add(email)
+
+        if input_email not in candidates:
+            raise forms.ValidationError('登録済みメールアドレスと一致しません。')
+        return input_email
 
 
 def parse_target_os_entries_json(raw_value):
