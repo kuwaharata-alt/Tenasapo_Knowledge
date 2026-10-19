@@ -242,7 +242,7 @@ class FAQCategoryCreateForm(forms.ModelForm):
     )
     middle_name = forms.CharField(
         label='中カテゴリ',
-        required=False,
+        required=True,
         max_length=120,
     )
     class Meta:

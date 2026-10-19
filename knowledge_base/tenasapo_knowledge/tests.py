@@ -2184,6 +2184,169 @@ class TipsFormTests(TestCase):
         self.assertEqual(tip.target_os, 'Windows PC 10 以降, VMware 7.0')
 
 
+class CategoryEditLinkTests(TestCase):
+    def setUp(self):
+        self.staff = get_user_model().objects.create_user(
+            username='category_link_staff', password='password', is_staff=True,
+        )
+        self.client.force_login(self.staff)
+
+    def test_category_browser_uses_id_placeholder_for_both_edit_links(self):
+        response = self.client.get(reverse('category_create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "const editUrlTemplate = '" + reverse('category_edit', args=[0]) + "';")
+        self.assertContains(response, "editUrlTemplate.replace('/0/', '/' + categoryId + '/')")
+        self.assertContains(response, 'categoryEditUrl(child.id)')
+        self.assertContains(response, 'categoryEditUrl(item.id)')
+        self.assertNotContains(response, 'editUrlBase')
+
+    def test_two_and_three_level_category_edit_pages_are_available(self):
+        for middle_name in ['', '認証']:
+            with self.subTest(middle_name=middle_name):
+                category = FAQCategory.objects.create(
+                    parent_name='PC', middle_name=middle_name, child_name='設定',
+                )
+                response = self.client.get(reverse('category_edit', args=[category.pk]))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.context['form'].instance.pk, category.pk)
+                self.assertContains(response, f"const editingCategoryId = '{category.pk}';")
+
+    def test_update_keeps_focus_on_updated_category(self):
+        category = FAQCategory.objects.create(
+            parent_name='PC', middle_name='認証', child_name='設定',
+        )
+        response = self.client.post(reverse('category_edit', args=[category.pk]), {
+            'parent_name': 'PC', 'middle_name': 'ログイン', 'child_name': '変更後',
+        })
+        target = reverse('category_create') + f'?focus_category={category.pk}'
+        self.assertRedirects(response, target)
+        category.refresh_from_db()
+        self.assertEqual(category.middle_name, 'ログイン')
+        page = self.client.get(target)
+        self.assertContains(page, "get('focus_category')")
+        self.assertContains(page, 'if (middle) renderSub2(parent.name, middle.name);')
+        self.assertContains(page, 'ログイン')
+
+    def test_middle_category_is_required(self):
+        response = self.client.post(reverse('category_create'), {
+            'parent_name': 'PC', 'middle_name': '   ', 'child_name': '設定',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('middle_name', response.context['form'].errors)
+        self.assertFalse(FAQCategory.objects.filter(parent_name='PC', child_name='設定').exists())
+
+    def test_create_category_without_child_and_restore_selection(self):
+        from .views import FAQCategoryCreateView, build_parent_category_groups, split_registered_and_unregistered_categories
+
+        response = self.client.post(reverse('category_create'), {
+            'parent_name': 'PC', 'middle_name': '設定', 'child_name': '',
+        })
+        self.assertRedirects(response, reverse('category_create'))
+        category = FAQCategory.objects.get(parent_name='PC', middle_name='設定', child_name='')
+        self.assertEqual(category.full_name, 'PC/設定')
+        self.assertEqual(split_registered_and_unregistered_categories('PC/設定'), ([category.pk], ''))
+        browser = FAQCategoryCreateView.category_browser_data()
+        parent = next(item for item in browser if item['name'] == 'PC')
+        self.assertEqual(parent['middles'], [])
+        self.assertEqual(parent['direct_children'], [{'id': category.pk, 'name': '設定'}])
+        groups = build_parent_category_groups(user=self.staff)
+        parent = next(item for item in groups if item['name'] == 'PC')
+        self.assertEqual(parent['middle_groups'], [])
+        self.assertEqual(parent['children'][0]['full_name'], 'PC/設定')
+
+    def test_update_can_clear_optional_child(self):
+        category = FAQCategory.objects.create(parent_name='PC', middle_name='設定', child_name='電源')
+        article = KnowledgeArticle.objects.create(title='カテゴリ変更対象', body='本文', category=category.full_name)
+        response = self.client.post(reverse('category_edit', args=[category.pk]), {
+            'parent_name': 'PC', 'middle_name': '設定', 'child_name': '',
+        })
+        self.assertEqual(response.status_code, 302)
+        category.refresh_from_db()
+        article.refresh_from_db()
+        self.assertEqual(category.full_name, 'PC/設定')
+        self.assertEqual(article.category, category.full_name)
+
+    def test_middle_leaf_and_branch_are_both_available(self):
+        from .views import FAQCategoryCreateView, build_parent_category_groups
+
+        leaf = FAQCategory.objects.create(parent_name='PC', middle_name='設定', child_name='')
+        child = FAQCategory.objects.create(parent_name='PC', middle_name='設定', child_name='電源')
+        parent = next(item for item in FAQCategoryCreateView.category_browser_data() if item['name'] == 'PC')
+        self.assertIn({'id': leaf.pk, 'name': '設定'}, parent['direct_children'])
+        self.assertEqual(parent['middles'][0]['children'], [{'id': child.pk, 'name': '電源'}])
+        parent = next(item for item in build_parent_category_groups(user=self.staff) if item['name'] == 'PC')
+        self.assertEqual(parent['children'][0]['full_name'], leaf.full_name)
+        self.assertEqual(parent['middle_groups'][0]['children'][0]['full_name'], child.full_name)
+
+    def test_middle_leaf_can_be_selected_in_forms_and_lists(self):
+        leaf = FAQCategory.objects.create(parent_name='PC', middle_name='末端設定', child_name='')
+        for form_url in ['article_create', 'tip_create']:
+            page = self.client.get(reverse(form_url))
+            self.assertEqual(page.status_code, 200)
+            form = page.context['form']
+            self.assertEqual(list(form.fields['registered_category'].clean([leaf.pk])), [leaf])
+        for model, url in [(KnowledgeArticle, 'article_list'), (TipsArticle, 'tip_list')]:
+            selected = model.objects.create(title='中カテゴリ直接選択対象', body='本文', category=leaf.full_name)
+            other = model.objects.create(title='小カテゴリ対象', body='本文', category=leaf.full_name + '/電源')
+            page = self.client.get(reverse(url), {'category': leaf.full_name})
+            self.assertContains(page, selected.title)
+            self.assertNotContains(page, other.title)
+
+
+class CategoryDeleteTests(TestCase):
+    def setUp(self):
+        self.category = FAQCategory.objects.create(parent_name='PC', middle_name='削除対象', child_name='設定')
+        self.url = reverse('category_delete', args=[self.category.pk])
+
+    def test_upper_admin_can_delete_category_without_deleting_articles(self):
+        for username in ['Admin', 'SystenaAdmin']:
+            with self.subTest(username=username):
+                user = get_user_model().objects.create_user(username=username, is_staff=True)
+                self.client.force_login(user)
+                category = FAQCategory.objects.create(parent_name='PC', middle_name=username)
+                article = KnowledgeArticle.objects.create(title=username, body='本文', category=category.full_name)
+                tip = TipsArticle.objects.create(title=username, body='本文', category=category.full_name)
+                response = self.client.post(reverse('category_delete', args=[category.pk]))
+                self.assertRedirects(response, reverse('category_create'))
+                self.assertFalse(FAQCategory.objects.filter(pk=category.pk).exists())
+                article.refresh_from_db()
+                tip.refresh_from_db()
+                self.assertEqual(article.category, category.full_name)
+                self.assertEqual(tip.category, category.full_name)
+
+    def test_regular_staff_and_superuser_cannot_delete(self):
+        for username, superuser in [('staff-delete', False), ('other-superuser', True)]:
+            user = get_user_model().objects.create_user(username=username, is_staff=True, is_superuser=superuser)
+            self.client.force_login(user)
+            self.assertEqual(self.client.post(self.url).status_code, 403)
+            self.assertTrue(FAQCategory.objects.filter(pk=self.category.pk).exists())
+            page = self.client.get(reverse('category_edit', args=[self.category.pk]))
+            self.assertNotContains(page, 'id="categoryDeleteForm"')
+
+    def test_member_cannot_delete(self):
+        user = get_user_model().objects.create_user(username='category-delete-member')
+        self.client.force_login(user)
+        self.assertRedirects(self.client.post(self.url), reverse('article_list'))
+        self.assertTrue(FAQCategory.objects.filter(pk=self.category.pk).exists())
+
+    def test_delete_requires_post_and_csrf_and_button_is_before_cancel(self):
+        from django.test import Client
+
+        user = get_user_model().objects.create_user(username='Admin', is_staff=True)
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(self.url).status_code, 405)
+        page = self.client.get(reverse('category_edit', args=[self.category.pk]))
+        self.assertContains(page, 'form="categoryDeleteForm"')
+        self.assertContains(page, 'onsubmit="return confirm(')
+        content = page.content.decode()
+        self.assertLess(content.index('form="categoryDeleteForm"'), content.index('>キャンセル</a>'))
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(user)
+        self.assertEqual(csrf_client.post(self.url).status_code, 403)
+        self.assertTrue(FAQCategory.objects.filter(pk=self.category.pk).exists())
+
+
 class ArticleManagementViewTests(TestCase):
     def setUp(self):
         User = get_user_model()

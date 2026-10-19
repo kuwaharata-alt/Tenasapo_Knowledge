@@ -3,6 +3,24 @@
 {% block title %}{{ form_title }} | Nexus{% endblock %}
 
 {% block content %}
+<style>
+    .category-browser .category-editing-target,
+    .category-browser [data-sub1].active {
+        background: #fff0dc !important;
+        color: #9a3b00 !important;
+        box-shadow: inset 4px 0 0 #ed7620;
+        font-weight: 700;
+    }
+    .category-editing-badge {
+        margin-left: 0.4rem;
+        padding: 0.1rem 0.35rem;
+        border-radius: 0.25rem;
+        background: #ed7620;
+        color: #fff;
+        font-size: 0.7rem;
+        white-space: nowrap;
+    }
+</style>
 <div class="row justify-content-center">
     <div class="col-12 col-lg-8">
         <div class="page-title-panel mb-4">
@@ -77,29 +95,38 @@
                     </div>
                     {% endif %}
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">中カテゴリ（任意）</label>
-                        <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証">
+                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">中カテゴリ <span class="text-danger">*</span></label>
+                        <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証" required>
                         {% for error in form.middle_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ</label>
-                        <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源" required>
+                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ（任意）</label>
+                        <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源">
                         {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     {% endif %}
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                {% if category and can_delete_category %}
+                    <button class="btn btn-outline-danger" type="submit" form="categoryDeleteForm">削除</button>
+                {% endif %}
                 {% if return_to %}
                     <a class="btn btn-outline-secondary" href="{{ return_to }}">戻る</a>
                 {% elif category %}
-                    <a class="btn btn-outline-secondary" href="{% url 'category_create' %}">キャンセル</a>
+                    <a class="btn btn-outline-secondary" href="{% url 'category_create' %}?focus_category={{ category.pk }}">キャンセル</a>
                 {% else %}
                     <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
                 {% endif %}
                 <button class="btn btn-primary" type="submit">{{ submit_label }}</button>
             </div>
         </form>
+
+        {% if category and can_delete_category %}
+            <form id="categoryDeleteForm" method="post" action="{% url 'category_delete' category.pk %}" onsubmit="return confirm('このカテゴリを削除しますか？\n記事や本文は削除されません。記事に保存済みのカテゴリ情報はそのまま残ります。');">
+                {% csrf_token %}
+            </form>
+        {% endif %}
 
         <section class="mt-4">
             <h2 class="h5 fw-bold mb-3">登録済みカテゴリ（3ペイン）</h2>
@@ -145,12 +172,45 @@ document.addEventListener('DOMContentLoaded', function () {
     const parentContainer = document.querySelector('.category-browser-pane .list-group.list-group-flush');
     const sub1Pane = document.getElementById('subcategory1Pane');
     const sub2Pane = document.getElementById('subcategory2Pane');
+    const editUrlTemplate = '{% url "category_edit" 0 %}';
+    const editingCategoryId = '{{ category.pk|default_if_none:""|escapejs }}';
+    const focusCategoryId = editingCategoryId || new URLSearchParams(window.location.search).get('focus_category');
+
+    function categoryEditUrl(categoryId) {
+        return editUrlTemplate.replace('/0/', '/' + categoryId + '/');
+    }
+
+    function highlightFocusedCategory() {
+        document.querySelectorAll('[data-category-id]').forEach(row => {
+            const selected = row.dataset.categoryId === focusCategoryId;
+            row.classList.toggle('category-editing-target', selected);
+            const oldBadge = row.querySelector('.category-editing-badge');
+            if (oldBadge) oldBadge.remove();
+            if (selected) {
+                const badge = document.createElement('span');
+                badge.className = 'category-editing-badge';
+                badge.textContent = editingCategoryId ? '編集中' : '更新対象';
+                row.querySelector('span').appendChild(badge);
+            }
+            row.classList.toggle('bg-primary-subtle', selected);
+            row.classList.toggle('text-primary-emphasis', selected);
+            row.classList.toggle('fw-semibold', selected);
+            if (selected) {
+                row.setAttribute('aria-current', 'true');
+            } else {
+                row.removeAttribute('aria-current');
+            }
+        });
+    }
 
     if (!parentContainer || !sub1Pane || !sub2Pane || !Array.isArray(data)) {
         return;
     }
 
     function renderSub2(parentName, sub1Name) {
+        sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
+            button.classList.toggle('active', button.getAttribute('data-sub1') === sub1Name);
+        });
         const parent = data.find(item => item.name === parentName);
         if (!parent) {
             sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
@@ -163,16 +223,20 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        const editUrlBase = '{% url "category_edit" 0 %}'.replace(/0\/$/, '');
         sub2Pane.innerHTML = middle.children.map(child => (
-            '<div class="category-browser-link d-flex justify-content-between align-items-center">'
+            '<div class="category-browser-link d-flex justify-content-between align-items-center" data-category-id="' + child.id + '">'
             + '<span>' + parentName + ' / ' + sub1Name + ' / ' + child.name + '</span>'
-            + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + child.id + '/">修正</a>'))
+            + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + categoryEditUrl(child.id) + '">修正</a>'))
             + '</div>'
         )).join('');
+        highlightFocusedCategory();
     }
 
     function renderSub1(parentName) {
+        parentContainer.querySelectorAll('.category-sidebar-link').forEach(item => {
+            const span = item.querySelector('span');
+            item.classList.toggle('active', !!span && span.textContent.trim() === parentName);
+        });
         const parent = data.find(item => item.name === parentName);
         if (!parent) {
             sub1Pane.innerHTML = '<div class="category-browser-empty">大カテゴリを選択してください。</div>';
@@ -192,18 +256,18 @@ document.addEventListener('DOMContentLoaded', function () {
                 + '</button>'
             );
         });
-        const editUrlBase = '{% url "category_edit" 0 %}'.replace(/0\/$/, '');
         directChildren.forEach(item => {
             rows.push(
-                '<div class="category-browser-link d-flex justify-content-between align-items-center">'
+                '<div class="category-browser-link d-flex justify-content-between align-items-center" data-category-id="' + item.id + '">'
                 + '<span>' + item.name + '</span>'
-                + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + editUrlBase + item.id + '/">修正</a>'))
+                + (isQrTab ? '' : ('<a class="btn btn-outline-primary btn-sm" href="' + categoryEditUrl(item.id) + '">修正</a>'))
                 + '</div>'
             );
         });
 
         sub1Pane.innerHTML = rows.length ? rows.join('') : '<div class="category-browser-empty">サブカテゴリはありません。</div>';
         sub2Pane.innerHTML = '<div class="category-browser-empty">中カテゴリを選択してください。</div>';
+        highlightFocusedCategory();
 
         sub1Pane.querySelectorAll('[data-sub1]').forEach(button => {
             button.addEventListener('click', function () {
@@ -223,6 +287,20 @@ document.addEventListener('DOMContentLoaded', function () {
             renderSub1(parentName);
         });
     });
+
+    if (!isQrTab && focusCategoryId) {
+        for (const parent of data) {
+            const directChild = (parent.direct_children || []).find(child => String(child.id) === focusCategoryId);
+            const middle = (parent.middles || []).find(item => (
+                (item.children || []).some(child => String(child.id) === focusCategoryId)
+            ));
+            if (directChild || middle) {
+                renderSub1(parent.name);
+                if (middle) renderSub2(parent.name, middle.name);
+                break;
+            }
+        }
+    }
 });
 </script>
 {% endblock %}

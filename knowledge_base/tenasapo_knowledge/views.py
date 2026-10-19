@@ -1251,15 +1251,15 @@ def build_parent_category_groups(
             continue
 
         node = parent_map.setdefault(parent_name, {'direct_children': {}, 'middle_groups': {}})
-        if category.middle_name:
+        if category.middle_name and category.child_name:
             middle_node = node['middle_groups'].setdefault(category.middle_name, {})
             middle_node[category.full_name] = {
-                'name': category.child_name,
+            'name': category.child_name,
                 'full_name': category.full_name,
             }
         else:
             node['direct_children'][category.full_name] = {
-                'name': category.child_name,
+                'name': category.middle_name or category.child_name,
                 'full_name': category.full_name,
             }
 
@@ -1341,12 +1341,16 @@ def split_registered_and_unregistered_categories(category_text):
     for category_name in category_names:
         parent_name, middle_name, child_name = ArticleListView.split_category_parts(category_name)
         category = None
-        if parent_name and child_name:
+        if parent_name and (middle_name or child_name):
             category = FAQCategory.objects.filter(
                 parent_name=parent_name,
                 middle_name=middle_name,
                 child_name=child_name,
             ).first()
+            if category is None and not middle_name:
+                category = FAQCategory.objects.filter(
+                    parent_name=parent_name, middle_name=child_name, child_name='',
+                ).first()
 
         if category:
             registered_category_ids.append(category.id)
@@ -4651,7 +4655,7 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
                     'middles': {},
                 },
             )
-            if category.middle_name:
+            if category.middle_name and category.child_name:
                 middle_node = parent_node['middles'].setdefault(
                     category.middle_name,
                     {
@@ -4669,7 +4673,7 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
                 parent_node['direct_children'].append(
                     {
                         'id': category.id,
-                        'name': category.child_name,
+                        'name': category.middle_name or category.child_name,
                     }
                 )
 
@@ -4722,10 +4726,17 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
         context['form_title'] = 'カテゴリ修正'
         context['submit_label'] = '更新'
         context['category'] = self.category
+        context['can_delete_category'] = (
+            _can_manage_all_users(self.request.user)
+            and can_edit_article(self.request.user)
+        )
         context['categories'] = FAQCategoryCreateView.categories_with_parent_visibility()
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
         return context
+
+    def get_success_url(self):
+        return f"{self.success_url}?{urlencode({'focus_category': self.category.pk})}"
 
     def form_valid(self, form):
         category = form.save()
@@ -4759,6 +4770,18 @@ class FAQCategoryUpdateView(StaffRequiredMixin, FormView):
             if updated_categories != categories:
                 tip.category = ','.join(updated_categories)
                 tip.save(update_fields=['category', 'updated_at'])
+
+
+class FAQCategoryDeleteView(StaffRequiredMixin, View):
+    def post(self, request, pk):
+        if not (_can_manage_all_users(request.user) and can_edit_article(request.user)):
+            return HttpResponseForbidden('カテゴリを削除できるのは上位管理者のみです。')
+
+        category = get_object_or_404(FAQCategory, pk=pk)
+        name = category.full_name
+        category.delete()
+        messages.success(request, f'カテゴリ「{name}」を削除しました。記事のカテゴリ情報は変更していません。')
+        return redirect('category_create')
 
 
 class RelatedTagCreateView(StaffRequiredMixin, FormView):

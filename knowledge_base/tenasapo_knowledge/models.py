@@ -163,8 +163,8 @@ class UserProfile(models.Model):
 
 class FAQCategory(models.Model):
     parent_name = models.CharField('大カテゴリ', max_length=120)
-    middle_name = models.CharField('中カテゴリ', max_length=120, blank=True, default='')
-    child_name = models.CharField('小カテゴリ', max_length=120)
+    middle_name = models.CharField('中カテゴリ', max_length=120, default='')
+    child_name = models.CharField('小カテゴリ', max_length=120, blank=True, default='')
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
@@ -181,9 +181,7 @@ class FAQCategory(models.Model):
 
     @property
     def full_name(self):
-        if self.middle_name:
-            return f'{self.parent_name}/{self.middle_name}/{self.child_name}'
-        return f'{self.parent_name}/{self.child_name}'
+        return '/'.join(part for part in (self.parent_name, self.middle_name, self.child_name) if part)
 
     def __str__(self):
         return self.full_name
