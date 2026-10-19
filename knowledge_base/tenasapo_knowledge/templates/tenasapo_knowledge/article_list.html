@@ -38,7 +38,7 @@
         </div>
         <div class="flex-md-fill d-flex justify-content-md-center">
             {% if is_demo_user %}
-                <div class="alert alert-warning py-2 px-3 mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
+                <div class="alert alert-warning py-2 px-3 mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。{% if current_user_demo_expires_at_text %}（閲覧期限：{{ current_user_demo_expires_at_text }}）{% endif %}</div>
             {% endif %}
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
@@ -466,7 +466,7 @@
                                                     {% endwith %}
                                                 {% endif %}
                                             {% else %}
-                                                <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。</div>
+                                                <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。{% if current_user_demo_expires_at_text %}（閲覧期限：{{ current_user_demo_expires_at_text }}）{% endif %}</div>
                                             {% endif %}
                                             {% if article.can_view_content and article.reference_links %}
                                                 <div class="border-top pt-3 mt-3">

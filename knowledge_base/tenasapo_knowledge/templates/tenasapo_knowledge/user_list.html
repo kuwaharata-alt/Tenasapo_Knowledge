@@ -328,10 +328,15 @@
                                             <tr>
                                                 <th>備考</th>
                                                 <td>
+                                                    {% if account.knowledge_profile.demo_account_expires_at %}
+                                                        <div class="text-muted small mb-1">閲覧期限：{{ account.knowledge_profile.demo_account_expires_at|date:'Y/m/d' }}</div>
+                                                    {% endif %}
                                                     {% if account.knowledge_profile.note %}
                                                         <div class="text-break">{{ account.knowledge_profile.note|linebreaksbr }}</div>
                                                     {% else %}
-                                                        <span class="text-secondary">-</span>
+                                                        {% if not account.knowledge_profile.demo_account_expires_at %}
+                                                            <span class="text-secondary">-</span>
+                                                        {% endif %}
                                                     {% endif %}
                                                 </td>
                                             </tr>

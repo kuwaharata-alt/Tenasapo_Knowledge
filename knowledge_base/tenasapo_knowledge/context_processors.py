@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.utils import timezone
 
 from .utils import resolve_user_display_name
 
@@ -51,6 +52,7 @@ def user_display_name(request):
             'current_user_is_customer': False,
             'current_user_view_mode': '',
             'can_switch_account_view_mode': False,
+            'current_user_demo_expires_at_text': '',
         }
 
     view_mode = str(request.session.get(ACCOUNT_VIEW_MODE_SESSION_KEY) or '').strip().lower()
@@ -75,6 +77,13 @@ def user_display_name(request):
         current_user_is_customer = user.groups.filter(name='カスタマー').exists()
 
     base_display_name = resolve_user_display_name(user)
+    current_user_demo_expires_at_text = ''
+    if is_demo_group_member(user) and profile is not None and profile.demo_account_expires_at:
+        expires_at = profile.demo_account_expires_at
+        if timezone.is_naive(expires_at):
+            expires_at = timezone.make_aware(expires_at, timezone.get_current_timezone())
+        current_user_demo_expires_at_text = timezone.localtime(expires_at).strftime('%Y/%m/%d')
+
     mode_suffix = ''
     if view_mode == ACCOUNT_VIEW_MODE_DEMO:
         mode_suffix = ' (Demo)'
@@ -87,4 +96,5 @@ def user_display_name(request):
         'current_user_is_customer': current_user_is_customer,
         'current_user_view_mode': view_mode,
         'can_switch_account_view_mode': can_switch_account_view_mode,
+        'current_user_demo_expires_at_text': current_user_demo_expires_at_text,
     }

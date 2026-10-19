@@ -1,5 +1,4 @@
 from collections import Counter
-from calendar import monthrange
 from datetime import datetime, timedelta
 import json
 import logging
@@ -255,16 +254,6 @@ def should_force_password_change(user):
         if local_part and user.check_password(local_part):
             return True
     return False
-
-
-def _add_one_month(dt_value):
-    month = dt_value.month + 1
-    year = dt_value.year
-    if month > 12:
-        month = 1
-        year += 1
-    day = min(dt_value.day, monthrange(year, month)[1])
-    return dt_value.replace(year=year, month=month, day=day)
 
 
 def is_demo_account_expired(user):
@@ -4891,7 +4880,7 @@ class UserDemoIssueView(StaffRequiredMixin, View):
             uid = f'{number:06d}'
             username = f'{self.demo_prefix}{uid}'
             temporary_password = username
-            demo_account_expires_at = _add_one_month(timezone.now())
+            demo_account_expires_at = timezone.now() + timedelta(days=30)
 
             try:
                 with transaction.atomic():
