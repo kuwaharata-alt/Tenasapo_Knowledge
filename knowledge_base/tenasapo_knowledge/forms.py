@@ -678,6 +678,11 @@ class KnowledgeArticleCreateForm(forms.Form):
         required=False,
         initial=True,
     )
+    visible_to_demo = forms.BooleanField(
+        label='デモユーザーに表示する',
+        required=False,
+        initial=False,
+    )
     source_published_at = forms.DateField(
         label='ソース公開日',
         required=True,
@@ -792,6 +797,11 @@ class TipsCreateForm(forms.Form):
         label='システナユーザーに表示する',
         required=False,
         initial=True,
+    )
+    visible_to_demo = forms.BooleanField(
+        label='デモユーザーに表示する',
+        required=False,
+        initial=False,
     )
     source_published_at = forms.DateField(
         label='ソース公開日',

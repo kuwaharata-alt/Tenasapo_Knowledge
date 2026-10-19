@@ -980,6 +980,38 @@ class KnowledgeArticleListTests(TestCase):
         self.assertNotContains(response, restricted_article.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_user_cannot_see_article_when_visible_to_demo_is_false(self):
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        self.user.groups.add(demo_group)
+        hidden_for_demo_article = KnowledgeArticle.objects.create(
+            title='デモ非表示FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            visible_to_demo=False,
+            is_approved=True,
+        )
+        visible_for_demo_article = KnowledgeArticle.objects.create(
+            title='デモ表示FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            visible_to_demo=True,
+            is_approved=True,
+        )
+        self.client.force_login(self.user)
+
+        list_response = self.client.get(reverse('article_list'))
+
+        self.assertNotContains(list_response, hidden_for_demo_article.title)
+        self.assertContains(list_response, visible_for_demo_article.title)
+
+        detail_response = self.client.get(
+            reverse('article_detail', args=[hidden_for_demo_article.management_code])
+        )
+        self.assertEqual(detail_response.status_code, 404)
+
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_demo_reviewer_cannot_view_restricted_article_content(self):
         demo_group, _ = Group.objects.get_or_create(name='Demo')
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
@@ -1715,6 +1747,37 @@ class TipsListTests(TestCase):
         self.assertContains(response, '期限表示Tips')
         self.assertContains(response, '掲載期限')
 
+    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    def test_demo_user_cannot_see_tip_when_visible_to_demo_is_false(self):
+        demo_group, _ = Group.objects.get_or_create(name='デモ')
+        self.user.groups.add(demo_group)
+        hidden_for_demo_tip = TipsArticle.objects.create(
+            title='デモ非表示Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            visible_to_demo=False,
+            is_approved=True,
+        )
+        visible_for_demo_tip = TipsArticle.objects.create(
+            title='デモ表示Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_customer=True,
+            visible_to_demo=True,
+            is_approved=True,
+        )
+
+        list_response = self.client.get(reverse('tip_list'))
+
+        self.assertNotContains(list_response, hidden_for_demo_tip.title)
+        self.assertContains(list_response, visible_for_demo_tip.title)
+
+        detail_response = self.client.get(
+            reverse('tip_detail', args=[hidden_for_demo_tip.management_code])
+        )
+        self.assertEqual(detail_response.status_code, 404)
+
     def test_hidden_for_all_tip_is_not_shown_even_to_staff(self):
         self.user.is_staff = True
         self.user.save()
@@ -2119,6 +2182,101 @@ class TipsFormTests(TestCase):
         self.assertRedirects(response, reverse('tip_list'))
         tip = TipsArticle.objects.get(title='複数OS Tips')
         self.assertEqual(tip.target_os, 'Windows PC 10 以降, VMware 7.0')
+
+
+class ArticleManagementViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.staff = User.objects.create_user(username='mgmt_staff', password='password', is_staff=True)
+        self.client.force_login(self.staff)
+
+    def test_management_list_shows_demo_visibility_column(self):
+        KnowledgeArticle.objects.create(
+            title='管理FAQ',
+            category='PC/設定',
+            body='本文',
+            visible_to_demo=True,
+            created_by=self.staff,
+            created_by_name=self.staff.get_username(),
+        )
+        TipsArticle.objects.create(
+            title='管理Tips',
+            category='PC/設定',
+            body='本文',
+            visible_to_demo=False,
+            created_by=self.staff,
+            created_by_name=self.staff.get_username(),
+        )
+
+        response = self.client.get(reverse('article_management'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'デモ閲覧')
+        self.assertContains(response, '管理FAQ')
+        self.assertContains(response, '管理Tips')
+        self.assertContains(response, 'class="form-check-input demo-visibility-checkbox"')
+        self.assertContains(response, 'class="demo-visibility-form"', count=2)
+        self.assertNotContains(response, ' disabled ')
+
+    def test_staff_can_update_demo_visibility_for_faq_and_tips(self):
+        for article_type, model in [('faq', KnowledgeArticle), ('tips', TipsArticle)]:
+            item = model.objects.create(title='デモ閲覧変更', body='本文')
+            for value in ['1', '0']:
+                with self.subTest(article_type=article_type, value=value):
+                    response = self.client.post(reverse('article_management'), {
+                        'article_type': article_type,
+                        'article_id': item.pk,
+                        'visible_to_demo': value,
+                    })
+                    self.assertEqual(response.status_code, 200)
+                    item.refresh_from_db()
+                    self.assertEqual(item.visible_to_demo, value == '1')
+                    self.assertEqual(response.json()['visible_to_demo'], value == '1')
+                    self.assertEqual(item.body, '本文')
+
+    def test_demo_visibility_rejects_invalid_input(self):
+        item = KnowledgeArticle.objects.create(title='不正入力対象', body='本文')
+        for changes in [
+            {'article_type': 'other'},
+            {'article_id': 'invalid'},
+            {'visible_to_demo': 'invalid'},
+        ]:
+            data = {'article_type': 'faq', 'article_id': item.pk, 'visible_to_demo': '1'}
+            data.update(changes)
+            response = self.client.post(reverse('article_management'), data)
+            self.assertEqual(response.status_code, 400)
+        item.refresh_from_db()
+        self.assertFalse(item.visible_to_demo)
+
+    def test_non_staff_cannot_update_demo_visibility(self):
+        item = KnowledgeArticle.objects.create(title='権限確認', body='本文')
+        member = get_user_model().objects.create_user(username='mgmt_member', password='password')
+        self.client.force_login(member)
+        response = self.client.post(reverse('article_management'), {
+            'article_type': 'faq', 'article_id': item.pk, 'visible_to_demo': '1',
+        })
+        self.assertEqual(response.status_code, 302)
+        item.refresh_from_db()
+        self.assertFalse(item.visible_to_demo)
+
+    def test_demo_visibility_update_requires_csrf(self):
+        from django.test import Client
+
+        item = TipsArticle.objects.create(title='CSRF確認', body='本文')
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.staff)
+        data = {'article_type': 'tips', 'article_id': item.pk, 'visible_to_demo': '1'}
+        response = client.post(reverse('article_management'), data)
+        self.assertEqual(response.status_code, 403)
+        item.refresh_from_db()
+        self.assertFalse(item.visible_to_demo)
+
+        client.get(reverse('article_management'))
+        data['csrfmiddlewaretoken'] = client.cookies['csrftoken'].value
+        response = client.post(reverse('article_management'), data)
+        self.assertEqual(response.status_code, 200)
+        item.refresh_from_db()
+        self.assertTrue(item.visible_to_demo)
 
 
 @override_settings(

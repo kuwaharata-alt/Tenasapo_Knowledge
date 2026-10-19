@@ -1064,6 +1064,8 @@ def can_user_access_article(user, article):
         return True
     if is_systena:
         return article.visible_to_systena
+    if is_demo_user(user) and not article.visible_to_demo:
+        return False
     if FAQ_APPROVAL_ENABLED and not article.is_approved:
         return False
     return article.visible_to_customer
@@ -1082,6 +1084,8 @@ def can_user_access_tip(user, tip):
         return True
     if is_systena:
         return tip.visible_to_systena
+    if is_demo_user(user) and not tip.visible_to_demo:
+        return False
     if FAQ_APPROVAL_ENABLED and not tip.is_approved:
         return False
     return tip.visible_to_customer
@@ -1891,6 +1895,8 @@ class ArticleListView(ListView):
             and not is_reviewer_group_user
         ):
             queryset = queryset.filter(visible_to_customer=True)
+            if is_demo_user(user):
+                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
 
@@ -2180,6 +2186,8 @@ class ArticleListView(ListView):
         user = self.request.user
         if is_customer_user(user):
             queryset = queryset.filter(visible_to_customer=True)
+            if is_demo_user(user):
+                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
             queryset = filter_queryset_by_customer_parent_settings(
@@ -2252,6 +2260,8 @@ class TipsListView(ListView):
             and not is_reviewer_group_user
         ):
             queryset = queryset.filter(visible_to_customer=True)
+            if is_demo_user(user):
+                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
 
@@ -2535,6 +2545,8 @@ class TipsListView(ListView):
         user = self.request.user
         if is_customer_user(user):
             queryset = queryset.filter(visible_to_customer=True)
+            if is_demo_user(user):
+                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
             queryset = filter_queryset_by_customer_parent_settings(
@@ -2623,6 +2635,7 @@ class TipsCreateView(FormView):
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
+            visible_to_demo=form.cleaned_data['visible_to_demo'],
             created_by=self.request.user,
             created_by_name=resolve_user_display_name(self.request.user),
             reference_links=reference_links,
@@ -2685,6 +2698,7 @@ class TipsUpdateView(FormView):
             'expires_on': self.tip.expires_on,
             'visible_to_customer': self.tip.visible_to_customer,
             'visible_to_systena': self.tip.visible_to_systena,
+            'visible_to_demo': self.tip.visible_to_demo,
         }
 
     def get_context_data(self, **kwargs):
@@ -2764,6 +2778,7 @@ class TipsUpdateView(FormView):
         self.tip.expires_on = form.cleaned_data['expires_on']
         self.tip.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.tip.visible_to_systena = form.cleaned_data['visible_to_systena']
+        self.tip.visible_to_demo = form.cleaned_data['visible_to_demo']
         self.tip.reference_links = reference_links
 
         submit_action = self.request.POST.get('submit_action')
@@ -2774,7 +2789,7 @@ class TipsUpdateView(FormView):
 
         update_fields = [
             'title', 'tags', 'target_os', 'category', 'body', 'source_published_at', 'expires_on',
-            'visible_to_customer', 'visible_to_systena', 'reference_links', 'is_corrected', 'updated_at',
+            'visible_to_customer', 'visible_to_systena', 'visible_to_demo', 'reference_links', 'is_corrected', 'updated_at',
         ]
         if form.cleaned_data.get('clear_pdf') and self.tip.pdf_file:
             self.tip.pdf_file.delete(save=False)
@@ -4248,6 +4263,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
             is_approved=not FAQ_APPROVAL_ENABLED,
             visible_to_customer=form.cleaned_data['visible_to_customer'],
             visible_to_systena=form.cleaned_data['visible_to_systena'],
+            visible_to_demo=form.cleaned_data['visible_to_demo'],
             source_published_at=form.cleaned_data['source_published_at'],
             expires_on=form.cleaned_data['expires_on'],
             created_by=self.request.user,
@@ -4316,6 +4332,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             'answer': self.article.body,
             'visible_to_customer': self.article.visible_to_customer,
             'visible_to_systena': self.article.visible_to_systena,
+            'visible_to_demo': self.article.visible_to_demo,
             'source_published_at': self.article.source_published_at,
             'expires_on': self.article.expires_on,
         }
@@ -4399,6 +4416,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         self.article.body = form.cleaned_data['answer']
         self.article.visible_to_customer = form.cleaned_data['visible_to_customer']
         self.article.visible_to_systena = form.cleaned_data['visible_to_systena']
+        self.article.visible_to_demo = form.cleaned_data['visible_to_demo']
         self.article.source_published_at = form.cleaned_data['source_published_at']
         self.article.expires_on = form.cleaned_data['expires_on']
         self.article.reference_links = reference_links
@@ -4419,6 +4437,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
                 'body',
                 'visible_to_customer',
                 'visible_to_systena',
+                'visible_to_demo',
                 'source_published_at',
                 'expires_on',
                 'reference_links',
@@ -6443,6 +6462,22 @@ class ArticleManagementView(TemplateView):
             return redirect('home')
         return super().dispatch(request, *args, **kwargs)
 
+    def post(self, request, *args, **kwargs):
+        if not can_edit_article(request.user):
+            return JsonResponse({'error': '編集する権限がありません。'}, status=403)
+
+        models_by_type = {'faq': KnowledgeArticle, 'tips': TipsArticle}
+        model = models_by_type.get(request.POST.get('article_type'))
+        article_id = request.POST.get('article_id', '')
+        visible_to_demo = request.POST.get('visible_to_demo')
+        if model is None or not article_id.isascii() or not article_id.isdigit() or visible_to_demo not in {'0', '1'}:
+            return JsonResponse({'error': '更新内容が不正です。'}, status=400)
+
+        item = get_object_or_404(model, pk=article_id)
+        item.visible_to_demo = visible_to_demo == '1'
+        item.save(update_fields=['visible_to_demo', 'updated_at'])
+        return JsonResponse({'visible_to_demo': item.visible_to_demo})
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -6508,6 +6543,7 @@ class ArticleManagementView(TemplateView):
                     'updated_at': article.updated_at,
                     'is_published': article.is_published,
                     'is_approved': article.is_approved,
+                    'visible_to_demo': article.visible_to_demo,
                     'good_count': article.good_count,
                     'view_count': article.answer_view_count,
                     'category_chips': list(dict.fromkeys(
@@ -6551,6 +6587,7 @@ class ArticleManagementView(TemplateView):
                     'updated_at': tip.updated_at,
                     'is_published': tip.is_published,
                     'is_approved': tip.is_approved,
+                    'visible_to_demo': tip.visible_to_demo,
                     'good_count': tip.good_count,
                     'view_count': tip.view_count,
                     'category_chips': list(dict.fromkeys(
@@ -6710,6 +6747,8 @@ class KnowledgeArticleDetailView(TemplateView):
         if not (is_admin or is_systena or is_reviewer):
             if not article.visible_to_customer:
                 raise Http404('記事が見つかりません。')
+            if is_demo_user(user) and not article.visible_to_demo:
+                raise Http404('記事が見つかりません。')
             if FAQ_APPROVAL_ENABLED and not article.is_approved:
                 raise Http404('記事が見つかりません。')
 
@@ -6793,6 +6832,8 @@ class TipsArticleDetailView(TemplateView):
 
         if not (is_admin or is_systena or is_reviewer):
             if not tip.visible_to_customer:
+                raise Http404('記事が見つかりません。')
+            if is_demo_user(user) and not tip.visible_to_demo:
                 raise Http404('記事が見つかりません。')
             if FAQ_APPROVAL_ENABLED and not tip.is_approved:
                 raise Http404('記事が見つかりません。')

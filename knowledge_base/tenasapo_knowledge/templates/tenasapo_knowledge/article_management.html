@@ -118,6 +118,7 @@
                             <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=desc" class="text-decoration-none text-muted">閲覧</a>
                         {% endif %}
                     </th>
+                    <th style="width:6rem;" class="text-center">デモ閲覧</th>
                     {% if can_edit %}
                         <th style="width:4rem;" class="text-center"></th>
                     {% endif %}
@@ -185,6 +186,19 @@
                                 <span class="text-muted">-</span>
                             {% endif %}
                         </td>
+                        <td class="text-center">
+                            {% if can_edit %}
+                                <form method="post" action="{% url 'article_management' %}" class="demo-visibility-form">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="article_type" value="{{ item.type }}">
+                                    <input type="hidden" name="article_id" value="{{ item.id }}">
+                                    <input type="checkbox" class="form-check-input demo-visibility-checkbox" aria-label="{{ item.title }}のデモ閲覧" {% if item.visible_to_demo %}checked{% endif %}>
+                                    <div class="small demo-visibility-status" role="status" aria-live="polite"></div>
+                                </form>
+                            {% else %}
+                                <input type="checkbox" class="form-check-input" aria-label="{{ item.title }}のデモ閲覧" disabled {% if item.visible_to_demo %}checked{% endif %}>
+                            {% endif %}
+                        </td>
                         {% if can_edit %}
                             <td>
                                 {% if item.type == 'faq' %}
@@ -196,7 +210,7 @@
                         {% endif %}
                     </tr>
                     <tr>
-                        <td colspan="{% if can_edit %}10{% else %}9{% endif %}" class="py-0 border-0">
+                        <td colspan="{% if can_edit %}11{% else %}10{% endif %}" class="py-0 border-0">
                             <div class="collapse" id="inline-detail-{{ item.type }}-{{ item.id }}">
                                 <div class="p-3 border-top bg-light">
                                     <div class="mgmt-inline-body" data-detail-source-id="detail-{{ item.type }}-{{ item.id }}">
@@ -208,7 +222,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if can_edit %}9{% else %}8{% endif %}" class="text-center text-muted py-4">
+                        <td colspan="{% if can_edit %}11{% else %}10{% endif %}" class="text-center text-muted py-4">
                             該当する記事がありません。
                         </td>
                     </tr>
@@ -426,6 +440,42 @@ document.getElementById('pdfModal').addEventListener('hidden.bs.modal', function
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.demo-visibility-form').forEach(function(form) {
+        const checkbox = form.querySelector('.demo-visibility-checkbox');
+        const status = form.querySelector('.demo-visibility-status');
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+        });
+        checkbox.addEventListener('change', async function() {
+            const newValue = checkbox.checked;
+            const data = new FormData(form);
+            data.set('visible_to_demo', newValue ? '1' : '0');
+            checkbox.disabled = true;
+            status.className = 'small demo-visibility-status text-muted';
+            status.textContent = '保存中...';
+            try {
+                const response = await fetch(form.action, {
+                    method: 'POST',
+                    body: data,
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!response.ok) throw new Error('保存に失敗しました。');
+                const result = await response.json();
+                if (typeof result.visible_to_demo !== 'boolean') throw new Error('不正な応答です。');
+                checkbox.checked = result.visible_to_demo;
+                status.className = 'small demo-visibility-status text-success';
+                status.textContent = '保存済み';
+            } catch (error) {
+                checkbox.checked = !newValue;
+                status.className = 'small demo-visibility-status text-danger';
+                status.textContent = '保存失敗。再度お試しください。';
+            } finally {
+                checkbox.disabled = false;
+            }
+        });
+    });
+
     document.querySelectorAll('.mgmt-title-btn').forEach(function(btn) {
         const targetSelector = btn.getAttribute('data-bs-target') || '';
         const collapseElement = targetSelector ? document.querySelector(targetSelector) : null;

@@ -139,6 +139,13 @@
                         </div>
                     </div>
                     <div class="col-12 col-md-6">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input{% if form.visible_to_demo.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_demo.html_name }}" id="id_visible_to_demo" {% if form.visible_to_demo.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_demo">デモユーザーに表示する</label>
+                            {% for error in form.visible_to_demo.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
                         <label class="form-label form-subsection-label" for="{{ form.source_published_at.id_for_label }}">{{ form.source_published_at.label }} <span class="text-danger">*</span></label>
                         <input class="form-control{% if form.source_published_at.errors %} is-invalid{% endif %}" type="date" name="{{ form.source_published_at.html_name }}" id="{{ form.source_published_at.id_for_label }}" value="{{ form.source_published_at.value|date:'Y-m-d'|default_if_none:'' }}" required>
                         {% for error in form.source_published_at.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
