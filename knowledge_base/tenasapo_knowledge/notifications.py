@@ -7,8 +7,22 @@ from django.conf import settings
 from django.utils import timezone
 
 
+MAX_GOOGLE_CHAT_PAYLOAD_BYTES = 28_000
+
+
 class GoogleChatNotificationError(Exception):
     """Google Chat 通知送信時のアプリ内例外。"""
+
+
+class GoogleChatPayloadTooLarge(GoogleChatNotificationError):
+    """確実に未送信と判断できるサイズ超過。本文・送信先を含めない。"""
+
+
+def validate_google_chat_payload_size(payload):
+    # Match the report builder's conservative escaped-JSON budget. This also
+    # bounds UTF-8 JSON sent directly or forwarded by the GAS relay (<28000).
+    if len(json.dumps(payload).encode('utf-8')) >= MAX_GOOGLE_CHAT_PAYLOAD_BYTES:
+        raise GoogleChatPayloadTooLarge('通知のサイズ上限（28,000バイト未満）を超過しました。省略せず送信を中止します。')
 
 
 def _build_gas_candidate_urls(url):
@@ -104,6 +118,7 @@ def send_scheduled_google_chat_message(message):
         payload = message
     else:
         raise GoogleChatNotificationError('予約通知の形式が不正です。')
+    validate_google_chat_payload_size(payload)
     url = get_google_chat_target_url()
     via_gas = uses_google_apps_script()
     # Keep top-level text for older deployed relays, without a second request.

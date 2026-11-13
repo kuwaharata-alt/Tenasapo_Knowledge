@@ -3604,10 +3604,14 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                     target=300, progress_percent=actual / 300 * 100, achieved=actual >= 300)
 
     @classmethod
-    def member_post_counts(cls, period='all'):
-        """ホーム用の投稿数のみ。詳細・顧客集計や履歴記録は行わない。"""
+    def member_post_counts(cls, period='all', *, from_date=None, to_date=None, as_of=None):
+        """投稿数のみ。明示日付は期間指定に優先し、既存呼出しの範囲は維持する。"""
+        if as_of is not None and timezone.is_naive(as_of):
+            raise ValueError('as_of must be timezone aware')
         members, order = cls.member_registry()
-        from_date, to_date = cls.posting_period_dates(period, timezone.localdate())
+        period_from, period_to = cls.posting_period_dates(period, timezone.localdate())
+        from_date = from_date if from_date is not None else period_from
+        to_date = to_date if to_date is not None else period_to
         for model, key in ((KnowledgeArticle, 'faq_post_count'), (TipsArticle, 'tips_post_count')):
             articles = cls.posting_queryset(model).only(
                 'created_by_name', 'created_by__username',
@@ -3617,6 +3621,8 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                 articles = articles.filter(created_at__date__gte=from_date)
             if to_date:
                 articles = articles.filter(created_at__date__lte=to_date)
+            if as_of is not None:
+                articles = articles.filter(created_at__lte=as_of)
             for _ in cls.counted_member_posts(articles.iterator(), members, key):
                 pass
         rows = [

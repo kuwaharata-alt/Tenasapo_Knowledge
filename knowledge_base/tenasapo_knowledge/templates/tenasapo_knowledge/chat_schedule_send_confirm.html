@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Chat手動送信の確認 | Nexus{% endblock %}
+{% block content %}
+<div class="card shadow-sm"><div class="card-body p-4">
+    <h1 class="h4 mb-3">{{ kind_label }}の手動送信確認</h1>
+    <p><strong>対象環境：{{ schedule.get_environment_display }}</strong> ／ {{ schedule.target_month|date:'Y年m月' }}・第{{ schedule.revision }}版</p>
+    <div class="alert alert-warning">保存済み予約を、予定時刻・48時間制限を待たずに1回だけ送信します。送信時に本文を再集計します。失敗・結果不明でも再試行しません。</div>
+    {% if report_pdf_enabled %}<div class="alert alert-info">実送信時に、{{ schedule.target_month|date:'Y年m月' }}のPDFをGoogle Driveに保存して通知へリンクを追加します。PDFには予約保存者が閲覧できる本文・画像・参考リンクが含まれます。閲覧権限は保存先フォルダから引き継ぎます。この確認画面ではPDFを作成・保存しません。</div>{% endif %}
+    {% if preview_error %}<p class="text-danger">{{ preview_error }}</p>{% endif %}
+    {% if not available %}<p class="text-danger">この予約は送信できません。最新版・配信状況を確認してください。</p>{% endif %}
+    {% if not sending_enabled %}<p class="text-danger">予約送信は無効です。</p>{% endif %}
+    {% if preview %}<h2 class="h6">本文プレビュー（レポートはカード内容も表示）</h2><pre class="border rounded bg-light p-3" style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ preview }}</pre>{% endif %}
+    <form method="post">
+        {% csrf_token %}{% for field in form %}{{ field }}{% endfor %}
+        {% if available and sending_enabled %}<button type="submit" class="btn btn-primary">確認して今すぐ送信</button>{% endif %}
+        <a class="btn btn-outline-secondary" href="{% url 'chat_schedule_settings' %}?month={{ schedule.target_month|date:'Y-m' }}">予約画面に戻る</a>
+    </form>
+</div></div>
+{% endblock %}

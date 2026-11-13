@@ -1,0 +1,201 @@
+<style>
+    div.knowledge-command {
+        position: relative;
+        background: #eaf4ff;
+        border: 1px solid #c8dff7;
+        border-radius: .45rem;
+        margin: .45rem 0;
+        white-space: pre-wrap;
+    }
+    div.knowledge-command > code {
+        display: block;
+        padding: .7rem 5rem .7rem .85rem;
+        color: inherit;
+        font-family: Consolas, "Cascadia Mono", monospace;
+        font-size: .94em;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        tab-size: 4;
+    }
+    .knowledge-command-copy {
+        position: absolute;
+        top: .35rem;
+        right: .35rem;
+        border: 1px solid #a9cbea;
+        border-radius: .35rem;
+        background: #f7fbff;
+        color: #215782;
+        padding: .3rem .5rem;
+        cursor: pointer;
+        line-height: 1.4;
+        font-family: inherit;
+        font-size: .85rem;
+        white-space: nowrap;
+    }
+    .knowledge-command-copy:hover { background: #d7eaff; }
+    .knowledge-command-copy:focus-visible { outline: 2px solid #236fb0; outline-offset: 2px; }
+    .knowledge-command-copy:disabled { cursor: wait; }
+    [data-bs-theme="dark"] div.knowledge-command {
+        background: #19364f;
+        border-color: #527da2;
+        color: #e3effb;
+    }
+    [data-bs-theme="dark"] .knowledge-command-copy {
+        background: #244b6b;
+        border-color: #729ec4;
+        color: #f0f7ff;
+    }
+    [data-bs-theme="dark"] .knowledge-command-copy:hover { background: #326087; }
+    [data-bs-theme="dark"] .knowledge-command-copy:focus-visible { outline-color: #a4d5ff; }
+    .knowledge-command-notice {
+        position: fixed;
+        bottom: 1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1095;
+        max-width: calc(100vw - 2rem);
+        padding: .6rem 1rem;
+        border: 1px solid #a9cbea;
+        border-radius: .5rem;
+        color: #173c60;
+        background: #eaf4ff;
+        box-shadow: 0 .25rem .75rem #0002;
+        pointer-events: none;
+    }
+</style>
+<script>
+(() => {
+    'use strict';
+    if (window.knowledgeCommandDisplayInitialized) return;
+    window.knowledgeCommandDisplayInitialized = true;
+    const selector = 'div.knowledge-command';
+    const buttons = new WeakMap();
+    function commandCode(command) {
+        return Array.from(command.children).find(child => child.tagName === 'CODE');
+    }
+    function enhance(root) {
+        const commands = root.matches?.(selector) ? [root] : [];
+        root.querySelectorAll?.(selector).forEach(command => commands.push(command));
+        commands.forEach(command => {
+            if (!commandCode(command) || command.isContentEditable ||
+                command.closest('.tox-tinymce, .tox-tinymce-aux') ||
+                buttons.get(command)?.parentElement === command) return;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'knowledge-command-copy';
+            button.title = 'コマンド行をコピー';
+            button.setAttribute('aria-label', 'コマンド行をコピー');
+            const icon = document.createElement('i');
+            icon.className = 'bi bi-clipboard';
+            icon.setAttribute('aria-hidden', 'true');
+            button.append(icon);
+            // Text remains usable when the icon font is unavailable (including offline).
+            const label = document.createElement('span');
+            label.textContent = 'コピー';
+            button.append(label);
+            buttons.set(command, button);
+            button.addEventListener('click', event => copyCommand(event, command, button, icon, label));
+            command.append(button);
+        });
+    }
+    function fallbackCopy(text) {
+        const active = document.activeElement;
+        const selection = window.getSelection();
+        const ranges = [];
+        for (let i = 0; selection && i < selection.rangeCount; i++) ranges.push(selection.getRangeAt(i).cloneRange());
+        const inputSelection = active && typeof active.selectionStart === 'number'
+            ? [active.selectionStart, active.selectionEnd, active.selectionDirection] : null;
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.readOnly = true;
+        textarea.tabIndex = -1;
+        textarea.setAttribute('aria-label', 'コピー用コマンド');
+        textarea.style.cssText = 'position:fixed;top:0;left:-10000px;opacity:0;';
+        document.body.append(textarea);
+        try {
+            textarea.focus({preventScroll: true});
+            textarea.select();
+            return document.execCommand('copy');
+        } catch (_) {
+            return false;
+        } finally {
+            textarea.remove();
+            if (selection) {
+                selection.removeAllRanges();
+                ranges.forEach(range => selection.addRange(range));
+            }
+            if (active?.isConnected) active.focus({preventScroll: true});
+            // Restoring DOM ranges after an input selection can replace that selection.
+            if (inputSelection) active.setSelectionRange(...inputSelection);
+        }
+    }
+    let notice, noticeTimer;
+    function announce(text) {
+        if (!notice) {
+            notice = document.createElement('div');
+            notice.className = 'knowledge-command-notice';
+            notice.setAttribute('role', 'status');
+            notice.setAttribute('aria-live', 'polite');
+            document.body.append(notice);
+        }
+        notice.hidden = false;
+        notice.textContent = text;
+        clearTimeout(noticeTimer);
+        noticeTimer = setTimeout(() => { notice.hidden = true; }, 3500);
+    }
+    async function copyCommand(event, command, button, icon, label) {
+        const code = commandCode(command);
+        if (!code) return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (button.disabled) return;
+        // Keep keyboard focus on the control while the asynchronous API is pending.
+        if (button.getAttribute('aria-busy') === 'true') return;
+        button.setAttribute('aria-busy', 'true');
+        const text = code.textContent;
+        let copied = false;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+                copied = true;
+            }
+        } catch (_) {
+            // Insecure contexts, denied permissions and older browsers use native copy.
+        }
+        if (!copied) copied = fallbackCopy(text);
+        button.removeAttribute('aria-busy');
+        if (copied) {
+            icon.className = 'bi bi-check-lg';
+            label.textContent = '✓';
+            announce('コピーしました');
+            clearTimeout(button.knowledgeCommandResetTimer);
+            button.knowledgeCommandResetTimer = setTimeout(() => {
+                icon.className = 'bi bi-clipboard';
+                label.textContent = 'コピー';
+            }, 2000);
+        } else {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(code);
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+            announce('コピーできませんでした');
+        }
+    }
+    function start() {
+        // Create the live region before a click so assistive technology observes updates.
+        announce('');
+        notice.hidden = true;
+        enhance(document.body);
+        new MutationObserver(records => records.forEach(record => {
+            record.addedNodes.forEach(node => {
+                if (node.nodeType === Node.ELEMENT_NODE) enhance(node);
+            });
+            const command = record.target.closest?.(selector);
+            if (command) enhance(command);
+        })).observe(document.body, {childList: true, subtree: true});
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, {once: true});
+    else start();
+})();
+</script>

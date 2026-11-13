@@ -13,24 +13,48 @@
 <div class="alert {% if sending_enabled %}alert-info{% else %}alert-warning{% endif %}">
     <strong>対象環境：{% if schedule_environment == 'production' %}本番{% else %}開発{% endif %}</strong> ／
     自動送信許可：{% if sending_enabled %}有効{% else %}無効（予約の保存のみ可能）{% endif %}。
+    PDFのDrive保存：{% if report_pdf_enabled %}有効{% else %}未有効（レポートは集計カードのみ通知）{% endif %}。
     日時はすべて日本時間です。実際の送信には、対象環境で予約送信処理を定期実行する設定も必要です。
     本番（Azure Linux）ではAzure側の定期ジョブ（App ServiceのWebJobsなど）を使用します。WindowsタスクはWindows開発環境用で、本番には不要です。
 </div>
+{% if drive_oauth_mode %}
+<div class="card shadow-sm mb-4"><div class="card-body p-4">
+    <h2 class="h5">Google Drive連携</h2>
+    <p class="small text-muted">GASの公開は不要です。フォルダへ書き込める社内Googleアカウントで初回認可してください。接続はNexusのログインユーザーと環境ごとに保存され、予約保存者の接続を使用します。フォルダ共有権限は変更しません。</p>
+    <p class="small text-muted">既存フォルダに保存するためDrive全体へのアクセス許可を要求します。管理者承認が必要な場合があります。解除しても作成済みPDFは削除されません。</p>
+    {% if drive_connection %}<p class="text-success">連携済み：{{ drive_connection.email }}</p>{% else %}<p class="text-warning">未連携です。</p>{% endif %}
+    {% if drive_connection_error %}<p class="text-danger">{{ drive_connection_error }}</p>{% endif %}
+    <form method="post" action="{% url 'drive_oauth_connect' %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-outline-primary">Google Driveと{% if drive_connection %}再{% endif %}連携する</button></form>
+    {% if drive_connection %}<form method="post" action="{% url 'drive_oauth_disconnect' %}" class="d-inline ms-2">{% csrf_token %}<button type="submit" class="btn btn-outline-secondary">連携を解除</button></form>{% endif %}
+    <p class="small text-muted mt-3 mb-0">Google CloudのOAuthクライアントの「承認済みのリダイレクトURI」に登録：<br><span class="user-select-all">{{ drive_callback_uri }}</span></p>
+</div></div>
+{% endif %}
 <div class="card shadow-sm mb-4"><div class="card-body p-4">
     <h2 class="h5 mb-3">対象月を選択</h2>
     <form method="get" class="d-flex flex-wrap align-items-end gap-2 mb-3">
+        {% if history_archived %}<input type="hidden" name="history" value="archive">{% endif %}
         <div><label for="schedule-month" class="form-label">投稿の対象月</label>
         <input id="schedule-month" type="month" name="month" value="{{ selected_month|date:'Y-m' }}" class="form-control" required></div>
         <button class="btn btn-outline-primary" type="submit">表示する</button>
     </form>
-    <div class="d-flex flex-wrap gap-2">{% for month in configured_months %}<a class="badge text-bg-light border text-decoration-none" href="?month={{ month|date:'Y-m' }}">{{ month|date:'Y年m月' }}</a>{% endfor %}</div>
+    <div class="d-flex flex-wrap gap-2">{% for month in configured_months %}<a class="badge text-bg-light border text-decoration-none" href="?month={{ month|date:'Y-m' }}{% if history_archived %}&amp;history=archive{% endif %}">{{ month|date:'Y年m月' }}</a>{% endfor %}</div>
 </div></div>
 <div class="card shadow-sm mb-4"><div class="card-body p-4">
-    <h2 class="h5 mb-3">{{ selected_month|date:'Y年m月' }}の通知予約</h2>
-    <p class="text-muted small">対象月と通知日時は独立しています。翌月に前月のレポートを通知することもできます。レポートは送信時点までの投稿を、種類・タイトル・管理番号・投稿者の表形式カードで表示します（本文・添付は送信しません）。</p>
+    <h2 class="h5 mb-3 d-flex align-items-center gap-2">{{ selected_month|date:'Y年m月' }}の通知予約
+        <button type="button" class="btn btn-sm border-0 p-1 text-secondary" popovertarget="reservation-help" aria-label="通知予約の説明を表示"><i class="bi bi-info-circle" aria-hidden="true"></i></button>
+    </h2>
+    <div id="reservation-help" popover="auto" class="border rounded-3 shadow p-4" style="width: min(32rem, calc(100vw - 2rem));" aria-labelledby="reservation-help-title">
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+            <strong id="reservation-help-title">通知予約について</strong>
+            <button type="button" class="btn-close" popovertarget="reservation-help" popovertargetaction="hide" aria-label="閉じる"></button>
+        </div>
+        <p class="text-muted small">対象月と通知日時は独立しています。翌月に前月のレポートを通知することもできます。レポートはPDFと同じ分析対象メンバーの月別投稿数・半期投稿数・半期目標に対する進捗をカードで表示します。PDFのDrive保存が有効な場合は、選択した対象月のPDFを実送信時に保存して本文に「月次レポート」リンクを追加します。前月分は前月を対象月に指定してください。PDFは予約保存者が閲覧できる本文・画像・参考リンクを含み、保存先フォルダの共有権限を引き継ぎます。プレビューではPDFを保存しません。</p>
+        <p class="small text-muted mb-0">期限とレポートは別々に保存・送信・アーカイブされます。期限を複数回通知する場合は、別の通知日時で「新規予約」を作成してください。同じ予約の試行済み履歴は編集しても再送できません。</p>
+    </div>
+    <div class="row g-4">{% for label, form in reservation_forms %}<section class="col-12 col-xl-6"><div class="border rounded p-3 h-100">
+    <h3 class="h6">{{ label }}：{% if form.schedule_id.value %}予約を編集{% else %}新規予約{% endif %}</h3>
     <form method="post">
-        {% csrf_token %}{{ form.expected_revision }}
-        {% for error in form.expected_revision.errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+        {% csrf_token %}{% for field in form.hidden_fields %}{{ field }}{{ field.errors }}{% endfor %}
         {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
         <div class="row g-3 mb-4">{% for field in form.visible_fields %}
             <div class="col-12 {% if field.name != 'enabled' %}col-lg-4{% endif %}">
@@ -39,23 +63,62 @@
                 {% for error in field.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
             </div>
         {% endfor %}</div>
-        <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-check me-1"></i>予約を保存する</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-check me-1"></i>{% if form.schedule_id.value %}変更を保存{% else %}新規予約を作成{% endif %}</button>
+        {% if form.schedule_id.value %}<a class="btn btn-outline-secondary" href="?month={{ selected_month|date:'Y-m' }}">新規予約に戻る</a>{% endif %}
         <span class="text-muted small ms-2">今すぐ送信はされません。</span>
     </form>
+    </div></section>{% endfor %}</div>
 </div></div>
 <div class="card shadow-sm mb-4"><div class="card-body p-4">
     <h2 class="h5">予約の変更履歴・配信状況</h2>
-    <p class="small text-muted">同じ月・同じ種類の通知は1回のみ試行します。送信済み・失敗・結果不明は予約を変更しても自動再送しません。48時間を超過した通知も送信しません。結果不明の場合はスペースを確認してください。</p>
+    <p class="small text-muted">同じ予約は1回のみ試行します。送信済み・失敗・結果不明は日時変更で再試行しません。自動送信は48時間超過で停止します。手動送信では予定時刻・48時間制限を除外します。送信が完了した予約だけがアーカイブされます。</p>
+    <nav class="nav nav-tabs mb-3" id="schedule-history-tabs" aria-label="予約履歴の表示切り替え">
+        <a class="nav-link{% if not history_archived %} active{% endif %}"{% if not history_archived %} aria-current="page"{% endif %} href="?month={{ selected_month|date:'Y-m' }}">有効 <span class="badge text-bg-success ms-1">{{ active_schedule_count }}</span></a>
+        <a class="nav-link{% if history_archived %} active{% endif %}"{% if history_archived %} aria-current="page"{% endif %} href="?month={{ selected_month|date:'Y-m' }}&amp;history=archive"><i class="bi bi-archive me-1" aria-hidden="true"></i>アーカイブ <span class="badge text-bg-secondary ms-1">{{ archived_schedule_count }}</span></a>
+    </nav>
+    {% if history_archived %}<p class="small text-muted">無効の予約と旧版を表示しています。配信記録は保持されています。</p>{% endif %}
     <div class="table-responsive"><table class="table align-middle small">
         <thead><tr><th>予約版・状態</th><th>投稿期限</th><th>通知日時</th><th>配信状況</th><th>保存日時・保存者</th></tr></thead>
         <tbody>{% for schedule in schedule_history %}<tr>
-            <td>第{{ schedule.revision }}版<br><span class="badge {% if schedule.enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if schedule.enabled %}有効{% else %}無効／旧版{% endif %}</span></td>
-            <td>{{ schedule.deadline|date:'Y/m/d' }}</td>
-            <td>期限：{{ schedule.deadline_notice_at|date:'Y/m/d H:i' }}<br>レポート：{{ schedule.report_notice_at|date:'Y/m/d H:i' }}</td>
+            <td>{{ schedule.get_kind_display }} #{{ schedule.pk }}<br>第{{ schedule.revision }}版<br><span class="badge {% if schedule.enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if schedule.enabled %}有効{% else %}無効／旧版{% endif %}</span>
+            <br><a href="?month={{ selected_month|date:'Y-m' }}&amp;kind={{ schedule.kind }}&amp;edit={{ schedule.pk }}">編集・有効／アーカイブ変更</a>
+            {% if sending_enabled and schedule.manual_available %}<br><a class="btn btn-outline-primary btn-sm mt-2" href="{% url 'chat_schedule_send' schedule.pk schedule.kind %}?expected_revision={{ schedule.revision }}">今すぐ送信（確認）</a>{% endif %}</td>
+            <td>{% if schedule.kind == 'deadline' %}{{ schedule.deadline|date:'Y/m/d' }}{% else %}対象外{% endif %}</td>
+            <td>{{ schedule.notice_at|date:'Y/m/d H:i' }}</td>
             <td>{% for delivery in schedule.deliveries.all %}<div class="mb-1"><strong>{{ delivery.get_kind_display }}</strong>：{{ delivery.get_state_display }}（{{ delivery.attempts }}回）{% if delivery.sent_at %}<br>{{ delivery.sent_at|date:'Y/m/d H:i' }}{% endif %}{% if delivery.last_error %}<br><span class="text-danger">{{ delivery.last_error }}</span>{% endif %}</div>{% empty %}未作成{% endfor %}</td>
             <td>{{ schedule.updated_at|date:'Y/m/d H:i' }}<br>{{ schedule.updated_by.get_username|default:'—' }}</td>
-        </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">この月の予約はまだありません。</td></tr>{% endfor %}</tbody>
+        </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">{% if history_archived %}この月のアーカイブはありません。{% else %}この月の有効な予約はありません。{% endif %}</td></tr>{% endfor %}</tbody>
     </table></div>
 </div></div>
 {% endtimezone %}
+<script>
+(() => {
+    const key = 'chat-schedule-history-scroll';
+    const container = document.getElementById('app-main') || window;
+    document.querySelectorAll('#schedule-history-tabs a').forEach(link => {
+        link.addEventListener('click', event => {
+            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            try {
+                sessionStorage.setItem(key, JSON.stringify({
+                    url: link.href,
+                    x: container === window ? window.scrollX : container.scrollLeft,
+                    y: container === window ? window.scrollY : container.scrollTop,
+                    savedAt: Date.now(),
+                }));
+            } catch (_) { /* Navigation still works when storage is unavailable. */ }
+        });
+    });
+    let saved;
+    try {
+        saved = JSON.parse(sessionStorage.getItem(key) || 'null');
+        sessionStorage.removeItem(key);
+    } catch (_) { /* Ignore invalid or unavailable storage. */ }
+    if (saved && saved.url === location.href && Date.now() - saved.savedAt < 60000 &&
+        Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        const restore = () => container.scrollTo({left: saved.x, top: saved.y, behavior: 'instant'});
+        if (document.readyState === 'complete') restore();
+        else window.addEventListener('load', restore, {once: true});
+    }
+})();
+</script>
 {% endblock %}

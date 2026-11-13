@@ -106,11 +106,128 @@
         const dom = fragment(html);
         dom.querySelectorAll('script,style,iframe,object,embed,link,meta,base,form,input,button,textarea,svg,math').forEach(n => n.remove());
         dom.querySelectorAll('*').forEach(node => Array.from(node.attributes).forEach(attr => {
-            if (/^on/i.test(attr.name) || /^(srcdoc|style)$/i.test(attr.name) ||
+            if (attr.name.toLowerCase() === 'style') {
+                const safe = document.createElement('span');
+                for (const property of ['color', 'background-color']) {
+                    const value = node.style.getPropertyValue(property).trim();
+                    // CSS variables, inheritance and URL/function payloads are not colors.
+                    if (value && !/var\(|url\(|expression\(|inherit|initial|unset|revert|currentcolor/i.test(value) &&
+                            CSS.supports(property, value)) safe.style.setProperty(property, value);
+                }
+                if (safe.style.length) node.setAttribute('style', safe.getAttribute('style'));
+                else node.removeAttribute('style');
+            } else if (/^on/i.test(attr.name) || /^srcdoc$/i.test(attr.name) ||
                 (/^(href|src|xlink:href)$/i.test(attr.name) && !/^(https?:|mailto:|tel:|\/|#|[^:\s]+(?:\/|$))/i.test(attr.value.trim()))) node.removeAttribute(attr.name);
         }));
         const container = document.createElement('div'); container.append(dom);
         return container.innerHTML;
+    }
+    // Metadata is editor-only: saved commands contain no controls, events or private attributes.
+    const commandOrigins = new WeakMap();
+    function toggleCommand(editor) {
+        const body = editor.getBody?.(), selection = editor.selection?.getRng?.();
+        if (!body || !selection || !body.contains(selection.startContainer) || !body.contains(selection.endContainer)) return;
+        const doc = body.ownerDocument;
+        const isBlock = node => node.nodeType === 1 && /^(P|DIV|H[1-6]|LI|UL|OL|BLOCKQUOTE|PRE|TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|HR|SECTION|ARTICLE|ASIDE|MAIN|HEADER|FOOTER|NAV|DL|DT|DD|ADDRESS|FIGURE|FIGCAPTION|DETAILS|SUMMARY)$/.test(node.tagName);
+        const groups = [], commands = [];
+        const overlaps = range => {
+            if (selection.collapsed) return range.comparePoint(selection.startContainer, selection.startOffset) === 0;
+            const start = selection.cloneRange(), end = selection.cloneRange();
+            start.collapse(true); end.collapse(false);
+            const lineStart = range.cloneRange(), lineEnd = range.cloneRange();
+            lineStart.collapse(true); lineEnd.collapse(false);
+            if (end.compareBoundaryPoints(0, lineStart) <= 0 || start.compareBoundaryPoints(0, lineEnd) >= 0) return false;
+            // Element/text boundaries can differ in DOM order while selecting zero characters.
+            const intersection = range.cloneRange();
+            if (start.compareBoundaryPoints(0, lineStart) > 0) intersection.setStart(selection.startContainer, selection.startOffset);
+            if (end.compareBoundaryPoints(0, lineEnd) < 0) intersection.setEnd(selection.endContainer, selection.endOffset);
+            return Boolean(intersection.toString().length);
+        };
+        function scan(container) {
+            if (container.matches?.('div.knowledge-command')) {
+                const range = doc.createRange(); range.selectNodeContents(container);
+                if (overlaps(range)) commands.push(container);
+                return;
+            }
+            let start = 0;
+            const children = [...container.childNodes];
+            function flow(end) {
+                if (start === end) return;
+                const whole = doc.createRange(); whole.setStart(container, start); whole.setEnd(container, end);
+                const breaks = [];
+                function find(node) {
+                    if (node.nodeName === 'BR' && !node.hasAttribute('data-mce-bogus')) breaks.push(node);
+                    else node.childNodes.forEach(find);
+                }
+                children.slice(start, end).forEach(find);
+                let point = [container, start];
+                const lines = breaks.map(br => {
+                    const range = doc.createRange(); range.setStart(...point); range.setEndBefore(br);
+                    point = [br.parentNode, [...br.parentNode.childNodes].indexOf(br) + 1];
+                    return range;
+                });
+                const last = doc.createRange(); last.setStart(...point); last.setEnd(container, end); lines.push(last);
+                const selected = lines.map(range => overlaps(range) && Boolean(range.toString().length));
+                if (selected.some(Boolean)) groups.push({container, whole, lines, selected});
+            }
+            children.forEach((child, index) => {
+                if (!isBlock(child)) return;
+                flow(index); scan(child); start = index + 1;
+            });
+            flow(children.length);
+        }
+        scan(body);
+        if (!groups.length && !commands.length) return;
+        const mutate = () => {
+            let caret = null;
+            // Existing command lines toggle back to editable text with their inline styles intact.
+            commands.forEach(command => {
+                const original = commandOrigins.get(command);
+                const restored = original ? original.cloneNode(false) : doc.createElement('p');
+                const code = command.querySelector(':scope > code');
+                while ((code || command).firstChild) restored.append((code || command).firstChild);
+                command.replaceWith(restored); caret = restored;
+            });
+            groups.reverse().forEach(({container, whole, lines, selected}) => {
+                const output = doc.createDocumentFragment();
+                const splitParagraph = /^(P|H[1-6]|PRE)$/.test(container.nodeName);
+                let plain = null;
+                lines.forEach((range, index) => {
+                    const content = range.cloneContents();
+                    if (selected[index]) {
+                        plain = null;
+                        const command = doc.createElement('div'), code = doc.createElement('code');
+                        command.className = 'knowledge-command';
+                        // Retain inherited paragraph color/formatting without putting a block inside code.
+                        if (splitParagraph && container.hasAttribute('style')) {
+                            const span = doc.createElement('span'); span.setAttribute('style', container.getAttribute('style'));
+                            span.append(content); code.append(span);
+                        } else code.append(content);
+                        command.append(code); output.append(command);
+                        commandOrigins.set(command, splitParagraph ? container.cloneNode(false) : doc.createElement('p'));
+                        caret = command;
+                    } else {
+                        if (splitParagraph) {
+                            if (!plain) { plain = container.cloneNode(false); output.append(plain); }
+                            else plain.append(doc.createElement('br'));
+                            plain.append(content);
+                        } else {
+                            if (index && !selected[index - 1]) output.append(doc.createElement('br'));
+                            output.append(content);
+                        }
+                    }
+                });
+                if (splitParagraph) container.replaceWith(output);
+                else { whole.deleteContents(); whole.insertNode(output); }
+            });
+            if (caret) { editor.selection.select(caret, true); editor.selection.collapse(true); }
+        };
+        if (editor.undoManager?.transact) editor.undoManager.transact(mutate); else mutate();
+        editor.setDirty(true);
+        // Explicit input covers DOM edits; change also updates integrations listening to TinyMCE.
+        const dispatch = editor.dispatch || editor.fire;
+        dispatch?.call(editor, 'input'); dispatch?.call(editor, 'change');
+        editor.nodeChanged?.();
     }
     const state = (record, focused) => record.source.dispatchEvent(new CustomEvent('knowledge-editor-state', {
         bubbles: true, detail: {id: record.source.id, focused}
@@ -290,7 +407,7 @@
         block.timer = setTimeout(fallback, 5000);
         try {
             const promise = window.tinymce.init({
-                target: block.input, plugins: 'lists', toolbar: 'undo redo | bold italic | bullist numlist',
+                target: block.input, plugins: 'lists', toolbar: 'undo redo | bold italic forecolor | bullist numlist | knowledgecommand',
                 paste_as_text: true,
                 license_key: 'gpl', indent: false, indent_use_margin: false,
                 height: 200, min_height: 160, resize: true, menubar: false, statusbar: false,
@@ -300,10 +417,14 @@
                     'img[src|alt|title|width|height|class|style],h1[style|class],h2[style|class],h3[style|class],' +
                     'h4[style|class],h5[style|class],h6[style|class],div[style|class],span[style|class],' +
                     'blockquote[style|class],pre,code,hr,table,thead,tbody,tfoot,tr,th[colspan|rowspan],td[colspan|rowspan]',
-                content_style: 'body{font-family: sans-serif;margin:12px;font-size:10pt;line-height:1.5;} p,h1,h2,h3,h4,h5,h6,div,blockquote{text-indent:0!important;margin-left:0!important;margin-right:0!important;} p,div{padding-left:0!important;} ul,ol{padding-left:1.6em;margin-left:0;text-indent:0;} li{text-indent:0;}',
+                content_style: 'body{font-family: sans-serif;margin:12px;font-size:10pt;line-height:1.5;} p,h1,h2,h3,h4,h5,h6,div,blockquote{text-indent:0!important;margin-left:0!important;margin-right:0!important;} p,div{padding-left:0!important;} ul,ol{padding-left:1.6em;margin-left:0;text-indent:0;} li{text-indent:0;} .knowledge-command{background:#e8f4ff;border:1px solid #bddcff;border-radius:4px;padding:6px!important;margin-block:4px;white-space:pre-wrap;} .knowledge-command>code{font-family:monospace;white-space:pre-wrap;}',
                 setup(editor) {
                     if (stale()) { setTimeout(() => editor.remove(), 0); return; }
                     block.pending = editor;
+                    editor.ui?.registry?.addButton('knowledgecommand', {
+                        icon: 'paste', tooltip: '選択行をコピー可能なコマンドに指定／解除',
+                        onAction: () => toggleCommand(editor)
+                    });
                     editor.on('init', () => {
                         if (stale()) { editor.remove(); return; }
                         clearTimeout(block.timer);

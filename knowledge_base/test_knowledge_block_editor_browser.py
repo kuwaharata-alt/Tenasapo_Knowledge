@@ -17,23 +17,37 @@ window.tinymce = {
     init(options) {
         tinyOptions.push(options);
         const listeners = new Map();
-        let content = options.target.value, dirty = false, focused = false;
+        const dom = document.createElement('div'); dom.innerHTML = options.target.value;
+        const buttons = new Map(), undo = [], redo = [];
+        let dirty = false, focused = false;
+        let range = document.createRange(); range.selectNodeContents(dom); range.collapse(true);
         const editor = {
             id: options.target.id, removed: false,
+            ui: {registry: {addButton(name, config) { buttons.set(name, config); }}},
+            buttons, getBody() { return dom; },
             on(names, callback) { names.split(' ').forEach(name => {
                 if (!listeners.has(name)) listeners.set(name, []);
                 listeners.get(name).push(callback);
             }); },
             emit(name, event = {type: name}) { (listeners.get(name) || []).forEach(callback => callback(event)); },
-            getContent() { return content; },
-            setContent(value) { content = value; this.emit('change'); },
+            dispatch(name) { this.emit(name); },
+            getContent() { return dom.innerHTML; },
+            setContent(value) { dom.innerHTML = value; this.emit('change'); },
             isDirty() { return dirty; }, setDirty(value) { dirty = value; },
             focus() { focused = true; this.emit('focus'); },
             hasFocus() { return focused; },
-            selection: { getBookmark() { return {position: content.length}; },
+            selection: { getBookmark() { return {position: dom.innerHTML.length}; },
+                getRng() { return range; }, setRng(value) { range = value; },
+                select(node) { range = document.createRange(); range.selectNodeContents(node); },
+                collapse(toStart) { range.collapse(toStart); },
                 moveToBookmark(bookmark) { editor.restoredBookmark = bookmark; } },
-            insertContent(value) { content += value; dirty = true; this.emit('input'); },
-            edit(value, event = 'input') { content = value; dirty = true; this.emit(event); },
+            undoManager: {
+                transact(callback) { undo.push(dom.innerHTML); redo.length = 0; callback(); },
+                undo() { redo.push(dom.innerHTML); dom.innerHTML = undo.pop(); editor.emit('Undo'); },
+                redo() { undo.push(dom.innerHTML); dom.innerHTML = redo.pop(); editor.emit('Redo'); }
+            },
+            insertContent(value) { dom.insertAdjacentHTML('beforeend', value); dirty = true; this.emit('input'); },
+            edit(value, event = 'input') { dom.innerHTML = value; dirty = true; this.emit(event); },
             remove() { this.removed = true; options.target.style.display = ''; tinyInstances.delete(this.id); }
         };
         tinyInstances.set(editor.id, editor);
@@ -201,6 +215,125 @@ document.addEventListener('DOMContentLoaded', async () => {
                 assert(api.hasContent('original'), 'paste synchronizes source');
                 ''', tiny=tiny)
 
+    def test_command_marks_current_paragraph_toggles_and_undo_syncs(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+        const mark = editor.buttons.get('knowledgecommand');
+        assert(mark && mark.icon === 'paste', 'clipboard toolbar action registered');
+        assert(tinyOptions[0].toolbar.includes('forecolor'), 'built-in text color control');
+        const sheet = document.createElement('style'); sheet.textContent = tinyOptions[0].content_style;
+        document.head.append(sheet);
+        let updates = 0, inputs = 0, changes = 0;
+        source.addEventListener('input', () => updates++);
+        editor.on('input', () => inputs++); editor.on('change', () => changes++);
+        const original = dom.innerHTML;
+        const range = document.createRange(); range.setStart(dom.querySelector('strong').firstChild, 3); range.collapse(true);
+        editor.selection.setRng(range);
+        mark.onAction();
+        const command = dom.querySelector('.knowledge-command');
+        assert(command && command.parentNode === dom && command.firstElementChild.tagName === 'CODE', 'canonical command structure');
+        assert(command.textContent === '  echo <unsafe> & value  ', 'whole current logical line and whitespace retained');
+        assert(command.querySelector('strong') && command.querySelector('[style]'), 'inline styles retained');
+        assert(dom.firstElementChild.textContent === 'before' && dom.lastElementChild.textContent === 'after', 'neighbor paragraphs untouched');
+        assert(!command.querySelector('button,script') && !command.outerHTML.includes('onclick'), 'no controls, handlers or executable text saved');
+        document.body.append(dom);
+        assert(getComputedStyle(command).backgroundColor === 'rgb(232, 244, 255)', 'editor command pale blue');
+        assert(getComputedStyle(command).whiteSpace === 'pre-wrap', 'command whitespace visible');
+        assert(source.value.includes('knowledge-command') && updates === 1 && inputs === 1 && changes === 1, 'dirty/input/change synchronizes immediately once');
+        const marked = dom.innerHTML;
+        mark.onAction();
+        assert(!dom.querySelector('.knowledge-command') && dom.querySelector('strong'), 'second action toggles off, preserving formatting');
+        assert(dom.children[1].tagName === 'P' && dom.children[1].style.color === 'red', 'original paragraph style restored');
+        assert(!source.value.includes('knowledge-command'), 'toggle off synchronized');
+        editor.undoManager.undo();
+        assert(dom.innerHTML === marked && source.value.includes(marked), 'undo toggle restores marked HTML and source');
+        editor.undoManager.undo();
+        assert(dom.innerHTML === original && source.value.includes(original), 'one transaction undoes mark exactly');
+        editor.undoManager.redo();
+        assert(dom.innerHTML === marked && source.value.includes(marked), 'redo synchronized');
+        ''', original='<p>before</p><p style="color:red"><strong>  echo &lt;unsafe&gt; &amp; value  </strong></p><p>after</p>', tiny=True)
+
+    def test_command_br_lines_partial_selection_and_container_boundaries(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+        const mark = () => editor.buttons.get('knowledgecommand').onAction();
+        const select = (start, a, end = start, b = a) => {
+            const range = document.createRange(); range.setStart(start, a); range.setEnd(end, b); editor.selection.setRng(range);
+        };
+        editor.edit('<div class="outer"><p>keep<br>also keep<br><strong>first<br>second</strong><br>tail</p><ul><li>one<br><em>two</em><br>three</li><li>other</li></ul></div>');
+        const strong = dom.querySelector('strong');
+        select(strong.firstChild, 2, strong.lastChild, 3); mark();
+        const outer = dom.querySelector('.outer'), commands = [...outer.querySelectorAll('.knowledge-command')];
+        assert(commands.length === 2 && commands.map(n => n.textContent).join('|') === 'first|second', 'BR lines selected partially are marked individually');
+        assert(commands.every(n => n.parentElement === outer && n.querySelector('strong')), 'inline formatting cloned across BR');
+        assert(outer.firstElementChild.innerHTML === 'keep<br>also keep' && outer.children[3].outerHTML === '<p>tail</p>', 'unselected paragraph BR boundaries retained');
+        assert(!commands.some(n => n.querySelector('ul,li,p,.outer')), 'not entire section or nested blocks');
+        assert(outer.querySelector('ul').outerHTML === '<ul><li>one<br><em>two</em><br>three</li><li>other</li></ul>', 'unselected list exact');
+        select(outer.querySelector('em').firstChild, 1); mark();
+        const list = outer.querySelector('ul'), item = list.firstElementChild;
+        assert(list.children.length === 2 && item.querySelector('.knowledge-command').textContent === 'two', 'only current list line marked inside LI');
+        assert(item.firstChild.textContent === 'one' && item.lastChild.textContent === 'three', 'neighbor list lines preserved');
+        assert(list.lastElementChild.outerHTML === '<li>other</li>', 'other item unchanged');
+        editor.undoManager.undo();
+        assert(dom.querySelector('ul').outerHTML === '<ul><li>one<br><em>two</em><br>three</li><li>other</li></ul>', 'undo list mark restores BR structure exactly');
+        editor.edit('<section class="knowledge-section-body"><p>before</p><p>target</p><p>after</p></section>');
+        select(dom.querySelectorAll('p')[1].firstChild, 2); mark();
+        assert(dom.firstElementChild.tagName === 'SECTION' && dom.querySelector('.knowledge-command').textContent === 'target', 'semantic section is never a single logical line');
+        assert(dom.querySelectorAll('section > p').length === 2, 'semantic section neighbors retained');
+        ''', tiny=True)
+
+    def test_command_multiple_paragraphs_excludes_selection_end_boundary(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+        editor.edit('<blockquote><p>first</p><p><em>second</em></p><p>not selected</p></blockquote>');
+        const paragraphs = dom.querySelectorAll('p'), range = document.createRange();
+        range.setStart(paragraphs[0].firstChild, 2); range.setEnd(paragraphs[2].firstChild, 0);
+        editor.selection.setRng(range); editor.buttons.get('knowledgecommand').onAction();
+        assert([...dom.querySelectorAll('.knowledge-command')].map(n => n.textContent).join('|') === 'first|second', 'selection ending at next line start excludes that line');
+        assert(dom.querySelector('blockquote > p').outerHTML === '<p>not selected</p>', 'last paragraph unchanged');
+        assert(dom.querySelector('blockquote > .knowledge-command code em'), 'nested block structure and emphasis preserved');
+        const commands = dom.querySelectorAll('.knowledge-command'), all = document.createRange();
+        all.setStart(commands[0].querySelector('code').firstChild, 0);
+        all.setEnd(commands[1].querySelector('em').firstChild, 6);
+        editor.selection.setRng(all); editor.buttons.get('knowledgecommand').onAction();
+        assert(!dom.querySelector('.knowledge-command') && dom.querySelectorAll('blockquote > p').length === 3, 'multiple command lines toggle off individually');
+        ''', tiny=True)
+
+    def test_command_plaintext_newlines_and_html_source_newlines(self):
+        for original, expected in [('first\nsecond\nthird', 'second'),
+                                   ('<p>first\nsecond<br>third</p>', 'first\nsecond')]:
+            with self.subTest(original=original):
+                self.run_checks(r'''
+                await sleep(30);
+                const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+                const walker = document.createTreeWalker(dom, NodeFilter.SHOW_TEXT);
+                let text; while ((text = walker.nextNode())) if (text.textContent.includes('second')) break;
+                const range = document.createRange(); range.setStart(text, text.textContent.indexOf('second') + 1); range.collapse(true);
+                editor.selection.setRng(range); editor.buttons.get('knowledgecommand').onAction();
+                assert(dom.querySelector('.knowledge-command').textContent === EXPECTED, 'plain text newline becomes BR; HTML source newline remains within one logical line');
+                assert(dom.textContent.includes('third'), 'following line retained');
+                '''.replace('EXPECTED', repr(expected)), original=original, tiny=True)
+
+    def test_fallback_preserves_only_valid_color_styles_and_command_text(self):
+        self.run_checks(r'''
+        edit(body(cards()[0]), '<p style="color: #123abc; background-color: rgb(230, 240, 255); position:fixed; background-image:url(https://example.invalid/x); font-size:99px" onclick="evil()">safe</p>' +
+            '<span style="color:var(--bad);background-color:inherit;behavior:url(x)">bad</span>' +
+            '<span style="color:not-a-color;background-color:expression(evil())">invalid</span>' +
+            '<div class="knowledge-command"><code>  echo &lt;script&gt; &amp; text  </code><button onclick="evil()">copy</button></div>' +
+            '<scr' + 'ipt>evil()</scr' + 'ipt><img src="javascript:evil()" onerror="evil()">');
+        const value = api.getHtml('original'), container = document.createElement('div'); container.innerHTML = value;
+        const p = container.querySelector('p');
+        assert(p.style.color === 'rgb(18, 58, 188)' && p.style.backgroundColor === 'rgb(230, 240, 255)', 'validated foreground/background colors retained');
+        assert(p.style.length === 2 && [...container.querySelectorAll('span')].every(n => !n.hasAttribute('style')), 'only safe explicit color declarations survive');
+        assert(!container.querySelector('script,button') && !/onclick|onerror|javascript:|position|url\(/i.test(value), 'active content and arbitrary styles removed');
+        const command = container.querySelector('div.knowledge-command > code');
+        assert(command.textContent === '  echo <script> & text  ', 'canonical command whitespace and escaped text survive fallback');
+        assert(!command.querySelector('*'), 'escaped text never becomes elements');
+        ''')
+
     def test_native_fallback_structure_events_validation_and_submit(self):
         self.run_checks(r'''
         assert(source.hidden && source.id === 'original' && source.name === 'body', 'source identity retained');
@@ -349,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         assert(editor && api.ownerId(editor) === 'original', 'TinyMCE ownership keyed by internal ID');
         assert(tinyOptions.every(o => o.target.id !== 'original' && o.target.id !== 'other'), 'never initialize original IDs');
         const options = tinyOptions[0];
-        assert(options.plugins === 'lists' && options.toolbar === 'undo redo | bold italic | bullist numlist', 'restricted plugins and toolbar');
+        assert(options.plugins === 'lists' && options.toolbar === 'undo redo | bold italic forecolor | bullist numlist | knowledgecommand', 'restricted plugins and toolbar');
         assert(options.height === 200 && options.min_height === 160 && options.resize, 'sizing');
         assert(!options.menubar && !options.statusbar && !options.branding && !options.promotion, 'no extra UI');
         assert(!options.language && options.valid_elements.includes('img[') && options.browser_spellcheck, 'offline-safe and retained rich markup');

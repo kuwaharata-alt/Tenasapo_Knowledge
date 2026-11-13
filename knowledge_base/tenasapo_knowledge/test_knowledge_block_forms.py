@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import tempfile
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -46,6 +47,85 @@ class KnowledgeBlockFormFixture:
 
 
 class KnowledgeBlockFormTests(KnowledgeBlockFormFixture, TestCase):
+    def setUp(self):
+        # Fail closed even if a view catches a transport error. No live Chat,
+        # Drive uploads or other external connections are permitted here.
+        guards = [self.enterContext(patch(target, side_effect=AssertionError('live network forbidden')))
+                  for target in ('socket.socket.connect', 'socket.socket.connect_ex',
+                                 'urllib.request.urlopen', 'requests.sessions.Session.request')]
+        for guard in guards:
+            self.addCleanup(guard.assert_not_called)
+        super().setUp()
+
+    def test_command_and_forecolor_survive_create_edit_reload_and_all_render_surfaces(self):
+        for model, prefix, fields, kind in SPECS:
+            with self.subTest(kind=kind):
+                item = None
+                for stage, color in (('create', '#123abc'), ('edit', '#ab123c')):
+                    command = ('<div class="knowledge-command" style="color:' + color + '"><code>'
+                               '  echo &lt;値&gt; &amp; 日本語 🧪\t\n'
+                               '<span style="color:#218739">次の行</span>  </code></div>')
+                    markup = ('<div class="knowledge-content-section"><h3>コマンド ' + stage + '</h3>'
+                              '<div class="knowledge-section-body">' + command + '</div></div>')
+                    url = reverse(prefix + '_create') if item is None else reverse(prefix + '_edit', args=[item.pk])
+                    saved = self.client.post(url, self.payload(**{field: markup for field in fields}))
+                    self.assertEqual(saved.status_code, 302)
+                    item = model.objects.latest('pk')
+                    item.refresh_from_db()
+                    for stored in ([item.summary, item.body] if kind == 'faq' else [item.body]):
+                        self.assertEqual(stored, markup)
+                        self.assertNotRegex(stored, r'(?i)<button\b')
+                        self.assertNotIn('knowledge-command-copy', stored)
+                    edit_page = self.client.get(reverse(prefix + '_edit', args=[item.pk]))
+                    self.assertEqual(edit_page.status_code, 200)
+                    for field in fields:
+                        self.assertEqual(edit_page.context['form'][field].value(), markup)
+                    model.objects.filter(pk=item.pk).update(is_published=True, is_approved=True, expires_on=None)
+                    fragments = [str(render_inline_images(markup, []))]
+                    for route in (reverse(prefix + '_list'), reverse(prefix + '_detail', args=[item.management_code])):
+                        page = self.client.get(route)
+                        self.assertEqual(page.status_code, 200)
+                        self.assertTemplateUsed(page, 'includes/knowledge_command_assets.html')
+                        fragments.append(page.content.decode())
+                    preview = self.client.post(reverse('preview_render'),
+                                               json.dumps({'type': kind, **{field: markup for field in fields}}),
+                                               content_type='application/json')
+                    self.assertEqual(preview.status_code, 200)
+                    self.assertTrue(preview.json()['ok'])
+                    fragments.extend(preview.json()[field + '_html'] for field in fields)
+                    for fragment in fragments:
+                        self.assertIn('class="knowledge-command"', fragment)
+                        self.assertIn('color:' + color, fragment)
+                        self.assertIn('color:#218739', fragment)
+                        self.assertIn('  echo &lt;値&gt; &amp; 日本語 🧪\t\n', fragment)
+                        self.assertIn('次の行</span>  </code>', fragment)
+                        self.assertNotRegex(fragment, r'(?i)<button\b[^>]*class=[\'"][^\'"]*knowledge-command-copy')
+
+    def test_command_renderer_and_preview_sanitize_active_attributes_and_escape_buttons(self):
+        source = ('<div class="knowledge-command" style="color:#123abc" onclick="evil()"><code>'
+                  '  echo &lt;安全&gt; &amp; 日本語  '
+                  '<span style="color:#218739" onmouseover="evil()">色</span></code>'
+                  '<button>copy control</button></div>'
+                  '<a href="javascript:evil()" onclick="evil()">link</a>'
+                  '<img src="javascript:evil()" onerror="evil()">')
+        fragments = [str(render_inline_images(source, []))]
+        for _, _, fields, kind in SPECS:
+            preview = self.client.post(reverse('preview_render'),
+                                       json.dumps({'type': kind, **{field: source for field in fields}}),
+                                       content_type='application/json')
+            self.assertEqual(preview.status_code, 200)
+            self.assertTrue(preview.json()['ok'])
+            fragments.extend(preview.json()[field + '_html'] for field in fields)
+        for fragment in fragments:
+            self.assertIn('class="knowledge-command"', fragment)
+            self.assertIn('color:#123abc', fragment)
+            self.assertIn('color:#218739', fragment)
+            self.assertIn('  echo &lt;安全&gt; &amp; 日本語  ', fragment)
+            self.assertNotRegex(fragment, r'(?i)\bon(?:click|mouseover|error)\s*=|javascript:')
+            # bleach strip=False deliberately retains disallowed tags as text.
+            self.assertNotRegex(fragment, r'(?i)</?button\b')
+            self.assertIn('&lt;button&gt;copy control&lt;/button&gt;', fragment)
+
     def test_edit_forms_do_not_show_approval_card_or_modify_status(self):
         for model, prefix, fields, kind in SPECS:
             for approved, reason in ((True, ''), (False, '修正してください')):
@@ -77,7 +157,7 @@ class KnowledgeBlockFormTests(KnowledgeBlockFormFixture, TestCase):
                     self.assertEqual(source.count('const records = new Map(), owners = new Map()'), 1)
                     for field in fields:
                         self.assertRegex(source, rf'<textarea[^>]*name="{field}"[^>]*id="id_{field}"[^>]*data-wysiwyg="true"')
-                    self.assertIn("toolbar: 'undo redo | bold italic | bullist numlist'", source)
+                    self.assertIn("toolbar: 'undo redo | bold italic forecolor | bullist numlist | knowledgecommand'", source)
                     self.assertNotIn('styleselect', source)
                     self.assertNotIn(' outdent', source)
                     self.assertIn('window.KnowledgeBlockEditors.configureImages(', source)

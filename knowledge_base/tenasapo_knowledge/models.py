@@ -1098,3 +1098,6 @@ class TipsFavorite(models.Model):
 
     def __str__(self):
         return f'{self.tip_id} - {self.user_id}'
+
+
+from .drive_oauth_models import DriveOAuthConnection  # noqa: E402,F401

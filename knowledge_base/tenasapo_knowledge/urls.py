@@ -1,6 +1,8 @@
 from django.urls import path
+from django.db import transaction
 from django.views.generic import RedirectView
-from .chat_schedule_settings import ChatScheduleSettingsView
+from .chat_schedule_settings import ChatScheduleSettingsView, ChatScheduleSendView
+from .drive_oauth_views import drive_oauth_callback, drive_oauth_connect, drive_oauth_disconnect
 from .views import (
     ArticleListView,
     ArticleManagementView,
@@ -80,6 +82,9 @@ from .views import (
 )
 
 urlpatterns = [
+    path('summary/drive/connect/', drive_oauth_connect, name='drive_oauth_connect'),
+    path('summary/drive/callback/', drive_oauth_callback, name='drive_oauth_callback'),
+    path('summary/drive/disconnect/', drive_oauth_disconnect, name='drive_oauth_disconnect'),
     path('summary/report/pdf/', SummaryPostingReportPDFView.as_view(), name='summary_posting_report_pdf'),
     path('', HomeView.as_view(), name='home'),
     path('first-login-registration/', FirstLoginRegistrationView.as_view(), name='first_login_registration'),
@@ -146,6 +151,8 @@ urlpatterns = [
     path('histories/views/', ViewHistoryListView.as_view(), name='view_history_list'),
     path('summary/', SummaryView.as_view(), name='summary'),
     path('summary/chat-schedule/', ChatScheduleSettingsView.as_view(), name='chat_schedule_settings'),
+    path('summary/chat-schedule/<int:schedule_id>/<str:kind>/send/',
+         transaction.non_atomic_requests(ChatScheduleSendView.as_view()), name='chat_schedule_send'),
     path('summary/quotas/', PostingQuotaSettingsView.as_view(), name='posting_quota_settings'),
     path('summary/pdf/', SummaryPDFView.as_view(), name='summary_pdf'),
     path('summary/notify/', SummaryNotifyChatAPIView.as_view(), name='summary_notify_chat'),

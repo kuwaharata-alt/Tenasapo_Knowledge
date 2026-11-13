@@ -1276,6 +1276,7 @@
         .app-notification .toast-body { color: var(--tk-text); padding: 1rem; overflow-wrap: anywhere; }
     </style>
     {% include 'includes/sidebar_scroll_assets.html' %}
+    {% include 'includes/knowledge_command_assets.html' %}
     <script>
         document.querySelectorAll('.app-notification').forEach(element => {
             const toast = bootstrap.Toast.getOrCreateInstance(element, { delay: 5000, autohide: true });
