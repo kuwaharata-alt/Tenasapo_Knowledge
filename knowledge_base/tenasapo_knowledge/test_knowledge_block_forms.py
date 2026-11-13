@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 
@@ -45,6 +46,25 @@ class KnowledgeBlockFormFixture:
 
 
 class KnowledgeBlockFormTests(KnowledgeBlockFormFixture, TestCase):
+    def test_edit_forms_do_not_show_approval_card_or_modify_status(self):
+        for model, prefix, fields, kind in SPECS:
+            for approved, reason in ((True, ''), (False, '修正してください')):
+                with self.subTest(kind=kind, approved=approved):
+                    item = model.objects.create(
+                        title='承認欄の非表示確認', body=SECTION, created_by=self.user,
+                        is_approved=approved, remand_reason=reason,
+                    )
+                    response = self.client.get(reverse(prefix + '_edit', args=[item.pk]))
+                    self.assertEqual(response.status_code, 200)
+                    self.assertNotContains(response, '承認状態')
+                    for action in ('approve', 'approval_reset', 'remand'):
+                        self.assertNotContains(response, 'action="' + reverse(prefix + '_' + action, args=[item.pk]) + '"')
+                    self.assertContains(response, 'name="submit_action"')
+                    self.assertContains(response, 'name="submit_action" id="id_submit_action" value="' + ('update' if approved else 'correct') + '"')
+                    item.refresh_from_db()
+                    self.assertEqual(item.is_approved, approved)
+                    self.assertEqual(item.remand_reason, reason)
+
     def test_create_edit_markup_keeps_original_serialization_and_shared_assets(self):
         for model, prefix, fields, kind in SPECS:
             item = model.objects.create(title='既存', body=SECTION, created_by=self.user)
@@ -152,7 +172,8 @@ class KnowledgeBlockFormBrowserTests(KnowledgeBlockFormFixture, TestCase):
     """Use actual Django-rendered pages; only CDN/network/Bootstrap are boundaries."""
 
     def run_page(self, source, fields, kind, *, editing=False):
-        candidates = [shutil.which('chromium'), shutil.which('google-chrome'),
+        # GitHub's Ubuntu runner provides Chrome; chromium can be a Snap wrapper.
+        candidates = [shutil.which('google-chrome'), shutil.which('chromium'),
                       r'C:\Program Files\Google\Chrome\Application\chrome.exe',
                       r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe']
         browser = next((p for p in candidates if p and os.path.isfile(p)), None)
@@ -309,14 +330,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         with tempfile.TemporaryDirectory(prefix='knowledge-real-form-') as directory:
             page = Path(directory) / 'form.html'
             page.write_text(source.replace('</body>', harness + '</body>'), encoding='utf-8')
-            result = subprocess.run([
+            command = [
                 browser, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+                '--disable-dev-shm-usage',
                 '--disable-background-networking', f'--user-data-dir={directory}/profile',
                 '--virtual-time-budget=5000', '--dump-dom', page.as_uri(),
-            ], capture_output=True, encoding='utf-8', errors='replace', timeout=45, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr[-2000:])
-            match = re.search(r'<pre id="block-result">(.*?)</pre>', result.stdout, re.S)
-            self.assertIsNotNone(match, result.stderr[-2000:])
+            ]
+            process = subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                encoding='utf-8', errors='replace', start_new_session=os.name != 'nt',
+            )
+            try:
+                stdout, stderr = process.communicate(timeout=60)
+            except subprocess.TimeoutExpired:
+                self.fail('Browser form test timed out after 60 seconds')
+            finally:
+                # Chrome children also write to the profile directory. Stop the
+                # whole test-owned tree before TemporaryDirectory removes it,
+                # including on timeout, so cleanup never masks the real failure.
+                if os.name == 'nt':
+                    if process.poll() is None:
+                        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                                       capture_output=True, timeout=15, check=False)
+                else:
+                    try:
+                        os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                if process.poll() is None:
+                    process.kill()
+                process.communicate(timeout=15)
+            self.assertEqual(process.returncode, 0, stderr[-2000:])
+            match = re.search(r'<pre id="block-result">(.*?)</pre>', stdout, re.S)
+            self.assertIsNotNone(match, stderr[-2000:])
             self.assertEqual(html.unescape(match.group(1)), 'PASS')
 
     def test_real_create_forms_fallback_blocks_images_completion_preview_and_submit(self):

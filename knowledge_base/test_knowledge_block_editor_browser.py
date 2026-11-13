@@ -103,6 +103,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             report = result.stdout[start:result.stdout.find('</pre>', start)]
             self.assertIn('>PASS: block editor', report, report or result.stderr[-2000:])
 
+    def test_expanded_faq_and_tips_text_can_be_selected_without_collapsing(self):
+        for name in ('article_list.html', 'tips_list.html'):
+            with self.subTest(template=name):
+                template = (Path(__file__).parent / 'tenasapo_knowledge/templates/tenasapo_knowledge' / name).read_text(encoding='utf-8')
+                start = template.index("document.querySelectorAll('.faq-item > .accordion-header .faq-question')")
+                end = template.index("document.querySelectorAll('.knowledge-review-btn')", start)
+                self.run_checks(r'''
+                const item = document.createElement('article');
+                item.className = 'faq-item';
+                item.innerHTML = '<h3 class="accordion-header"><div class="faq-question"><span>タイトルを選択</span><button type="button" class="faq-toggle">開閉</button></div></h3>' +
+                    '<div class="accordion-body"><div class="faq-question"><p>質問をコピー</p></div><div class="faq-question"><p>回答と手順をコピー</p></div><div class="faq-body-indent"><p>Tipsの内容をコピー</p></div></div>';
+                document.body.append(item);
+                let toggles = 0;
+                item.querySelector('.faq-toggle').addEventListener('click', () => toggles++);
+                ''' + template[start:end] + r'''
+                const title = item.querySelector('.accordion-header span');
+                title.click();
+                assert(toggles === 1, 'normal title click still toggles');
+                for (const paragraph of item.querySelectorAll('.accordion-body p')) {
+                    assert(getComputedStyle(paragraph).userSelect !== 'none', 'expanded content allows selection');
+                    assert(paragraph.parentElement.style.cursor !== 'pointer', 'body is not a toggle target');
+                    const range = document.createRange(); range.selectNodeContents(paragraph);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges(); selection.addRange(range);
+                    assert(selection.toString() === paragraph.textContent, 'body text selectable for native copy');
+                    paragraph.click();
+                    assert(toggles === 1, 'selecting body never collapses article');
+                }
+                const selection = window.getSelection(), range = document.createRange();
+                range.selectNodeContents(title); selection.removeAllRanges(); selection.addRange(range);
+                title.click();
+                assert(toggles === 1, 'selecting title does not collapse article');
+                selection.removeAllRanges(); title.click();
+                assert(toggles === 2, 'normal toggle works after selection clears');
+                ''')
+
     def test_heading_shortcuts_for_question_answer_and_tips(self):
         original = ('<div class="knowledge-content-section"><h3>既存の見出し</h3>'
                     '<div class="knowledge-section-body"><p>本文を保持</p></div></div>')

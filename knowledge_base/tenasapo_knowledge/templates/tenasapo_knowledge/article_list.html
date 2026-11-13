@@ -492,11 +492,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // タイトル行クリックで展開
-    document.querySelectorAll('.faq-question').forEach(el => {
+    document.querySelectorAll('.faq-item > .accordion-header .faq-question').forEach(el => {
         el.style.cursor = 'pointer';
-        el.style.userSelect = 'none';
         el.addEventListener('click', function(e) {
             if (e.target.closest('button, a, .knowledge-action-menu')) return;
+            if (window.getSelection()?.toString()) return;
             const header = this.closest('.accordion-header');
             if (!header) return;
             const toggleBtn = header.querySelector('.faq-toggle');
