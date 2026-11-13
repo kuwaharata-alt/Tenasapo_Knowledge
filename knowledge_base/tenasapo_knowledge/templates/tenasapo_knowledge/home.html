@@ -121,6 +121,7 @@
 {% if home_member_post_totals %}
 {{ home_member_post_periods|json_script:"home-member-post-data" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% include 'tenasapo_knowledge/includes/summary_target_chart.html' %}
 {% include 'includes/home_member_posts_assets.html' %}
 {% endif %}
 {% endblock %}

@@ -26,11 +26,13 @@ class HomeMemberPostsBrowserTests(SimpleTestCase):
                 'rows': [] if empty else [dict(name=unsafe, faq_post_count=faq,
                                                tips_post_count=tips, post_count_total=faq + tips)],
                 'totals': dict(faq_post_count=faq, tips_post_count=tips, post_count_total=faq + tips),
+                'target_chart': {'value': 20 if period == 'all' else 0 if period == 'current' else 4, 'label': '投稿目標'},
             }
         context = {'home_member_post_periods': periods, 'home_member_post_totals': periods['all']['totals']}
         markup = render_to_string('includes/home_member_posts.html', context)
         payload = Template('{{ home_member_post_periods|json_script:"home-member-post-data" }}').render(Context(context))
         assets = (Path(__file__).parent.parent / 'templates/includes/home_member_posts_assets.html').read_text(encoding='utf-8')
+        target_assets = render_to_string('tenasapo_knowledge/includes/summary_target_chart.html')
         recording = r'''<script>
 window.instances = []; window.updates = 0;
 window.Chart = class {
@@ -53,7 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
  const select = period => {
   button(period).click();
   assert(button(period).getAttribute('aria-pressed') === 'true', 'selected period accessible');
-  assert(root.querySelectorAll('[aria-pressed="true"]').length === 1, 'one selected period');
+    assert(root.querySelectorAll('[data-home-post-period][aria-pressed="true"]').length === 1, 'one selected period');
   const visible = [...root.querySelectorAll('[data-home-post-table]')].filter(node => !node.hidden);
   assert(visible.length === 1 && visible[0].dataset.homePostTable === period, 'matching table');
  };
@@ -71,7 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
         with tempfile.TemporaryDirectory(prefix='nexus-home-chart-') as directory:
             page = Path(directory) / 'home.html'
             page.write_text('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
-                            + markup + payload + recording + assets + assets
+                            + markup + payload + recording + target_assets + assets + assets
                             + '<pre id="result">PENDING</pre>' + harness, encoding='utf-8')
             result = subprocess.run([
                 browser, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
@@ -92,14 +94,24 @@ assert(chart.options.scales.x.stacked && chart.options.scales.y.stacked, 'stacke
 assert(chart.data.datasets.map(item => item.label).join(',') === 'Q&A,Tips', 'legend order');
 assert(root.querySelector('thead').textContent.includes('Q&A'), 'table label decoded once');
 assert(root.querySelector('canvas').getAttribute('aria-label').includes('Q&A'), 'chart accessible label decoded once');
-assert(chart.data.datasets[0].backgroundColor.includes('232, 117, 36'), 'orange FAQ');
+assert(chart.data.datasets[0].backgroundColor.includes('220, 53, 69'), 'red FAQ matches Analyze');
 assert(chart.data.datasets[1].backgroundColor.includes('73, 136, 232'), 'blue Tips');
+assert(root.querySelector('.home-post-legend').classList.contains('justify-content-end'), 'legend matches Analyze right alignment');
+assert(root.querySelector('#home-member-posts-title .bi-bar-chart-fill'), 'Analyze heading icon');
+assert(root.querySelector('#home-post-status').classList.contains('visually-hidden'), 'no extra visible count paragraph');
+assert(root.querySelector('#home-post-target').classList.contains('visually-hidden'), 'target label appears on chart only');
+assert(root.querySelector('[data-home-post-sort="post_count"]'), 'Analyze sort controls available');
+assert(root.querySelector('details').hidden, 'table link not shown below chart');
 assert(!root.querySelector('[data-home-post-chart]').hidden, 'chart displayed');
 assert(!root.querySelector('details').open, 'table remains available via disclosure');
+assert(chart.options.scales.y.suggestedMax === 26, 'target included in chart scale');
+assert(chart.config.plugins[1].id === 'postingTargetLine', 'shared Analyze target plugin');
+assert(root.querySelector('#home-post-target').textContent.includes('20 件'), 'all period target');
 select('current');
 assert(chart.data.datasets[0].data[0] === 0 && chart.options.scales.y.suggestedMax === 5, 'zero period scale');
 assert(root.querySelector('[role="status"]').textContent.includes('当月：合計 0 件'), 'current status');
 select('previous');
+assert(root.querySelector('#home-post-target').textContent.includes('4 件'), 'target switches with period');
 assert(chart.data.datasets[0].data[0] === 2 && chart.data.datasets[1].data[0] === 1, 'previous values');
 select('all');
 assert(chart.data.datasets[0].data[0] === 8 && updates === 3 && instances.length === 1, 'reuse instance');
@@ -108,6 +120,43 @@ chart.ctx = {save() {}, restore() {}, fillText(value) {drawn.push(value);}};
 chart.getDatasetMeta = () => ({data: [{x: 10, y: 20}]});
 chart.config.plugins[0].afterDatasetsDraw(chart);
 assert(drawn.join() === '11', 'total above stacked bar');
+root.querySelector('[data-home-post-sort="post_count"]').click();
+assert(instances.length === 1 && updates === 4, 'sorting updates same chart');
+assert(root.querySelector('[data-home-post-sort="post_count"]').getAttribute('aria-pressed') === 'true', 'sort selection retained');
+''')
+
+    def test_legend_toggles_datasets_and_visible_totals_across_periods_and_sorting(self):
+        self.run_browser(r'''
+const chart = instances[0];
+const faq = root.querySelector('[data-home-post-dataset="0"]');
+const tips = root.querySelector('[data-home-post-dataset="1"]');
+const drawn = [];
+chart.ctx = {save() {}, restore() {}, fillText(value) {drawn.push(value);}};
+chart.getDatasetMeta = index => ({data: [{x: 10, y: index === 0 ? 30 : 20}]});
+const total = () => {
+ drawn.length = 0;
+ chart.config.plugins[0].afterDatasetsDraw(chart);
+ return drawn.join();
+};
+assert(faq.tagName === 'BUTTON' && tips.tagName === 'BUTTON', 'keyboard-accessible legends');
+assert(total() === '11', 'both visible total');
+faq.click();
+assert(chart.data.datasets[0].hidden && !chart.data.datasets[1].hidden, 'hide FAQ only');
+assert(faq.getAttribute('aria-pressed') === 'false', 'hidden FAQ accessible state');
+assert(total() === '3', 'total excludes hidden FAQ');
+select('previous');
+assert(chart.data.datasets[0].hidden && total() === '1', 'period preserves hidden FAQ');
+root.querySelector('[data-home-post-sort="post_count"]').click();
+assert(chart.data.datasets[0].hidden, 'sorting preserves visibility');
+tips.click();
+assert(chart.data.datasets.every(dataset => dataset.hidden), 'both can be hidden');
+assert(total() === '', 'no total label when both hidden');
+faq.click();
+assert(!chart.data.datasets[0].hidden && chart.data.datasets[1].hidden, 'restore FAQ only');
+assert(total() === '2', 'FAQ-only total');
+tips.click();
+assert(chart.data.datasets.every(dataset => !dataset.hidden), 'restore both');
+assert(total() === '3' && instances.length === 1, 'same chart restored');
 ''')
 
     def test_missing_or_failed_chart_keeps_readable_switchable_tables(self):

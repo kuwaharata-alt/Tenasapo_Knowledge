@@ -20,6 +20,9 @@
         line-height: 1.5;
     }
     .summary-section-title > i { flex-shrink: 0; }
+    #member-chart-legend button { border: 0; padding: .25rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+    #member-chart-legend button[aria-pressed="false"] { opacity: .5; text-decoration: line-through; }
+    #member-chart-legend button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: .2rem; }
     .summary-performance-table > :not(caption) > * > * { padding: .85rem .75rem; }
     .summary-performance-table { width: 100%; min-width: 760px; table-layout: fixed; font-variant-numeric: tabular-nums; }
     .summary-performance-table > thead th { color: var(--bs-secondary-color); font-weight: 600; }
@@ -250,14 +253,14 @@
                     </div>
                     <div id="member-chart-area">
                             <div class="d-flex justify-content-end align-items-center gap-3 mb-1" id="member-chart-legend" aria-label="投稿グラフの凡例" style="font-size: 0.8rem; font-weight: 600; color: #555;">
-                                <div class="d-flex align-items-center gap-1.5">
-                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(220, 53, 69, 0.82); vertical-align: middle;"></span>
+                                <button type="button" class="d-flex align-items-center gap-1.5" data-summary-dataset="0" aria-pressed="true" aria-controls="memberPostChart" title="Q&Aの表示切り替え">
+                                    <span aria-hidden="true" class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(220, 53, 69, 0.82); vertical-align: middle;"></span>
                                     <span style="vertical-align: middle;">Q&amp;A</span>
-                                </div>
-                                <div class="d-flex align-items-center gap-1.5">
-                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(73, 136, 232, 0.82); vertical-align: middle;"></span>
+                                </button>
+                                <button type="button" class="d-flex align-items-center gap-1.5" data-summary-dataset="1" aria-pressed="true" aria-controls="memberPostChart" title="Tipsの表示切り替え">
+                                    <span aria-hidden="true" class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(73, 136, 232, 0.82); vertical-align: middle;"></span>
                                     <span style="vertical-align: middle;">Tips</span>
-                                </div>
+                                </button>
                             </div>
                         <div style="height: 320px;"><canvas id="memberPostChart"></canvas></div>
                     </div>
@@ -657,6 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
             for (let i = 0; i < data.labels.length; i += 1) {
                 const faqVisible = chart.isDatasetVisible(0);
                 const tipsVisible = chart.isDatasetVisible(1);
+                if (!faqVisible && !tipsVisible) continue;
                 const faqVal = faqVisible ? (Number(data.datasets[0].data[i]) || 0) : 0;
                 const tipsVal = tipsVisible ? (Number(data.datasets[1].data[i]) || 0) : 0;
                 const total = faqVal + tipsVal;
@@ -732,6 +736,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
             },
         },
+    });
+
+    document.querySelectorAll('[data-summary-dataset]').forEach(button => {
+        button.addEventListener('click', () => {
+            const index = Number(button.dataset.summaryDataset);
+            const visible = !memberPostChart.isDatasetVisible(index);
+            memberPostChart.setDatasetVisibility(index, visible);
+            button.setAttribute('aria-pressed', String(visible));
+            const maximum = Math.max(0, ...labels.map((_, row) =>
+                memberPostChart.data.datasets.reduce((sum, dataset, datasetIndex) =>
+                    sum + (memberPostChart.isDatasetVisible(datasetIndex) ? Number(dataset.data[row]) || 0 : 0), 0)));
+            memberPostChart.options.scales.y.suggestedMax = window.summaryTargetChart(targetPayload, maximum).suggestedMax;
+            memberPostChart.update();
+        });
     });
 
     const internalLabels = JSON.parse(document.getElementById('internal-summary-chart-labels').textContent || '[]');

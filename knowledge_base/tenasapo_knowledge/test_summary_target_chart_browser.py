@@ -51,7 +51,14 @@ class SummaryTargetChartBrowserTests(SimpleTestCase):
 window.instances = [];
 sessionStorage.setItem('summary-navigation-scroll', JSON.stringify({url: location.href, x: 0, y: 180, savedAt: Date.now()}));
 window.Chart = class {
- constructor(canvas, config) {this.config = config; instances.push(this);}
+ constructor(canvas, config) {
+  this.config = config; this.data = config.data; this.options = config.options;
+  this.visible = [true, true]; this.updates = 0; instances.push(this);
+ }
+ isDatasetVisible(index) {return this.visible[index];}
+ setDatasetVisibility(index, visible) {this.visible[index] = visible;}
+ getDatasetMeta(index) {return {data: [{x: 10, y: index === 0 ? 30 : 20}]};}
+ update() {this.updates++;}
 };
 </script>'''
         checks = r'''<script>
@@ -220,7 +227,31 @@ window.addEventListener('load', () => setTimeout(() => {
     assert(calls[0][0] === 'save' && calls[calls.length - 1][0] === 'restore', 'canvas state restored');
    }
   }
-  document.getElementById('result').textContent = 'PASS';
+    if (labels.length) {
+     const chart = instances[0];
+     const faq = document.querySelector('[data-summary-dataset="0"]');
+     const tips = document.querySelector('[data-summary-dataset="1"]');
+     assert(faq.tagName === 'BUTTON' && tips.tagName === 'BUTTON', 'keyboard-accessible legend controls');
+     const totals = [];
+     chart.ctx = {save() {}, restore() {}, fillText(value) {totals.push(value);}};
+     const drawTotals = () => {
+        totals.length = 0;
+        chart.config.plugins.find(item => item.id === 'totalLabelPlugin').afterDatasetsDraw(chart);
+        return totals.join();
+     };
+     faq.click();
+     assert(!chart.isDatasetVisible(0) && chart.isDatasetVisible(1), 'FAQ legend hides only FAQ');
+     assert(faq.getAttribute('aria-pressed') === 'false' && drawTotals() === '0', 'hidden FAQ excluded from totals and accessible state');
+     tips.click();
+     assert(!chart.isDatasetVisible(1) && drawTotals() === '', 'both hidden suppress total labels');
+     faq.click();
+     assert(chart.isDatasetVisible(0) && !chart.isDatasetVisible(1), 'FAQ can be restored independently');
+     assert(drawTotals() === String(chart.data.datasets[0].data[0]), 'FAQ-only total');
+     tips.click();
+     assert(chart.isDatasetVisible(1) && tips.getAttribute('aria-pressed') === 'true', 'Tips restored');
+     assert(chart.updates === 4 && instances.length === 1, 'legend reuses existing chart');
+    }
+    document.getElementById('result').textContent = 'PASS';
  } catch (error) {document.getElementById('result').textContent = 'FAIL: ' + error.message;}
 }, 0));
 </script>'''

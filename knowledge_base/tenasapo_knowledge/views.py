@@ -1435,6 +1435,11 @@ class HomeView(TemplateView):
             for period in ('current', 'previous'):
                 period_rows, period_totals = SummaryView.member_post_counts(period)
                 periods[period] = {'rows': period_rows, 'totals': period_totals}
+            today = timezone.localdate()
+            for period, data in periods.items():
+                start, _ = SummaryView.posting_period_dates(period, today)
+                target_month = start if period == 'previous' else today.replace(day=1)
+                data['target_chart'] = posting_targets(target_month, period)['chart']
             context['home_member_post_periods'] = periods
 
         knowledge_items = [

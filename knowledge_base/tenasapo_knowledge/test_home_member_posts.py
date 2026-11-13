@@ -261,6 +261,7 @@ class HomeMemberPostsTests(TestCase):
                         summary, _ = self.context(views.SummaryView, params={'period': period})
                         data = home['home_member_post_periods'][period]
                         self.assertEqual(data['rows'], self.posting_rows(summary['member_summaries']))
+                        self.assertEqual(data['target_chart'], summary['posting_target_chart'])
                         for key, value in data['totals'].items():
                             self.assertEqual(value, summary['summary_totals'][key])
 

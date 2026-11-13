@@ -1,18 +1,29 @@
 <section class="card shadow-sm mb-4" aria-labelledby="home-member-posts-title" id="home-member-posts">
     <div class="card-body">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-            <h2 class="h5 faq-group-title mb-0" id="home-member-posts-title">メンバーの投稿数</h2>
-            <div class="btn-group btn-group-sm" role="group" aria-label="投稿数の集計期間">
-                <button type="button" class="btn btn-outline-primary active" data-home-post-period="all" aria-pressed="true">全期間</button>
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <h2 class="h5 home-post-title mb-0" id="home-member-posts-title"><i class="bi bi-bar-chart-fill" aria-hidden="true"></i>メンバーの投稿数</h2>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="home-member-chart-sort" data-bs-toggle="dropdown" aria-expanded="false" aria-label="メンバー投稿数の表示順を設定" title="表示順設定"><i class="bi bi-sort-down" aria-hidden="true"></i></button>
+                    <ul class="dropdown-menu" aria-labelledby="home-member-chart-sort">
+                        <li><h6 class="dropdown-header">表示順設定</h6></li>
+                        <li><button type="button" class="dropdown-item active" data-home-post-sort="no" aria-pressed="true">No順</button></li>
+                        <li><button type="button" class="dropdown-item" data-home-post-sort="post_count" aria-pressed="false">投稿数順</button></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="btn-group btn-group-sm align-self-end" role="group" aria-label="投稿数の集計期間">
+                <button type="button" class="btn btn-primary active" data-home-post-period="all" aria-pressed="true">全期間</button>
                 <button type="button" class="btn btn-outline-primary" data-home-post-period="current" aria-pressed="false">当月</button>
                 <button type="button" class="btn btn-outline-primary" data-home-post-period="previous" aria-pressed="false">前月</button>
             </div>
         </div>
-        <div class="d-flex justify-content-center gap-3 small mb-2" aria-label="グラフの凡例">
-            <span><span class="home-post-key home-post-faq" aria-hidden="true"></span> Q&amp;A</span>
-            <span><span class="home-post-key home-post-tips" aria-hidden="true"></span> Tips</span>
+        <div class="d-flex justify-content-end align-items-center gap-3 mb-1 home-post-legend" aria-label="グラフの凡例">
+            <button type="button" class="home-post-toggle" data-home-post-dataset="0" aria-pressed="true" aria-controls="home-member-post-chart" title="Q&Aの表示切り替え"><span class="home-post-key home-post-faq" aria-hidden="true"></span> Q&amp;A</button>
+            <button type="button" class="home-post-toggle" data-home-post-dataset="1" aria-pressed="true" aria-controls="home-member-post-chart" title="Tipsの表示切り替え"><span class="home-post-key home-post-tips" aria-hidden="true"></span> Tips</button>
         </div>
-        <p class="small text-muted mb-2" id="home-post-status" role="status">全期間：合計 {{ home_member_post_totals.post_count_total }} 件</p>
+        <p class="visually-hidden" id="home-post-status" role="status">全期間：合計 {{ home_member_post_totals.post_count_total }} 件</p>
+        <p class="visually-hidden" id="home-post-target" role="status"></p>
         <div class="home-post-scroll" data-home-post-chart hidden>
             <div class="home-post-chart-size">
                 <canvas id="home-member-post-chart" role="img" aria-label="メンバー別のQ&amp;AとTips投稿数（積み上げ棒グラフ）" aria-describedby="home-post-status home-post-table-title"></canvas>
@@ -40,9 +51,14 @@
     </div>
 </section>
 <style>
-#home-member-posts .home-post-key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
-#home-member-posts .home-post-faq { background: rgba(232, 117, 36, 0.82); }
+#home-member-posts .home-post-title { display: flex; align-items: center; gap: .5rem; width: fit-content; max-width: 100%; padding: 0 0 .45rem; color: var(--tk-primary, #bd6a20); border-bottom: 3px solid currentColor; border-left: none; background: transparent; font-weight: 700; line-height: 1.5; }
+#home-member-posts .home-post-legend { font-size: .8rem; font-weight: 600; color: #555; }
+#home-member-posts .home-post-toggle { border: 0; padding: .25rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+#home-member-posts .home-post-toggle[aria-pressed="false"] { opacity: .5; text-decoration: line-through; }
+#home-member-posts .home-post-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; border-radius: .2rem; }
+#home-member-posts .home-post-key { display: inline-block; width: 12px; height: 12px; border-radius: .2rem; vertical-align: middle; }
+#home-member-posts .home-post-faq { background: rgba(220, 53, 69, 0.82); }
 #home-member-posts .home-post-tips { background: rgba(73, 136, 232, 0.82); }
 #home-member-posts .home-post-scroll { overflow-x: auto; }
-#home-member-posts .home-post-chart-size { position: relative; height: clamp(280px, 36vw, 360px); }
+#home-member-posts .home-post-chart-size { position: relative; height: 320px; }
 </style>
