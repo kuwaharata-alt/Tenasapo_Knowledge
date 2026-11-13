@@ -729,13 +729,31 @@
             box-sizing: border-box;
             overflow-wrap: anywhere;
             border-radius: 0;
-            padding: .65rem 1em .35em !important;
+            padding: .65rem 1rem .35em !important;
             margin: 0 0 .75rem;
             font-size: 1rem;
             font-weight: 700;
             line-height: 1.5;
         }
+        /* Align text with the heading; list markers hang to its left. */
+        .knowledge-content-section > .knowledge-section-body {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
         .knowledge-section-body { overflow-wrap: anywhere; }
+        /* Outrank the later legacy .faq-body-indent ul/ol rules only in new sections. */
+        .knowledge-content-section > .knowledge-section-body :is(ul, ol) {
+            margin: .25rem 0;
+            padding-left: 0;
+            list-style-position: outside;
+        }
+        .knowledge-content-section > .knowledge-section-body :is(ul, ol) :is(ul, ol) {
+            padding-left: 1.5em;
+        }
+        .knowledge-section-body li {
+            padding-left: 0;
+            text-indent: 0;
+        }
         .faq-body-indent li div[style*="font-weight: 400"] {
             margin-left: 0 !important;
             text-indent: 0 !important;
