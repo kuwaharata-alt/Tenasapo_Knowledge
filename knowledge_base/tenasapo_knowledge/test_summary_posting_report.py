@@ -33,6 +33,26 @@ class SummaryPostingReportTests(TestCase):
         self.assertEqual(context['report_month'], '2026-11')
         self.assertEqual(context['report_half_year_target']['start'], date(2026, 11, 1))
         self.assertContains(self.response(), 'id="btnPostingReportPdf"')
+        self.assertNotContains(self.response(), 'id="btnPdfReport"')
+
+    def test_report_context_supplies_real_attachment_fields_and_reference_links(self):
+        from .models import ArticleAttachment, KnowledgeArticleImageAttachment, TipsImageAttachment
+
+        context = self.response({'report_month': '2026-11'}).context_data
+        faq_row = next(row for row in context['report_articles'] if row['kind'] == 'Q&A')
+        tips_row = next(row for row in context['report_articles'] if row['kind'] == 'Tips')
+        question = ArticleAttachment.objects.create(article_id=faq_row['id'], placement='question', file='test/question.png')
+        answer = KnowledgeArticleImageAttachment.objects.create(article_id=faq_row['id'], file='test/answer.png')
+        tip_image = TipsImageAttachment.objects.create(tip_id=tips_row['id'], file='test/tips.png')
+        links = [{'label': '参考資料', 'url': 'https://example.com/reference'}]
+        TipsArticle.objects.filter(pk=tips_row['id']).update(reference_links=links)
+        context = self.response({'report_month': '2026-11'}).context_data
+        faq_row = next(row for row in context['report_articles'] if row['kind'] == 'Q&A')
+        tips_row = next(row for row in context['report_articles'] if row['kind'] == 'Tips')
+        self.assertEqual(faq_row['question_images'], [question])
+        self.assertEqual(faq_row['body_images'], [answer])
+        self.assertEqual(tips_row['body_images'], [tip_image])
+        self.assertEqual(tips_row['reference_links'], links)
 
     def test_report_members_include_zero_and_follow_month_visibility_and_saved_name(self):
         group, _ = Group.objects.get_or_create(name=CONTRIBUTOR_GROUP_NAME)
@@ -204,10 +224,14 @@ class SummaryPostingReportTests(TestCase):
         self.assertEqual(len(details), 2)
         for (data, options), article in zip(details, context['report_articles']):
             labels = [row[0].getPlainText() for row in data]
-            self.assertEqual(labels[:6], ['タイトル', '管理番号', '投稿日時', '投稿者', 'カテゴリ', '承認状況'])
-            self.assertEqual(labels[6:], ['質問', '回答'] if article['kind'] == 'Q&A' else ['内容'])
+            self.assertEqual(labels[:4], ['タイトル', '管理番号', '投稿日時', 'カテゴリ'])
+            self.assertEqual(labels[4:], ['質問', '回答'] if article['kind'] == 'Q&A' else ['内容'])
+            self.assertEqual(data[1][2].getPlainText(), '種類')
+            self.assertEqual(data[1][3].getPlainText(), article['kind'])
+            self.assertEqual(data[2][2].getPlainText(), '投稿者')
+            self.assertEqual(data[2][4].getPlainText(), '承認状況')
             self.assertEqual(data[1][1].getPlainText(), article['management_code'])
-            self.assertEqual(options['repeatRows'], 1)
+            self.assertEqual(options['repeatRows'], 0)
 
     def test_pdf_chart_heading_stays_on_chart_page(self):
         from reportlab.graphics.shapes import Drawing
@@ -223,7 +247,7 @@ class SummaryPostingReportTests(TestCase):
             heading_pages, chart_pages = [], []
 
             def paragraph_draw(paragraph):
-                if 'メンバー投稿数グラフ' in paragraph.getPlainText():
+                if 'メンバー投稿数（' in paragraph.getPlainText():
                     heading_pages.append(paragraph.canv.getPageNumber())
                 return original_paragraph_draw(paragraph)
 
@@ -234,6 +258,7 @@ class SummaryPostingReportTests(TestCase):
             with patch.object(Paragraph, 'draw', paragraph_draw), patch.object(Drawing, 'draw', chart_draw):
                 build_posting_report_pdf(context)
             self.assertEqual(heading_pages, chart_pages, f'members={count}')
+            self.assertEqual(chart_pages[0], 1, f'first chart stays on page one: members={count}')
 
     def test_pdf_article_title_and_body_start_on_same_page(self):
         from reportlab.platypus import Paragraph
@@ -382,6 +407,7 @@ class SummaryPostingReportTests(TestCase):
         self.assertNotContains(response, '<script>月末Tips</script>')
         self.assertContains(response, 'id="internal-pane"')
         self.assertContains(response, '投稿レポート')
+        self.assertNotContains(response, 'Nexus 月次レポート')
 
     def test_default_and_invalid_month_fall_back_to_current_month(self):
         for value in (None, '', '2026-13', '2026-1', 'invalid', '9999-12'):

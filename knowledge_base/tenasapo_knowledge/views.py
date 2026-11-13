@@ -3890,12 +3890,14 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         # ── 社内タブ用（旧集計） ──────────────────────────────────────────────
         internal_faq_articles = list(
             KnowledgeArticle.objects.select_related('created_by', 'approved_by')
+            .prefetch_related('images', 'attachments')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
         )
         internal_tips_articles = list(
             TipsArticle.objects.select_related('created_by', 'approved_by')
+            .prefetch_related('images')
             .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-good_count', '-published_at', '-created_at')
@@ -4027,6 +4029,10 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                     return_url = reverse('summary') + '?' + return_query.urlencode()
                     detail_url = reverse(route, kwargs={'management_code': article.management_code})
                     detail_url += '?' + urlencode({'next': return_url})
+                content_allowed = (
+                    not is_demo_user(self.request.user)
+                    and can_view_restricted_knowledge_content(self.request.user, article)
+                )
                 report_articles.append({
                     'kind': kind, 'title': article.title,
                     'management_code': article.management_code,
@@ -4035,10 +4041,11 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                     'created_at': posted_at, 'is_approved': article.is_approved,
                     'detail_url': detail_url, 'id': article.pk,
                     'question': (article.summary or article.title) if kind == 'Q&A' else '',
-                    'body': article.body if (
-                        not is_demo_user(self.request.user)
-                        and can_view_restricted_knowledge_content(self.request.user, article)
-                    ) else 'この記事の内容は閲覧制限されています。',
+                    'body': article.body if content_allowed else 'この記事の内容は閲覧制限されています。',
+                    'question_images': [image for image in article.attachments.all()
+                                        if image.placement == 'question'] if content_allowed and kind == 'Q&A' else [],
+                    'body_images': list(article.images.all()) if content_allowed else [],
+                    'reference_links': article.reference_links if content_allowed else [],
                 })
         report_articles.sort(key=lambda item: (item['created_at'], item['kind'], item['id']), reverse=True)
         context['report_month'] = report_start.strftime('%Y-%m')

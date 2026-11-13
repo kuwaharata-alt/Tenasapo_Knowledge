@@ -19,7 +19,7 @@
             </form>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2 rounded-3 border bg-body-tertiary p-3 mb-3">
-            <strong class="me-2">{{ report_month_start|date:"Y年m月" }}</strong>
+            <strong class="me-2">{{ report_month_start|date:"Y年n月" }}</strong>
             <span class="badge text-bg-primary">合計 {{ report_totals.total }} 件</span>
             <span class="badge text-bg-light border">Q&amp;A {{ report_totals.faq }} 件</span>
             <span class="badge text-bg-light border">Tips {{ report_totals.tips }} 件</span>
