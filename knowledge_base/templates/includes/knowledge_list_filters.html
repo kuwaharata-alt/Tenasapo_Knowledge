@@ -1,0 +1,33 @@
+<noscript>
+    <style>
+        #{{ filter_id_prefix }}FilterPanel { display: block; }
+    </style>
+</noscript>
+<div class="row g-3 align-items-start">
+    <fieldset class="col-12 col-lg-auto mb-0">
+        <legend class="form-label small fw-semibold mb-1">承認状態</legend>
+        <div class="d-flex flex-wrap gap-2">
+            {% for value, label in approval_filter_choices %}
+                <input type="checkbox" class="btn-check" name="filter_approval" id="{{ filter_id_prefix }}Approval-{{ forloop.counter }}" value="{{ value }}" {% if value in filter_approval %}checked{% endif %}>
+                <label class="btn btn-outline-primary btn-sm" for="{{ filter_id_prefix }}Approval-{{ forloop.counter }}">{{ label }}</label>
+            {% endfor %}
+        </div>
+    </fieldset>
+    <div class="col-12 col-sm-6 col-lg-auto" style="min-width:12rem;">
+        <label class="form-label small fw-semibold mb-1" for="{{ filter_id_prefix }}Creator">作成者</label>
+        <select class="form-select form-select-sm" name="filter_creator" id="{{ filter_id_prefix }}Creator">
+            <option value="">すべて</option>
+            {% for cid, cname in filter_creator_choices %}
+                <option value="{{ cid }}" {% if filter_creator == cid|stringformat:"s" %}selected{% endif %}>{{ cname }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-auto" style="min-width:11rem;">
+        <label class="form-label small fw-semibold mb-1" for="{{ filter_id_prefix }}CreatedMonth">作成月</label>
+        <input type="month" class="form-control form-control-sm" name="filter_created_month" id="{{ filter_id_prefix }}CreatedMonth" value="{{ filter_created_month }}">
+    </div>
+    <div class="col-12 d-flex flex-wrap gap-2 justify-content-end mt-4">
+        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> 絞り込む</button>
+        <a href="{{ filter_clear_url }}" class="btn btn-outline-secondary btn-sm">フィルタ解除</a>
+    </div>
+</div>

@@ -1,0 +1,31 @@
+{% if is_paginated %}
+<nav class="knowledge-pagination border-top pt-3 mt-2 flex-shrink-0" aria-label="一覧のページ移動">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span class="small text-muted">{{ paginator.count }}件中 {{ page_obj.start_index }}–{{ page_obj.end_index }}件 / {{ page_obj.number }}ページ目（全{{ paginator.num_pages }}ページ）</span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            {% if pagination_previous_url %}
+                <a class="btn btn-outline-secondary btn-sm" href="{{ pagination_previous_url }}" aria-label="前のページ">前へ</a>
+            {% endif %}
+            {% for item in pagination_first_pages %}
+                <a class="btn btn-sm {% if item.number == page_obj.number %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ item.url }}" {% if item.number == page_obj.number %}aria-current="page"{% endif %} aria-label="{{ item.number }}ページ目">{{ item.number }}</a>
+            {% endfor %}
+            {% if pagination_has_gap %}<span class="text-muted" aria-hidden="true">…</span>{% endif %}
+            <form method="get" class="d-flex align-items-center gap-2 m-0" aria-label="ページ番号を指定して移動">
+                {% for name, value in pagination_parameters %}
+                    <input type="hidden" name="{{ name }}" value="{{ value }}">
+                {% endfor %}
+                <label for="knowledgePageNumber" class="visually-hidden">移動先ページ番号</label>
+                <input type="number" id="knowledgePageNumber" name="page" value="{{ page_obj.number }}" min="1" max="{{ paginator.num_pages }}" step="1" required class="form-control form-control-sm" style="width:5rem;">
+                <button type="submit" class="btn btn-outline-primary btn-sm text-nowrap">移動</button>
+            </form>
+            {% if pagination_has_gap %}<span class="text-muted" aria-hidden="true">…</span>{% endif %}
+            {% for item in pagination_last_pages %}
+                <a class="btn btn-sm {% if item.number == page_obj.number %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ item.url }}" {% if item.number == page_obj.number %}aria-current="page"{% endif %} aria-label="{{ item.number }}ページ目">{{ item.number }}</a>
+            {% endfor %}
+            {% if pagination_next_url %}
+                <a class="btn btn-outline-secondary btn-sm" href="{{ pagination_next_url }}" aria-label="次のページ">次へ</a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+{% endif %}

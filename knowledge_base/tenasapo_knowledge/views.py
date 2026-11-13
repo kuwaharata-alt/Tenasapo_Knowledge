@@ -1886,6 +1886,98 @@ class ConvenienceFavoriteToggleView(View):
         return JsonResponse({'ok': True, 'favorited': favorited})
 
 
+APPROVAL_FILTER_CHOICES = (
+    ('registered', '登録（未承認）'),
+    ('remanded', '差戻し'),
+    ('corrected', '修正済'),
+    ('approved', '承認済'),
+)
+
+
+def knowledge_list_filter_values(request):
+    selected = set(request.GET.getlist('filter_approval'))
+    # Keep old bookmarked pending URLs usable with the current status vocabulary.
+    if 'pending' in selected:
+        selected.add('registered')
+    statuses = [value for value, _ in APPROVAL_FILTER_CHOICES if value in selected]
+    month = request.GET.get('filter_created_month', '')
+    try:
+        if len(month) != 7:
+            raise ValueError
+        date.fromisoformat(month + '-01')
+    except ValueError:
+        month = ''
+    creator = request.GET.get('filter_creator', '')
+    return {
+        'filter_approval': statuses,
+        'filter_creator': creator if creator.isdecimal() else '',
+        'filter_created_month': month,
+    }
+
+
+def filter_knowledge_list(queryset, request):
+    if not can_edit_article(request.user):
+        return queryset
+    filters = knowledge_list_filter_values(request)
+    statuses = filters['filter_approval']
+    if statuses:
+        matching_ids = []
+        for pk, approved, corrected, reason in queryset.values_list(
+            'pk', 'is_approved', 'is_corrected', 'remand_reason',
+        ):
+            status = ('approved' if approved else 'corrected' if corrected
+                      else 'remanded' if (reason or '').strip() else 'registered')
+            if status in statuses:
+                matching_ids.append(pk)
+        queryset = queryset.filter(pk__in=matching_ids)
+    if filters['filter_creator']:
+        queryset = queryset.filter(created_by_id=filters['filter_creator'])
+    if filters['filter_created_month']:
+        year, month = map(int, filters['filter_created_month'].split('-'))
+        queryset = queryset.filter(created_at__year=year, created_at__month=month)
+    return queryset
+
+
+def knowledge_list_filter_context(request, model):
+    if not can_edit_article(request.user):
+        return {}
+    filters = knowledge_list_filter_values(request)
+    creator_ids = model.objects.filter(is_published=True).filter(active_until_filter()).exclude(
+        created_by=None,
+    ).values_list('created_by', flat=True).distinct()
+    users = get_user_model().objects.filter(id__in=creator_ids).order_by('last_name', 'first_name', 'username')
+    return {
+        **filters,
+        'approval_filter_choices': APPROVAL_FILTER_CHOICES,
+        'filter_creator_choices': [(u.id, resolve_user_display_name(u)) for u in users],
+        'active_filter_count': sum(bool(value) for value in filters.values()),
+    }
+
+
+def knowledge_list_navigation_context(request, context):
+    def url(*remove, **updates):
+        params = request.GET.copy()
+        for key in ('page', 'open_code', 'open_id', *remove):
+            params.pop(key, None)
+        for key, value in updates.items():
+            params[key] = value
+        encoded = params.urlencode()
+        return request.path + ('?' + encoded if encoded else '')
+
+    context['category_all_url'] = url('parent_category', 'category')
+    context['favorite_toggle_url'] = (
+        url('favorite_only') if context['favorite_only'] else url(favorite_only='1')
+    )
+    context['filter_clear_url'] = url(*(key for key in request.GET if key.startswith('filter_')))
+    for parent in context['parent_categories']:
+        parent['url'] = url('category', parent_category=parent['name'])
+        children = list(parent.get('children', []))
+        for middle in parent.get('middle_groups', []):
+            children.extend(middle.get('children', []))
+        for child in children:
+            child['url'] = url(parent_category=parent['name'], category=child['full_name'])
+
+
 def filter_queryset_by_target_os(queryset, request):
     """Apply OS names only after all visibility and non-OS filters.
 
@@ -1931,7 +2023,54 @@ def filter_queryset_by_target_os(queryset, request):
     }
 
 
-class ArticleListView(ListView):
+class KnowledgeListPaginationMixin:
+    paginate_by = 20
+
+    def paginate_queryset(self, queryset, page_size):
+        paginator = self.get_paginator(queryset, page_size, allow_empty_first_page=True)
+        number = self.request.GET.get('page', '1')
+        # Links from reports/notifications should still open the requested item,
+        # even when it is no longer on the first page.
+        if 'page' not in self.request.GET:
+            code = (self.request.GET.get('open_code') or '').strip()
+            item_id = (self.request.GET.get('open_id') or '').strip()
+            if code or item_id.isdigit():
+                for index, (pk, management_code) in enumerate(queryset.values_list('pk', 'management_code')):
+                    if (code and management_code == code) or (not code and str(pk) == item_id):
+                        number = index // page_size + 1
+                        break
+        if number == 'last':
+            number = paginator.num_pages
+        page = paginator.get_page(number)
+        return paginator, page, page.object_list, page.has_other_pages()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        page = context['page_obj']
+        total = page.paginator.num_pages
+        params = self.request.GET.copy()
+        for key in ('page', 'open_code', 'open_id'):
+            params.pop(key, None)
+
+        def link(number):
+            query = params.copy()
+            query['page'] = number
+            return self.request.path + '?' + query.urlencode()
+
+        first = list(range(1, min(total, 5) + 1))
+        last = list(range(max(6, total - 1), total + 1))
+        context.update({
+            'pagination_first_pages': [{'number': n, 'url': link(n)} for n in first],
+            'pagination_last_pages': [{'number': n, 'url': link(n)} for n in last],
+            'pagination_has_gap': total > 7,
+            'pagination_previous_url': link(page.previous_page_number()) if page.has_previous() else '',
+            'pagination_next_url': link(page.next_page_number()) if page.has_next() else '',
+            'pagination_parameters': [(key, value) for key, values in params.lists() for value in values],
+        })
+        return context
+
+
+class ArticleListView(KnowledgeListPaginationMixin, ListView):
     model = KnowledgeArticle
     template_name = 'tenasapo_knowledge/article_list.html'
     context_object_name = 'articles'
@@ -1992,38 +2131,7 @@ class ArticleListView(ListView):
             else:
                 queryset = queryset.none()
 
-        if can_edit_article(self.request.user):
-            filter_approval = self.request.GET.get('filter_approval', '')
-            if filter_approval == 'approved':
-                queryset = queryset.filter(is_approved=True)
-            elif filter_approval == 'remanded':
-                queryset = queryset.filter(is_approved=False).exclude(remand_reason='')
-            elif filter_approval == 'pending':
-                queryset = queryset.filter(is_approved=False, remand_reason='')
-
-            filter_creator = self.request.GET.get('filter_creator', '')
-            if filter_creator:
-                queryset = queryset.filter(created_by__id=filter_creator)
-
-            filter_approver = self.request.GET.get('filter_approver', '')
-            if filter_approver:
-                queryset = queryset.filter(approved_by__id=filter_approver)
-
-            filter_created_from = self.request.GET.get('filter_created_from', '')
-            if filter_created_from:
-                queryset = queryset.filter(created_at__date__gte=filter_created_from)
-
-            filter_created_to = self.request.GET.get('filter_created_to', '')
-            if filter_created_to:
-                queryset = queryset.filter(created_at__date__lte=filter_created_to)
-
-            filter_expires_from = self.request.GET.get('filter_expires_from', '')
-            if filter_expires_from:
-                queryset = queryset.filter(expires_on__gte=filter_expires_from)
-
-            filter_expires_to = self.request.GET.get('filter_expires_to', '')
-            if filter_expires_to:
-                queryset = queryset.filter(expires_on__lte=filter_expires_to)
+        queryset = filter_knowledge_list(queryset, self.request)
 
         queryset, self.target_os_filter_context = filter_queryset_by_target_os(
             queryset.distinct(), self.request,
@@ -2153,27 +2261,8 @@ class ArticleListView(ListView):
         context['open_article_id'] = open_article_id
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
-        if can_edit_article(self.request.user):
-            User = get_user_model()
-            base_qs = KnowledgeArticle.objects.filter(is_published=True).filter(active_until_filter())
-            creator_ids = base_qs.exclude(created_by=None).values_list('created_by', flat=True).distinct()
-            approver_ids = base_qs.exclude(approved_by=None).values_list('approved_by', flat=True).distinct()
-            creator_users = User.objects.filter(id__in=creator_ids).order_by('last_name', 'first_name', 'username')
-            approver_users = User.objects.filter(id__in=approver_ids).order_by('last_name', 'first_name', 'username')
-            context['filter_creator_choices'] = [(u.id, resolve_user_display_name(u)) for u in creator_users]
-            context['filter_approver_choices'] = [(u.id, resolve_user_display_name(u)) for u in approver_users]
-            context['filter_approval'] = self.request.GET.get('filter_approval', '')
-            context['filter_creator'] = self.request.GET.get('filter_creator', '')
-            context['filter_approver'] = self.request.GET.get('filter_approver', '')
-            context['filter_created_from'] = self.request.GET.get('filter_created_from', '')
-            context['filter_created_to'] = self.request.GET.get('filter_created_to', '')
-            context['filter_expires_from'] = self.request.GET.get('filter_expires_from', '')
-            context['filter_expires_to'] = self.request.GET.get('filter_expires_to', '')
-            context['active_filter_count'] = sum(bool(context[k]) for k in [
-                'filter_approval', 'filter_creator', 'filter_approver',
-                'filter_created_from', 'filter_created_to',
-                'filter_expires_from', 'filter_expires_to',
-            ])
+        context.update(knowledge_list_filter_context(self.request, KnowledgeArticle))
+        knowledge_list_navigation_context(self.request, context)
         return context
 
     @staticmethod
@@ -2288,7 +2377,7 @@ class ArticleListView(ListView):
         return grouped_articles
 
 
-class TipsListView(ListView):
+class TipsListView(KnowledgeListPaginationMixin, ListView):
     model = TipsArticle
     template_name = 'tenasapo_knowledge/tips_list.html'
     context_object_name = 'tips_list'
@@ -2351,38 +2440,7 @@ class TipsListView(ListView):
             else:
                 queryset = queryset.none()
 
-        if can_edit_article(self.request.user):
-            filter_approval = self.request.GET.get('filter_approval', '')
-            if filter_approval == 'approved':
-                queryset = queryset.filter(is_approved=True)
-            elif filter_approval == 'remanded':
-                queryset = queryset.filter(is_approved=False).exclude(remand_reason='')
-            elif filter_approval == 'pending':
-                queryset = queryset.filter(is_approved=False, remand_reason='')
-
-            filter_creator = self.request.GET.get('filter_creator', '')
-            if filter_creator:
-                queryset = queryset.filter(created_by__id=filter_creator)
-
-            filter_approver = self.request.GET.get('filter_approver', '')
-            if filter_approver:
-                queryset = queryset.filter(approved_by__id=filter_approver)
-
-            filter_created_from = self.request.GET.get('filter_created_from', '')
-            if filter_created_from:
-                queryset = queryset.filter(created_at__date__gte=filter_created_from)
-
-            filter_created_to = self.request.GET.get('filter_created_to', '')
-            if filter_created_to:
-                queryset = queryset.filter(created_at__date__lte=filter_created_to)
-
-            filter_expires_from = self.request.GET.get('filter_expires_from', '')
-            if filter_expires_from:
-                queryset = queryset.filter(expires_on__gte=filter_expires_from)
-
-            filter_expires_to = self.request.GET.get('filter_expires_to', '')
-            if filter_expires_to:
-                queryset = queryset.filter(expires_on__lte=filter_expires_to)
+        queryset = filter_knowledge_list(queryset, self.request)
 
         queryset, self.target_os_filter_context = filter_queryset_by_target_os(
             queryset.distinct(), self.request,
@@ -2502,27 +2560,8 @@ class TipsListView(ListView):
         context['open_tip_id'] = open_tip_id
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
-        if can_edit_article(self.request.user):
-            User = get_user_model()
-            base_qs = TipsArticle.objects.filter(is_published=True).filter(active_until_filter())
-            creator_ids = base_qs.exclude(created_by=None).values_list('created_by', flat=True).distinct()
-            approver_ids = base_qs.exclude(approved_by=None).values_list('approved_by', flat=True).distinct()
-            creator_users = User.objects.filter(id__in=creator_ids).order_by('last_name', 'first_name', 'username')
-            approver_users = User.objects.filter(id__in=approver_ids).order_by('last_name', 'first_name', 'username')
-            context['filter_creator_choices'] = [(u.id, resolve_user_display_name(u)) for u in creator_users]
-            context['filter_approver_choices'] = [(u.id, resolve_user_display_name(u)) for u in approver_users]
-            context['filter_approval'] = self.request.GET.get('filter_approval', '')
-            context['filter_creator'] = self.request.GET.get('filter_creator', '')
-            context['filter_approver'] = self.request.GET.get('filter_approver', '')
-            context['filter_created_from'] = self.request.GET.get('filter_created_from', '')
-            context['filter_created_to'] = self.request.GET.get('filter_created_to', '')
-            context['filter_expires_from'] = self.request.GET.get('filter_expires_from', '')
-            context['filter_expires_to'] = self.request.GET.get('filter_expires_to', '')
-            context['active_filter_count'] = sum(bool(context[k]) for k in [
-                'filter_approval', 'filter_creator', 'filter_approver',
-                'filter_created_from', 'filter_created_to',
-                'filter_expires_from', 'filter_expires_to',
-            ])
+        context.update(knowledge_list_filter_context(self.request, TipsArticle))
+        knowledge_list_navigation_context(self.request, context)
         return context
 
     @staticmethod
