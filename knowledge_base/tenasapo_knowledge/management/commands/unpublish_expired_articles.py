@@ -5,7 +5,7 @@ from tenasapo_knowledge.models import KnowledgeArticle, TipsArticle
 
 
 class Command(BaseCommand):
-    help = '掲載期限が過ぎたFAQ/Tipsを非公開にします。'
+    help = '掲載期限が過ぎたQ&A/Tipsを非公開にします。'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -30,7 +30,7 @@ class Command(BaseCommand):
         faq_count = 0
         for article in faq_queryset:
             if dry_run:
-                self.stdout.write(f'[dry-run] FAQ「{article.title}」(id={article.id}) を非公開化')
+                self.stdout.write(f'[dry-run] Q&A「{article.title}」(id={article.id}) を非公開化')
             else:
                 article.is_published = False
                 article.save(update_fields=['is_published', 'updated_at'])
@@ -48,6 +48,6 @@ class Command(BaseCommand):
         mode = 'dry-run' if dry_run else 'execute'
         self.stdout.write(
             self.style.SUCCESS(
-                f'期限切れコンテンツ非公開化({mode})完了: FAQ {faq_count}件 / Tips {tips_count}件'
+                f'期限切れコンテンツ非公開化({mode})完了: Q&A {faq_count}件 / Tips {tips_count}件'
             )
         )

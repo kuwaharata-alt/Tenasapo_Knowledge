@@ -10,7 +10,7 @@ from tenasapo_knowledge.utils import resolve_user_display_name
 
 
 class Command(BaseCommand):
-    help = 'FAQ/Tips の掲載期限1週間前に投稿者・承認者へ通知メールを送信します。'
+    help = 'Q&A/Tips の掲載期限1週間前に投稿者・承認者へ通知メールを送信します。'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -107,12 +107,12 @@ class Command(BaseCommand):
             expires_on=target_date,
         ).select_related('created_by', 'approved_by')
 
-        faq_count = self.send_for_queryset(faq_queryset, 'FAQ', target_date, dry_run=dry_run)
+        faq_count = self.send_for_queryset(faq_queryset, 'Q&A', target_date, dry_run=dry_run)
         tips_count = self.send_for_queryset(tips_queryset, 'Tips', target_date, dry_run=dry_run)
 
         mode = 'dry-run' if dry_run else 'send'
         self.stdout.write(
             self.style.SUCCESS(
-                f'掲載期限通知({mode})完了: FAQ {faq_count}件 / Tips {tips_count}件 (対象日: {target_date:%Y-%m-%d})'
+                f'掲載期限通知({mode})完了: Q&A {faq_count}件 / Tips {tips_count}件 (対象日: {target_date:%Y-%m-%d})'
             )
         )

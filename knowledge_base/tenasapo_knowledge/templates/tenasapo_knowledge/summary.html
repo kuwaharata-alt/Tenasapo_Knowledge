@@ -2,7 +2,90 @@
 
 {% block title %}アナライズ | Tenasapo Knowledge{% endblock %}
 
-{% block content %}
+{% block extra_css %}
+{{ block.super }}
+<style>
+    .summary-section-title {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        width: fit-content;
+        max-width: 100%;
+        padding: 0 0 .45rem;
+        color: var(--tk-primary, #bd6a20);
+        border-bottom: 3px solid currentColor;
+        border-left: none;
+        background: transparent;
+        font-weight: 700;
+        line-height: 1.5;
+    }
+    .summary-section-title > i { flex-shrink: 0; }
+    .summary-performance-table > :not(caption) > * > * { padding: .85rem .75rem; }
+    .summary-performance-table { width: 100%; min-width: 760px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+    .summary-performance-table > thead th { color: var(--bs-secondary-color); font-weight: 600; }
+    .summary-performance-table [data-summary-main-row] > th { min-width: 9rem; }
+    .summary-performance-table [data-summary-main-row] > td { white-space: nowrap; }
+    .summary-performance-table [data-quota-achievement] { min-width: 8rem; }
+    .summary-quota-trigger, .summary-quota-trigger:hover, .summary-quota-trigger:focus, .summary-quota-trigger:active, .summary-quota-popup .btn-close { box-shadow: none !important; }
+    .summary-quota-trigger { min-height: 2.5rem; padding: .4rem .6rem !important; font-size: 1rem; }
+    .summary-quota-trigger .badge { font-size: .9rem; padding: .5em .75em; }
+    .summary-quota-trigger:focus-visible, .summary-quota-popup .btn-close:focus-visible { outline: 2px solid var(--tk-primary, #bd6a20); outline-offset: 3px; }
+    .summary-quota-popup { width: min(30rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); overflow: auto; padding: 1.75rem; font-size: 1rem; line-height: 1.8; border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .85rem; background: var(--bs-body-bg, white); color: var(--bs-body-color, #212529); box-shadow: 0 .75rem 3rem #0003; white-space: normal; }
+    .summary-quota-popup-header { border-bottom: 1px solid var(--bs-border-color, #dee2e6); padding-bottom: 1rem; }
+    .summary-quota-status { padding: 1rem; margin: 1rem 0; border-radius: .75rem; background: #fff5e9; color: #88460d; }
+    .summary-quota-status.is-achieved { background: #eaf7ef; color: #17653a; }
+    .summary-quota-status strong { display: block; font-size: 1.2rem; }
+    .summary-quota-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin: 1rem 0; }
+    .summary-quota-metrics > div { background: var(--bs-tertiary-bg, #f8f9fa); border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .65rem; padding: .7rem .4rem; text-align: center; }
+    .summary-quota-metrics dt { font-size: .85rem; font-weight: 500; }
+    .summary-quota-metrics dd { font-size: 1.35rem; font-weight: 700; margin: .25rem 0 0; }
+    .summary-quota-metrics dd span { font-size: .8rem; font-weight: 400; }
+    .summary-performance-table > tbody > [data-summary-main-row] > td:last-child, .summary-performance-table > thead > tr > th:last-child { padding-left: .25rem; padding-right: .25rem; }
+    .summary-performance-table > tbody > tr > .summary-details-cell { padding: 1.25rem !important; --bs-table-bg: var(--bs-tertiary-bg, #f8f9fa); --bs-table-hover-bg: var(--bs-tertiary-bg, #f8f9fa); }
+    .summary-details-title { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; font-weight: 700; color: var(--tk-primary, #bd6a20); }
+    .summary-posting-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .summary-detail-stack { display: grid; gap: 1rem; min-width: 0; }
+    .summary-half-tabs { display: flex; gap: .4rem; overflow-x: auto; padding-bottom: .5rem; margin-bottom: .75rem; }
+    .summary-half-tabs button { flex-shrink: 0; padding: .4rem .65rem; border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .5rem; background: var(--bs-body-bg, white); color: var(--bs-body-color, #212529); }
+    .summary-half-tabs button[aria-selected="true"] { background: var(--tk-primary, #bd6a20); border-color: var(--tk-primary, #bd6a20); color: white; }
+    .summary-half-tabs button:focus-visible { outline: 2px solid var(--tk-primary, #bd6a20); outline-offset: 2px; }
+    .summary-half-panel[hidden] { display: none !important; }
+    .summary-detail-panel { position: relative; min-width: 0; margin-bottom: 0; padding: 1rem; border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .75rem; background: var(--bs-body-bg, white); }
+    .summary-detail-panel > .table-responsive { overflow-x: auto; }
+    @media (min-width: 992px) {
+        .summary-posting-details { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+    }
+    .summary-detail-panel:last-child { margin-bottom: 0; }
+    .summary-detail-heading { margin: 0 0 .75rem; padding-right: 2rem; font-size: 1rem; font-weight: 700; }
+    .summary-detail-panel > summary { padding-right: 2rem; cursor: pointer; font-size: 1rem; font-weight: 600; }
+    .summary-detail-panel[open] > summary { margin-bottom: .75rem; }
+    .summary-detail-info { position: absolute; top: .8rem; right: .8rem; width: 1.8rem; height: 1.8rem; padding: 0; border-radius: 50%; box-shadow: none !important; }
+    .summary-detail-help { width: min(26rem, calc(100vw - 2rem)); padding: 1.25rem; border: 1px solid var(--bs-border-color, #dee2e6); border-radius: .75rem; background: var(--bs-body-bg, white); color: var(--bs-body-color, #212529); box-shadow: 0 .5rem 2rem #0002; white-space: normal; }
+    .summary-detail-panel > summary:focus-visible { outline: 2px solid var(--tk-primary, #bd6a20); outline-offset: 4px; }
+    .summary-detail-note { margin: .5rem 0 1rem; color: var(--bs-secondary-color, #6c757d); font-size: .85rem; line-height: 1.6; }
+    .summary-detail-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+    .summary-detail-table > :not(caption) > * > * { padding: .65rem .75rem; border-bottom: 1px solid var(--bs-border-color, #dee2e6); vertical-align: middle; }
+    .summary-detail-table > thead > tr > th { background: var(--bs-tertiary-bg, #f8f9fa); color: var(--bs-secondary-color, #6c757d); font-size: .8rem; font-weight: 600; white-space: normal; }
+    .summary-detail-table > tbody > tr > td { text-align: right; }
+    .summary-detail-table .summary-detail-total > * { background: rgba(189, 106, 32, .06); font-weight: 700; }
+    .summary-monthly-table { min-width: 420px; }
+    .summary-monthly-table .summary-month-start > * { border-top: 2px solid var(--bs-border-color, #dee2e6); }
+    .summary-monthly-table .summary-month-label { background: var(--bs-tertiary-bg, #f8f9fa); font-weight: 700; }
+    .summary-monthly-table .summary-month-approved > * { color: var(--bs-secondary-color, #6c757d); font-size: .85rem; }
+    .summary-post-total { font-size: 1.15rem; font-weight: 700; }
+    .posting-target-card { border-top: 3px solid var(--tk-primary, #bd6a20); }
+    .posting-target-metric { height: 100%; padding: 1.25rem; border: 1px solid var(--bs-border-color); border-radius: .85rem; background: var(--bs-tertiary-bg, #f8f9fa); }
+    .posting-target-metric.is-selected { border-color: var(--tk-primary, #bd6a20); background: rgba(189, 106, 32, .05); }
+    .posting-target-total { font-size: 2rem; font-weight: 750; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .posting-target-help > summary { display: flex; width: 2rem; height: 2rem; align-items: center; justify-content: center; border: 1px solid var(--bs-border-color); border-radius: 50%; color: var(--bs-secondary-color); cursor: pointer; list-style: none; }
+    .posting-target-help > summary::-webkit-details-marker { display: none; }
+    .posting-target-help > summary:hover, .posting-target-help[open] > summary { color: var(--tk-primary, #bd6a20); background: var(--bs-tertiary-bg); }
+    .posting-target-help > summary:focus-visible { outline: 3px solid var(--tk-primary, #bd6a20); outline-offset: 3px; }
+    .posting-target-help-content { margin-top: .75rem; padding: 1rem 1.25rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-tertiary-bg); }
+</style>
+{% endblock %}
+
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
@@ -31,26 +114,11 @@
                         成果分析から除外されているメンバーのデータも含めて、表示・PDF・チャット通知を行います。
                     </div>
 
-                    <h6 class="dropdown-header px-0 mb-2 border-bottom pb-2 fw-bold text-dark d-flex align-items-center gap-1">
-                        <i class="bi bi-sort-numeric-down"></i> 表示順設定
-                    </h6>
-                    <div class="mb-3">
-                        <div class="form-check cursor-pointer">
-                            <input class="form-check-input cursor-pointer" type="radio" name="sortBy" id="sortNo" value="no" {% if sort_by != 'post_count' %}checked{% endif %}>
-                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="sortNo">
-                                No順
-                            </label>
-                        </div>
-                        <div class="form-check cursor-pointer mt-1">
-                            <input class="form-check-input cursor-pointer" type="radio" name="sortBy" id="sortPostCount" value="post_count" {% if sort_by == 'post_count' %}checked{% endif %}>
-                            <label class="form-check-label small fw-bold text-dark cursor-pointer" for="sortPostCount">
-                                投稿数順
-                            </label>
-                        </div>
-                    </div>
-
                     <div class="d-flex justify-content-end gap-1">
                         <button type="button" class="btn btn-primary btn-sm px-3 fw-bold" id="btnApplySettings">適用する</button>
+                    </div>
+                    <div class="border-top mt-3 pt-3">
+                        <a class="btn btn-outline-primary btn-sm w-100" href="{% url 'chat_schedule_settings' %}?month={{ report_month }}"><i class="bi bi-calendar-event me-1"></i>Chat通知予約・配信履歴</a>
                     </div>
                 </div>
             </div>
@@ -64,18 +132,17 @@
         </div>
     </div>
 </div>
-
-<ul class="nav nav-tabs mb-4" id="summaryTabs" role="tablist">
+<ul class="nav nav-tabs mt-3 mb-0" id="summaryTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-pane"
-            type="button" role="tab" aria-controls="summary-pane" aria-selected="true">
+        <button class="nav-link{% if not report_active %} active{% endif %}" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary-pane"
+            type="button" role="tab" aria-controls="summary-pane" aria-selected="{% if report_active %}false{% else %}true{% endif %}">
             <i class="bi bi-clipboard-data-fill me-1"></i>投稿集計
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="internal-tab" data-bs-toggle="tab" data-bs-target="#internal-pane"
-            type="button" role="tab" aria-controls="internal-pane" aria-selected="false">
-            <i class="bi bi-people-fill me-1"></i>社内
+        <button class="nav-link{% if report_active %} active{% endif %}" id="internal-tab" data-bs-toggle="tab" data-bs-target="#internal-pane"
+            type="button" role="tab" aria-controls="internal-pane" aria-selected="{% if report_active %}true{% else %}false{% endif %}">
+            <i class="bi bi-journal-text me-1"></i>投稿レポート
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -85,240 +152,205 @@
         </button>
     </li>
 </ul>
+{% endblock %}
 
+{% block content %}
 <div class="tab-content" id="summaryTabContent">
-    <div class="tab-pane fade show active" id="summary-pane" role="tabpanel" aria-labelledby="summary-tab">
+    <div class="tab-pane fade{% if not report_active %} show active{% endif %}" id="summary-pane" role="tabpanel" aria-labelledby="summary-tab">
+        <section class="card shadow-sm mb-4 posting-target-card" aria-labelledby="posting-target-title">
+            <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+                    <div>
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            <h2 class="h5 summary-section-title mb-0" id="posting-target-title"><i class="bi bi-bullseye" aria-hidden="true"></i>投稿目標</h2>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-circle" data-posting-help-toggle aria-label="投稿目標の説明を開閉" aria-controls="posting-target-help" aria-expanded="false"><i class="bi bi-info-lg" aria-hidden="true"></i></button>
+                        </div>
+                        <p class="small text-muted mb-0">対象月 {{ posting_targets.target_month|date:"Y年m月" }}</p>
+                    </div>
+                    <a href="{% url 'posting_quota_settings' %}?{{ summary_filter_query }}" class="btn btn-outline-primary btn-sm flex-shrink-0">
+                        <i class="bi bi-sliders me-1" aria-hidden="true"></i>投稿目標設定
+                    </a>
+                </div>
+                <div class="row g-3">
+                    <div class="col-12 col-lg-4">
+                        <div class="posting-target-metric" id="posting-half-year-target">
+                            <h3 class="h6 mb-3">半期目標（全メンバー）</h3>
+                            {% include 'tenasapo_knowledge/includes/posting_target_metric.html' with actual=half_year_target.actual required=half_year_target.target start=half_year_target.start end=half_year_target.end breakdown=half_year_target show_progress=True progress_percent=half_year_target.progress_percent %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="posting-target-metric{% if selected_period == 'all' %} is-selected{% endif %}">
+                            <h3 class="h6 mb-3">累積目標（1人あたり）</h3>
+                            {% include 'tenasapo_knowledge/includes/posting_target_metric.html' with actual=personal_posting_counts.cumulative required=posting_targets.cumulative.total start=posting_cumulative_start end=posting_month_end empty_label='未確定' breakdown=personal_posting_breakdown.cumulative quota=posting_targets.cumulative show_quota=True %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-lg-4">
+                        <div class="posting-target-metric{% if selected_period != 'all' %} is-selected{% endif %}">
+                            <h3 class="h6 mb-3">月間目標（1人あたり）</h3>
+                            {% include 'tenasapo_knowledge/includes/posting_target_metric.html' with actual=personal_posting_counts.monthly required=posting_targets.monthly.total start=posting_targets.target_month end=posting_month_end empty_label='未設定' breakdown=personal_posting_breakdown.monthly quota=posting_targets.monthly show_quota=True %}
+                        </div>
+                    </div>
+                </div>
+                {% if posting_targets.before_start %}
+                    <p class="small text-muted mt-3 mb-0">目標は2026年6月からです。対象月は開始前のため目標線を表示しません。</p>
+                {% elif posting_targets.missing_months %}
+                    <p class="small text-warning-emphasis mt-3 mb-0">累積目標の設定が不足しています。未設定月：{{ posting_targets.missing_months|join:"、" }}。未設定は0件として扱いません。</p>
+                {% endif %}
+                <details class="posting-target-help mt-3" id="posting-target-help">
+                    <summary class="visually-hidden" tabindex="-1">投稿目標の説明</summary>
+                    <div class="posting-target-help-content small">
+                        <h3 class="h6">投稿目標の見方</h3>
+                        <p class="mb-2">月間・累積の投稿数はログイン中の本人のQ&amp;A・Tips合計です。表示は「投稿数 / 期間中に到達する必要がある件数 件」で、月間は月末まで、累積は2026年6月から対象月末までの目標を表示します。実績は当日までを集計します。</p>
+                        <p class="mb-2">累積目標は2026年6月から対象月までの合計です。半期目標は、対象月が属する上半期（4月〜10月）・下半期（11月〜3月）の投稿実績を「投稿件数 / 300 件」で表示します。実績は集計対象メンバーのQ&amp;A・Tipsの合計で、非表示ユーザーを含める設定にも従います。月別設定とは独立した目安で、グラフの赤線・メンバー別の達成判定には使用しません。</p>
+                {% if posting_target_chart.value != None %}
+                    <p class="mb-2 text-danger">赤線：{{ posting_target_chart.label }}（Q&amp;A・Tips・＋αの合計）{{ posting_target_chart.value }} 件。{% if selected_period == 'all' %}2026年6月から対象月まで{% else %}対象月1か月分（当月も日割りなし）{% endif %}。</p>
+                {% else %}
+                    <p class="mb-2">目標線は表示していません。<a href="{% url 'posting_quota_settings' %}?{{ summary_filter_query }}">投稿目標を設定してください。</a></p>
+                {% endif %}
+                        {% if selected_period == 'all' %}<p class="text-muted mb-2">※ 全期間の実績棒グラフは従来どおり2026年6月より前の投稿も含みます。累積目標の開始時期とは異なります。</p>{% endif %}
+                        <p class="mb-2">Q&amp;A・Tipsの基本件数はそれぞれ必須です。＋αは基本件数を超えた投稿をどちらの種類でも加算する共通追加枠です。基本分と二重計上せず、基本件数と追加枠の両方を満たすと達成です。各月の設定は他の月に引き継ぎません。</p>
+                        <p class="text-muted mb-0">※ この目標は投稿集計グラフ・メンバー別の達成状況用です。PDF・ホーム・チャット通知は変更しません。表の旧固定件数による赤色警告は廃止し、「目標達成」欄で確認できます。</p>
+                    </div>
+                </details>
+                <script>
+                    (() => {
+                        const button = document.querySelector('[data-posting-help-toggle]');
+                        const help = document.getElementById('posting-target-help');
+                        button.addEventListener('click', () => {
+                            help.open = !help.open;
+                            button.setAttribute('aria-expanded', String(help.open));
+                        });
+                        help.addEventListener('toggle', () => button.setAttribute('aria-expanded', String(help.open)));
+                    })();
+                </script>
+            </div>
+        </section>
         {% if member_summaries %}
             <div class="card shadow-sm mb-4">
                 <div class="card-body">
                     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
-                        <div class="d-flex flex-column gap-1">
-                            <h2 class="h5 faq-group-title mb-0">メンバーの投稿数</h2>
-                            <!-- カスタム凡例（メンバー投稿数の真下に配置） -->
-                            <div class="d-flex align-items-center gap-3" style="font-size: 0.8rem; font-weight: 600; color: #555;">
+                        <div class="d-flex align-items-center gap-2">
+                            <h2 class="h5 summary-section-title mb-0"><i class="bi bi-bar-chart-fill" aria-hidden="true"></i>メンバーの投稿数</h2>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm" type="button" id="member-chart-sort" data-bs-toggle="dropdown" aria-expanded="false" aria-label="メンバー投稿数の表示順を設定" title="表示順設定"><i class="bi bi-sort-down" aria-hidden="true"></i></button>
+                                <ul class="dropdown-menu" aria-labelledby="member-chart-sort">
+                                    <li><h6 class="dropdown-header">表示順設定</h6></li>
+                                    <li><a class="dropdown-item{% if sort_by != 'post_count' %} active{% endif %}" {% if sort_by != 'post_count' %}aria-current="true"{% endif %} data-summary-preserve-scroll href="{% url 'summary' %}?period={{ selected_period }}&amp;sort_by=no{% if include_hidden %}&amp;include_hidden=1{% endif %}">No順</a></li>
+                                    <li><a class="dropdown-item{% if sort_by == 'post_count' %} active{% endif %}" {% if sort_by == 'post_count' %}aria-current="true"{% endif %} data-summary-preserve-scroll href="{% url 'summary' %}?period={{ selected_period }}&amp;sort_by=post_count{% if include_hidden %}&amp;include_hidden=1{% endif %}">投稿数順</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-column align-items-end gap-2 align-self-end" id="member-chart-controls">
+                            <div class="btn-group btn-group-sm" role="group" aria-label="投稿集計期間">
+                                <a href="{% url 'summary' %}?period=all&amp;sort_by={{ sort_by }}{% if include_hidden %}&amp;include_hidden=1{% endif %}" class="btn {% if selected_period == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">全期間</a>
+                                <a href="{% url 'summary' %}?period=current&amp;sort_by={{ sort_by }}{% if include_hidden %}&amp;include_hidden=1{% endif %}" class="btn {% if selected_period == 'current' %}btn-primary{% else %}btn-outline-primary{% endif %}">当月</a>
+                                <a href="{% url 'summary' %}?period=previous&amp;sort_by={{ sort_by }}{% if include_hidden %}&amp;include_hidden=1{% endif %}" class="btn {% if selected_period == 'previous' %}btn-primary{% else %}btn-outline-primary{% endif %}">前月</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="member-chart-area">
+                            <div class="d-flex justify-content-end align-items-center gap-3 mb-1" id="member-chart-legend" aria-label="投稿グラフの凡例" style="font-size: 0.8rem; font-weight: 600; color: #555;">
                                 <div class="d-flex align-items-center gap-1.5">
-                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(232, 117, 36, 0.82); vertical-align: middle;"></span>
-                                    <span style="vertical-align: middle;">FAQ</span>
+                                    <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(220, 53, 69, 0.82); vertical-align: middle;"></span>
+                                    <span style="vertical-align: middle;">Q&amp;A</span>
                                 </div>
                                 <div class="d-flex align-items-center gap-1.5">
                                     <span class="d-inline-block rounded-1" style="width: 12px; height: 12px; background-color: rgba(73, 136, 232, 0.82); vertical-align: middle;"></span>
                                     <span style="vertical-align: middle;">Tips</span>
                                 </div>
                             </div>
-                        </div>
-                        <div class="btn-group btn-group-sm align-self-start align-self-md-center" role="group" aria-label="投稿集計期間">
-                            <a href="{% url 'summary' %}?period=all" class="btn {% if selected_period == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}">全期間</a>
-                            <a href="{% url 'summary' %}?period=current" class="btn {% if selected_period == 'current' %}btn-primary{% else %}btn-outline-primary{% endif %}">当月</a>
-                            <a href="{% url 'summary' %}?period=previous" class="btn {% if selected_period == 'previous' %}btn-primary{% else %}btn-outline-primary{% endif %}">前月</a>
-                        </div>
+                        <div style="height: 320px;"><canvas id="memberPostChart"></canvas></div>
                     </div>
-                    <div style="height: 320px;"><canvas id="memberPostChart"></canvas></div>
                 </div>
             </div>
 
-            <div class="card shadow-sm">
+            <section class="card shadow-sm" id="posting-performance-summary" aria-label="投稿実績と目標達成">
                 <div class="card-body">
-                    <div class="d-flex justify-content-end mb-3">
-                        <div class="small text-muted text-md-end">
-                            <div>※ かっこ内は承認済み</div>
+                    <div class="border rounded-3 bg-body-tertiary p-3 mb-4 small" id="summary-period-scope">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="badge text-bg-light border">表示期間：{% if selected_period == 'current' %}当月{% elif selected_period == 'previous' %}前月{% else %}全期間{% endif %}</span>
+                            <span>{% if selected_period == 'all' %}全期間の投稿実績{% else %}{{ posting_targets.target_month|date:"Y/m/d" }}〜{{ posting_month_end|date:"Y/m/d" }}の投稿実績{% endif %}</span>
                         </div>
+                        <details class="mt-2" id="summary-counting-help">
+                            <summary class="text-muted">集計項目の意味・目標判定について</summary>
+                            <div class="mt-2">
+                        <p class="mb-2">主表の投稿数・詳細の承認数・月別内訳は、選択した表示期間に投稿された記事が対象です。当月実績は表示期間とは別に集計しています。</p>
+                        <p class="mb-0">達成判定：{% if selected_period == 'all' %}累積目標（2026年6月〜{{ posting_targets.target_month|date:"Y年m月" }}）。全期間の投稿実績と達成判定は従来どおり2026年6月より前の投稿も含みます。目標の開始時期とは異なります。{% else %}月間目標（{{ posting_targets.target_month|date:"Y年m月" }}）。選択した月の投稿実績で判定します。{% endif %} 承認数は達成判定には使いません。</p>
+                            </div>
+                        </details>
                     </div>
 
-                    <h2 class="h5 faq-group-title">総件数サマリ</h2>
+                    <h2 class="h5 summary-section-title" id="summary-total-title"><i class="bi bi-clipboard-data" aria-hidden="true"></i>総件数サマリ</h2>
+                    <p class="small text-muted">目標達成は半期300件で判定します（{{ half_year_target.start|date:"Y/m/d" }}〜{{ half_year_target.end|date:"Y/m/d" }}）。投稿数の列は選択した表示期間の実績です。</p>
                     <div class="table-responsive mb-4">
-                        <table class="table table-sm table-hover align-middle mb-0 small">
-                            <colgroup>
-                                <col style="width: 11rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 6rem;">
-                            </colgroup>
-                            <thead class="table-light">
+                        <table class="table table-hover align-middle mb-0 small summary-performance-table" id="summary-total-table" aria-labelledby="summary-total-title" aria-describedby="summary-period-scope">
+                            {% include 'tenasapo_knowledge/includes/summary_table_columns.html' %}
+                            <thead class="table-light text-nowrap">
                                 <tr>
-                                    <th style="width: 12rem;" rowspan="2">区分</th>
-                                    <th class="text-center border-start" colspan="3">総投稿数</th>
-                                    <th class="text-center border-start" colspan="3">FAQ</th>
-                                    <th class="text-center border-start" colspan="3">Tips</th>
-                                    <th class="text-end border-start" rowspan="2">Good総数</th>
-                                    <th class="text-end border-start" rowspan="2">閲覧数総数</th>
-                                    <th class="border-start text-center" style="width: 7rem;" rowspan="2"></th>
-                                </tr>
-                                <tr>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th scope="col">区分</th>
+                                    <th scope="col" class="text-end">投稿数（合計）</th>
+                                    <th scope="col" class="text-end" aria-label="Q&amp;A投稿数">Q&amp;A</th>
+                                    <th scope="col" class="text-end" aria-label="Tips投稿数">Tips</th>
+                                    <th scope="col">目標達成</th>
+                                    <th scope="col" class="text-center">詳細</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td class="fw-semibold">総件数</td>
-                                    <td class="text-end border-start">{{ summary_totals.post_count_total }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.approved_count_total }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_post_count_total %}+{{ summary_totals.current_month_post_count_total }}{% else %}{{ summary_totals.current_month_post_count_total }}{% endif %}（{% if summary_totals.current_month_approved_count_total %}+{{ summary_totals.current_month_approved_count_total }}{% else %}{{ summary_totals.current_month_approved_count_total }}{% endif %}）</td>
-                                    <td class="text-end border-start">{{ summary_totals.faq_post_count }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.faq_approved_count }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_faq_post_count %}+{{ summary_totals.current_month_faq_post_count }}{% else %}{{ summary_totals.current_month_faq_post_count }}{% endif %}（{% if summary_totals.current_month_faq_approved_count %}+{{ summary_totals.current_month_faq_approved_count }}{% else %}{{ summary_totals.current_month_faq_approved_count }}{% endif %}）</td>
-                                    <td class="text-end border-start">{{ summary_totals.tips_post_count }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ summary_totals.tips_approved_count }}</td>
-                                    <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if summary_totals.current_month_tips_post_count %}+{{ summary_totals.current_month_tips_post_count }}{% else %}{{ summary_totals.current_month_tips_post_count }}{% endif %}（{% if summary_totals.current_month_tips_approved_count %}+{{ summary_totals.current_month_tips_approved_count }}{% else %}{{ summary_totals.current_month_tips_approved_count }}{% endif %}）</td>
-                                    <td class="text-end border-start">{{ summary_totals.good_count_total }}</td>
-                                    <td class="text-end border-start">{{ summary_totals.view_count_total }}</td>
-                                    <td class="text-center border-start">
-                                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#summaryMonthly" aria-expanded="false" aria-controls="summaryMonthly">
-                                            月別
-                                        </button>
+                                <tr data-summary-main-row>
+                                    <th scope="row">全メンバー合計</th>
+                                    <td class="text-end summary-post-total">{{ summary_totals.post_count_total }}</td>
+                                    <td class="text-end">{{ summary_totals.faq_post_count }}</td>
+                                    <td class="text-end">{{ summary_totals.tips_post_count }}</td>
+                                    <td class="text-nowrap" data-half-year-achievement>
+                                        <span class="badge {% if half_year_target.achieved %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if half_year_target.achieved %}達成{% else %}未達成{% endif %}</span>
+                                        <div class="small text-muted mt-1">{{ half_year_target.actual }} / 300 件（{{ half_year_target.progress_percent|floatformat:1 }}%）</div>
+                                    </td>
+                                    <td class="text-center">
+                                        <button class="btn btn-outline-secondary btn-sm text-nowrap" type="button" data-bs-toggle="collapse" data-bs-target="#summaryMonthly" aria-expanded="false" aria-controls="summaryMonthly" aria-label="総件数の詳細を開閉">詳細</button>
                                     </td>
                                 </tr>
                                 <tr class="collapse" id="summaryMonthly">
-                                    <td colspan="13" class="bg-light-subtle">
-                                        <div class="small fw-semibold mb-2">総件数の月別総数</div>
-                                        <div class="table-responsive">
-                                            <table class="table table-sm align-middle mb-0 small">
-                                                <thead>
-                                                    <tr>
-                                                        <th style="width: 8rem;">年月</th>
-                                                        <th class="text-end border-start">総投稿数</th>
-                                                        <th class="text-end border-start">FAQ承認数/投稿数</th>
-                                                        <th class="text-end border-start">Tips承認数/投稿数</th>
-                                                        <th class="text-end border-start">Good総数</th>
-                                                        <th class="text-end border-start">閲覧数総数</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {% for month_item in summary_totals.monthly_totals %}
-                                                        <tr>
-                                                            <td>{{ month_item.month }}</td>
-                                                            <td class="text-end border-start">{{ month_item.post_count_total }}</td>
-                                                            <td class="text-end border-start">{{ month_item.faq_approved_count }}/{{ month_item.faq_post_count }}</td>
-                                                            <td class="text-end border-start">{{ month_item.tips_approved_count }}/{{ month_item.tips_post_count }}</td>
-                                                            <td class="text-end border-start">{{ month_item.good_count_total }}</td>
-                                                            <td class="text-end border-start">{{ month_item.view_count_total }}</td>
-                                                        </tr>
-                                                    {% empty %}
-                                                        <tr>
-                                                            <td colspan="6" class="text-center text-muted">データがありません。</td>
-                                                        </tr>
-                                                    {% endfor %}
-                                                </tbody>
-                                            </table>
-                                        </div>
+                                    <td colspan="6" class="summary-details-cell">
+                                        <h3 class="h6 summary-details-title"><i class="bi bi-clipboard-data" aria-hidden="true"></i>総件数の詳細</h3>
+                                        {% include 'tenasapo_knowledge/includes/summary_posting_details.html' with stats=summary_totals detail_key='total' %}
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
 
-                    <h2 class="h5 faq-group-title">メンバー別サマリ</h2>
+                    <h2 class="h5 summary-section-title" id="summary-member-title"><i class="bi bi-people-fill" aria-hidden="true"></i>メンバー別サマリ</h2>
                     <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle mb-0 small">
-                            <colgroup>
-                                <col style="width: 11rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 7rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 8rem;">
-                                <col style="width: 6rem;">
-                            </colgroup>
-                            <thead class="table-light">
+                        <table class="table table-hover align-middle mb-0 small summary-performance-table" id="summary-member-table" aria-labelledby="summary-member-title" aria-describedby="summary-period-scope">
+                            {% include 'tenasapo_knowledge/includes/summary_table_columns.html' %}
+                            <thead class="table-light text-nowrap">
                                 <tr>
-                                    <th style="width: 12rem;" rowspan="2">メンバー</th>
-                                    <th class="text-center border-start" colspan="3">総投稿数</th>
-                                    <th class="text-center border-start" colspan="3">FAQ</th>
-                                    <th class="text-center border-start" colspan="3">Tips</th>
-                                    <th class="text-end border-start" rowspan="2">Good総数</th>
-                                    <th class="text-end border-start" rowspan="2">閲覧数総数</th>
-                                    <th class="border-start text-center" style="width: 7rem;" rowspan="2"></th>
-                                </tr>
-                                <tr>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
-                                    <th class="text-center border-start">総数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">承認数</th>
-                                    <th class="text-center" style="border-left: 1px dashed var(--bs-border-color) !important;">当月件数</th>
+                                    <th scope="col">メンバー</th>
+                                    <th scope="col" class="text-end">投稿数（合計）</th>
+                                    <th scope="col" class="text-end" aria-label="Q&amp;A投稿数">Q&amp;A</th>
+                                    <th scope="col" class="text-end" aria-label="Tips投稿数">Tips</th>
+                                    <th scope="col">目標達成</th>
+                                    <th scope="col" class="text-center">詳細</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for item in member_summaries %}
-                                    <tr>
-                                        <td class="fw-semibold">{{ item.name }}</td>
-                                        <td class="text-end border-start">{{ item.post_count_total }}</td>
-                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.approved_count_total }}</td>
-                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_post_count_total %}+{{ item.current_month_post_count_total }}{% else %}{{ item.current_month_post_count_total }}{% endif %}（{% if item.current_month_approved_count_total %}+{{ item.current_month_approved_count_total }}{% else %}{{ item.current_month_approved_count_total }}{% endif %}）</td>
-                                        <td class="text-end border-start">{{ item.faq_post_count }}</td>
-                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.faq_approved_count }}</td>
-                                        <td class="text-end {% if item.faq_post_count <= 2 %}bg-danger-subtle text-danger fw-semibold{% endif %}" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_faq_post_count %}+{{ item.current_month_faq_post_count }}{% else %}{{ item.current_month_faq_post_count }}{% endif %}（{% if item.current_month_faq_approved_count %}+{{ item.current_month_faq_approved_count }}{% else %}{{ item.current_month_faq_approved_count }}{% endif %}）</td>
-                                        <td class="text-end border-start">{{ item.tips_post_count }}</td>
-                                        <td class="text-end" style="border-left: 1px dashed var(--bs-border-color) !important;">{{ item.tips_approved_count }}</td>
-                                        <td class="text-end {% if item.tips_post_count <= 1 %}bg-danger-subtle text-danger fw-semibold{% endif %}" style="border-left: 1px dashed var(--bs-border-color) !important;">{% if item.current_month_tips_post_count %}+{{ item.current_month_tips_post_count }}{% else %}{{ item.current_month_tips_post_count }}{% endif %}（{% if item.current_month_tips_approved_count %}+{{ item.current_month_tips_approved_count }}{% else %}{{ item.current_month_tips_approved_count }}{% endif %}）</td>
-                                        <td class="text-end border-start">{{ item.good_count_total }}</td>
-                                        <td class="text-end border-start">{{ item.view_count_total }}</td>
-                                        <td class="text-center border-start">
-                                            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#memberMonthly{{ forloop.counter }}" aria-expanded="false" aria-controls="memberMonthly{{ forloop.counter }}">
-                                                月別
-                                            </button>
+                                    <tr data-summary-main-row>
+                                        <th scope="row">{{ item.name }}</th>
+                                        <td class="text-end summary-post-total">{{ item.post_count_total }}</td>
+                                        <td class="text-end">{{ item.faq_post_count }}</td>
+                                        <td class="text-end">{{ item.tips_post_count }}</td>
+                                        <td data-quota-achievement>
+                                            {% include 'tenasapo_knowledge/includes/summary_quota_achievement.html' with progress=item.quota_progress %}
+                                        </td>
+                                        <td class="text-center">
+                                            <button class="btn btn-outline-secondary btn-sm text-nowrap" type="button" data-bs-toggle="collapse" data-bs-target="#memberMonthly{{ forloop.counter }}" aria-expanded="false" aria-controls="memberMonthly{{ forloop.counter }}" aria-label="{{ item.name }}の詳細を開閉">詳細</button>
                                         </td>
                                     </tr>
                                     <tr class="collapse" id="memberMonthly{{ forloop.counter }}">
-                                        <td colspan="13" class="bg-light-subtle">
-                                            <div class="small fw-semibold mb-2">{{ item.name }} の月別総数</div>
-                                            <div class="table-responsive">
-                                                    <table class="table table-sm align-middle mb-0 small">
-                                                    <thead>
-                                                        <tr>
-                                                            <th style="width: 8rem;">年月</th>
-                                                            <th class="text-end border-start">総投稿数</th>
-                                                            <th class="text-end border-start">FAQ承認数/投稿数</th>
-                                                            <th class="text-end border-start">Tips承認数/投稿数</th>
-                                                            <th class="text-end border-start">Good総数</th>
-                                                            <th class="text-end border-start">閲覧数総数</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {% for month_item in item.monthly_totals %}
-                                                            <tr>
-                                                                <td>{{ month_item.month }}</td>
-                                                                <td class="text-end border-start">{{ month_item.post_count_total }}</td>
-                                                                <td class="text-end border-start">{{ month_item.faq_approved_count }}/{{ month_item.faq_post_count }}</td>
-                                                                <td class="text-end border-start">{{ month_item.tips_approved_count }}/{{ month_item.tips_post_count }}</td>
-                                                                <td class="text-end border-start">{{ month_item.good_count_total }}</td>
-                                                                <td class="text-end border-start">{{ month_item.view_count_total }}</td>
-                                                            </tr>
-                                                        {% empty %}
-                                                            <tr>
-                                                                <td colspan="6" class="text-center text-muted">データがありません。</td>
-                                                            </tr>
-                                                        {% endfor %}
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                        <td colspan="6" class="summary-details-cell">
+                                            <h3 class="h6 summary-details-title"><i class="bi bi-person" aria-hidden="true"></i>{{ item.name }} の詳細</h3>
+                                            {% include 'tenasapo_knowledge/includes/summary_posting_details.html' with stats=item detail_key=forloop.counter %}
                                         </td>
                                     </tr>
                                 {% endfor %}
@@ -326,146 +358,14 @@
                         </table>
                     </div>
                 </div>
-            </div>
+            </section>
         {% else %}
             <div class="alert alert-info" role="status">対象期間のサマリデータがありません。</div>
         {% endif %}
     </div>
 
-    <div class="tab-pane fade" id="internal-pane" role="tabpanel" aria-labelledby="internal-tab">
-        <div class="row g-3 mb-4">
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-2">総投稿数</div>
-                        <div class="display-6 fw-bold text-primary">{{ internal_summary_totals.post_count }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-2">総レビュー数</div>
-                        <div class="display-6 fw-bold text-primary">{{ internal_summary_totals.review_count }}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-md-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <div class="text-muted small mb-2">総いいね数</div>
-                        <div class="display-6 fw-bold text-primary">{{ internal_summary_totals.like_count }}</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {% if internal_contributor_summaries %}
-            <div class="row g-4 mb-4">
-                <div class="col-12">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h2 class="h5 faq-group-title">担当者別 投稿数</h2>
-                            <div style="height: 320px;"><canvas id="internalPostChart"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h2 class="h5 faq-group-title">担当者別 レビュー数</h2>
-                            <div style="height: 320px;"><canvas id="internalReviewChart"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h2 class="h5 faq-group-title">担当者別 いいね数</h2>
-                            <div style="height: 320px;"><canvas id="internalLikeChart"></canvas></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        {% else %}
-            <div class="alert alert-info mb-4" role="status">集計対象の担当者データがありません。</div>
-        {% endif %}
-
-        <div class="row g-4">
-            <div class="col-12 col-xl-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <h2 class="h5 faq-group-title">いいね数上位5 FAQ</h2>
-                        <div class="list-group list-group-flush">
-                            {% for article in internal_top_faq_articles %}
-                                <div class="list-group-item px-0">
-                                    <div class="fw-semibold">{{ article.title }}</div>
-                                    <div class="small text-muted d-flex justify-content-between gap-2 mt-1">
-                                        <span>投稿者 {{ article.creator_display_name }}</span>
-                                        <span>👍 {{ article.good_count }}</span>
-                                    </div>
-                                </div>
-                            {% empty %}
-                                <div class="text-muted">FAQがありません。</div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-xl-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <h2 class="h5 faq-group-title">いいね数上位5 Tips</h2>
-                        <div class="list-group list-group-flush">
-                            {% for tip in internal_top_tips_articles %}
-                                <div class="list-group-item px-0">
-                                    <div class="fw-semibold">{{ tip.title }}</div>
-                                    <div class="small text-muted d-flex justify-content-between gap-2 mt-1">
-                                        <span>投稿者 {{ tip.creator_display_name }}</span>
-                                        <span>👍 {{ tip.good_count }}</span>
-                                    </div>
-                                </div>
-                            {% empty %}
-                                <div class="text-muted">Tipsがありません。</div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12 col-xl-4">
-                <div class="card shadow-sm h-100">
-                    <div class="card-body">
-                        <h2 class="h5 faq-group-title">担当者別投稿数</h2>
-                        <div class="table-responsive">
-                            <table class="table table-sm align-middle mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>担当者</th>
-                                        <th class="text-end">投稿数</th>
-                                        <th class="text-end">レビュー数</th>
-                                        <th class="text-end">いいね数</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for item in internal_contributor_post_ranking %}
-                                        <tr>
-                                            <td class="fw-semibold">{{ item.name }}</td>
-                                            <td class="text-end">{{ item.post_count }}</td>
-                                            <td class="text-end">{{ item.review_count }}</td>
-                                            <td class="text-end">{{ item.like_count }}</td>
-                                        </tr>
-                                    {% empty %}
-                                        <tr>
-                                            <td class="text-center text-muted" colspan="4">データがありません。</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <div class="tab-pane fade{% if report_active %} show active{% endif %}" id="internal-pane" role="tabpanel" aria-labelledby="internal-tab">
+        {% include 'tenasapo_knowledge/includes/summary_posting_report.html' %}
     </div>
 
     <div class="tab-pane fade" id="customer-pane" role="tabpanel" aria-labelledby="customer-tab">
@@ -489,7 +389,7 @@
             <div class="col-12 col-md-4">
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
-                        <div class="text-muted small mb-2">FAQ Goodボタン 総数</div>
+                        <div class="text-muted small mb-2">Q&amp;A Goodボタン 総数</div>
                         <div class="display-6 fw-bold text-primary">{{ customer_faq_good_total }}</div>
                     </div>
                 </div>
@@ -500,7 +400,7 @@
             <div class="col-12 col-lg-6">
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
-                        <h2 class="h5 faq-group-title">カスタマーユーザー別 アクセス数</h2>
+                        <h2 class="h5 summary-section-title"><i class="bi bi-person-badge" aria-hidden="true"></i>カスタマーユーザー別 アクセス数</h2>
                         {% if customer_access_per_user %}
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
@@ -530,7 +430,7 @@
             <div class="col-12 col-lg-6">
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
-                        <h2 class="h5 faq-group-title">カテゴリ別 アクセス数</h2>
+                        <h2 class="h5 summary-section-title"><i class="bi bi-folder2-open" aria-hidden="true"></i>カテゴリ別 アクセス数</h2>
                         {% if customer_category_access %}
                             <div class="accordion accordion-flush" id="categoryAccessAccordion">
                                 {% for grp in customer_category_access %}
@@ -572,12 +472,12 @@
                         {% endif %}
 
                         {% if customer_answer_access %}
-                            <h2 class="h5 faq-group-title mt-4">回答別 閲覧数</h2>
+                            <h2 class="h5 summary-section-title mt-4"><i class="bi bi-eye" aria-hidden="true"></i>回答別 閲覧数</h2>
                             <div class="table-responsive">
                                 <table class="table table-sm align-middle mb-0">
                                     <thead>
                                         <tr>
-                                            <th>FAQ タイトル</th>
+                                            <th>Q&amp;A タイトル</th>
                                             <th class="text-end">閲覧数</th>
                                         </tr>
                                     </thead>
@@ -599,7 +499,7 @@
             <div class="col-12">
                 <div class="card shadow-sm">
                     <div class="card-body">
-                        <h2 class="h5 faq-group-title">Goodボタン数 ナレッジ一覧（FAQ）</h2>
+                        <h2 class="h5 summary-section-title"><i class="bi bi-hand-thumbs-up" aria-hidden="true"></i>Goodボタン数 ナレッジ一覧（Q&amp;A）</h2>
                         {% if customer_faq_goods %}
                             <div class="accordion" id="faqGoodAccordion">
                                 {% for article in customer_faq_goods %}
@@ -633,11 +533,11 @@
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="text-muted mb-2">Goodが押されたFAQがありません。</p>
+                            <p class="text-muted mb-2">Goodが押されたQ&amp;Aがありません。</p>
                         {% endif %}
 
                         {% if customer_tips_goods %}
-                            <h2 class="h5 faq-group-title mt-4">Goodボタン数 ナレッジ一覧（Tips）</h2>
+                            <h2 class="h5 summary-section-title mt-4"><i class="bi bi-hand-thumbs-up" aria-hidden="true"></i>Goodボタン数 ナレッジ一覧（Tips）</h2>
                             <div class="accordion" id="tipsGoodAccordion">
                                 {% for tip in customer_tips_goods %}
                                     <div class="accordion-item">
@@ -677,14 +577,46 @@
 {{ chart_labels|json_script:"summary-chart-labels" }}
 {{ chart_faq_post_counts|json_script:"summary-chart-faq-counts" }}
 {{ chart_tips_post_counts|json_script:"summary-chart-tips-counts" }}
+{{ posting_target_chart|json_script:"summary-posting-target" }}
 {{ internal_chart_labels|json_script:"internal-summary-chart-labels" }}
 {{ internal_post_chart_data|json_script:"internal-summary-post-data" }}
 {{ internal_review_chart_data|json_script:"internal-summary-review-data" }}
 {{ internal_like_chart_data|json_script:"internal-summary-like-data" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% include 'tenasapo_knowledge/includes/summary_target_chart.html' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const scrollKey = 'summary-navigation-scroll';
+    const scrollContainer = document.getElementById('app-main');
+    function saveSummaryScroll(url) {
+        try {
+            sessionStorage.setItem(scrollKey, JSON.stringify({
+                url,
+                x: scrollContainer ? scrollContainer.scrollLeft : window.scrollX,
+                y: scrollContainer ? scrollContainer.scrollTop : window.scrollY,
+                savedAt: Date.now(),
+            }));
+        } catch (_) { /* Storage restrictions must not prevent navigation. */ }
+    }
+    document.querySelectorAll('#member-chart-controls a, [data-summary-preserve-scroll]').forEach(link => {
+        link.addEventListener('click', event => {
+            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            saveSummaryScroll(link.href);
+        });
+    });
+    let savedScroll;
+    try {
+        savedScroll = JSON.parse(sessionStorage.getItem(scrollKey) || 'null');
+        sessionStorage.removeItem(scrollKey);
+    } catch (_) { /* Ignore invalid or unavailable storage. */ }
+    if (savedScroll && savedScroll.url === window.location.href &&
+        Date.now() - savedScroll.savedAt < 60000 && Number.isFinite(savedScroll.y) && Number.isFinite(savedScroll.x)) {
+        const restore = () => (scrollContainer || window).scrollTo({left: savedScroll.x, top: savedScroll.y, behavior: 'instant'});
+        if (document.readyState === 'complete') restore();
+        else window.addEventListener('load', restore, {once: true});
+    }
+
     const labels = JSON.parse(document.getElementById('summary-chart-labels').textContent || '[]');
     const faqPostCounts = JSON.parse(document.getElementById('summary-chart-faq-counts').textContent || '[]');
     const tipsPostCounts = JSON.parse(document.getElementById('summary-chart-tips-counts').textContent || '[]');
@@ -702,7 +634,9 @@ document.addEventListener('DOMContentLoaded', function() {
             maxValTotal = fVal + tVal;
         }
     }
-    const calculatedSuggestedMax = maxValTotal > 0 ? Math.ceil(maxValTotal * 1.3) : 5;
+    const targetPayload = JSON.parse(document.getElementById('summary-posting-target').textContent || '{}');
+    const targetChart = window.summaryTargetChart(targetPayload, maxValTotal);
+    const calculatedSuggestedMax = targetChart.suggestedMax;
 
     const totalLabelPlugin = {
         id: 'totalLabelPlugin',
@@ -746,9 +680,9 @@ document.addEventListener('DOMContentLoaded', function() {
             labels,
             datasets: [
                 {
-                    label: 'FAQ',
+                    label: 'Q&A',
                     data: faqPostCounts,
-                    backgroundColor: 'rgba(232, 117, 36, 0.82)',
+                    backgroundColor: 'rgba(220, 53, 69, 0.82)',
                     borderRadius: 8,
                     maxBarThickness: 42,
                     stack: 'postStack',
@@ -763,7 +697,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
             ],
         },
-        plugins: [totalLabelPlugin],
+        plugins: [totalLabelPlugin, targetChart.plugin],
         options: {
             maintainAspectRatio: false,
             layout: {
@@ -855,16 +789,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const toggleIncludeHidden = document.getElementById('toggleIncludeHidden');
             const isChecked = toggleIncludeHidden ? toggleIncludeHidden.checked : false;
             
-            const selectedSort = document.querySelector('input[name="sortBy"]:checked');
-            const sortBy = selectedSort ? selectedSort.value : 'no';
-            
             const url = new URL(window.location.href);
             if (isChecked) {
                 url.searchParams.set('include_hidden', '1');
             } else {
                 url.searchParams.delete('include_hidden');
             }
-            url.searchParams.set('sort_by', sortBy);
+            saveSummaryScroll(url.toString());
             window.location.href = url.toString();
         });
     }

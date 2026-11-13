@@ -1,0 +1,48 @@
+<section class="card shadow-sm mb-4" aria-labelledby="home-member-posts-title" id="home-member-posts">
+    <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+            <h2 class="h5 faq-group-title mb-0" id="home-member-posts-title">メンバーの投稿数</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="投稿数の集計期間">
+                <button type="button" class="btn btn-outline-primary active" data-home-post-period="all" aria-pressed="true">全期間</button>
+                <button type="button" class="btn btn-outline-primary" data-home-post-period="current" aria-pressed="false">当月</button>
+                <button type="button" class="btn btn-outline-primary" data-home-post-period="previous" aria-pressed="false">前月</button>
+            </div>
+        </div>
+        <div class="d-flex justify-content-center gap-3 small mb-2" aria-label="グラフの凡例">
+            <span><span class="home-post-key home-post-faq" aria-hidden="true"></span> Q&amp;A</span>
+            <span><span class="home-post-key home-post-tips" aria-hidden="true"></span> Tips</span>
+        </div>
+        <p class="small text-muted mb-2" id="home-post-status" role="status">全期間：合計 {{ home_member_post_totals.post_count_total }} 件</p>
+        <div class="home-post-scroll" data-home-post-chart hidden>
+            <div class="home-post-chart-size">
+                <canvas id="home-member-post-chart" role="img" aria-label="メンバー別のQ&amp;AとTips投稿数（積み上げ棒グラフ）" aria-describedby="home-post-status home-post-table-title"></canvas>
+            </div>
+        </div>
+        <details data-home-post-details open>
+            <summary class="small mt-2" id="home-post-table-title">投稿数を表で確認</summary>
+            {% for period, data in home_member_post_periods.items %}
+            <div class="table-responsive" data-home-post-table="{{ period }}"{% if period != 'all' %} hidden{% endif %}>
+                <table class="table table-sm align-middle mb-2">
+                    <caption>{% if period == 'current' %}当月{% elif period == 'previous' %}前月{% else %}全期間{% endif %}のメンバー別投稿数</caption>
+                    <thead class="table-light"><tr><th scope="col">メンバー</th><th scope="col" class="text-end">Q&amp;A</th><th scope="col" class="text-end">Tips</th><th scope="col" class="text-end">合計</th></tr></thead>
+                    <tbody>
+                        {% for member in data.rows %}
+                        <tr><th scope="row" class="fw-normal">{{ member.name }}</th><td class="text-end">{{ member.faq_post_count }}</td><td class="text-end">{{ member.tips_post_count }}</td><td class="text-end fw-bold">{{ member.post_count_total }}</td></tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-muted text-center py-3">集計対象のメンバーはいません。</td></tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="table-light"><tr><th scope="row">合計</th><td class="text-end">{{ data.totals.faq_post_count }}</td><td class="text-end">{{ data.totals.tips_post_count }}</td><td class="text-end fw-bold">{{ data.totals.post_count_total }}</td></tr></tfoot>
+                </table>
+            </div>
+            {% endfor %}
+        </details>
+    </div>
+</section>
+<style>
+#home-member-posts .home-post-key { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+#home-member-posts .home-post-faq { background: rgba(232, 117, 36, 0.82); }
+#home-member-posts .home-post-tips { background: rgba(73, 136, 232, 0.82); }
+#home-member-posts .home-post-scroll { overflow-x: auto; }
+#home-member-posts .home-post-chart-size { position: relative; height: clamp(280px, 36vw, 360px); }
+</style>

@@ -1,112 +1,75 @@
 {% extends "base.html" %}
-{% block title %}マニュアル一覧 – Nexus{% endblock %}
+{% block title %}運用マニュアル – Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
-        <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-            <span class="page-title-icon"><i class="bi bi-book-fill"></i></span>マニュアル一覧
-        </h1>
+        <div>
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-book-fill"></i></span>運用マニュアル
+            </h1>
+            <p class="page-title-sub">メニューごとの使い方・操作手順を、この画面で全文確認・編集できます。</p>
+        </div>
         {% if user.is_staff or user.is_superuser %}
             <a href="{% url 'manual_create' %}" class="btn btn-primary btn-sm">＋ マニュアル登録</a>
         {% endif %}
     </div>
 </div>
+{% endblock %}
 
-{% if messages %}
-    {% for message in messages %}
-        <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    {% endfor %}
-{% endif %}
+{% block content %}
 
-{% if manuals %}
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-        {% for manual in manuals %}
-        <div class="col">
-            <div class="card h-100 shadow-sm" style="border-radius:1rem; border-color:var(--tk-border);">
-                <!-- PDF サムネイル（canvas に描画） -->
-                <div class="manual-thumb-wrap" style="
-                    background: var(--tk-surface-warm);
-                    border-radius: 1rem 1rem 0 0;
-                    overflow: hidden;
-                    height: 200px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                " onclick="location.href='{% url 'manual_detail' manual.pk %}'">
-                    <canvas class="pdf-thumb"
-                            data-pdf-url="{{ manual.pdf_file.url }}"
-                            style="max-width:100%; max-height:100%; object-fit:contain;"></canvas>
-                    <div class="pdf-thumb-placeholder text-center text-muted"
-                         style="display:none; padding:1rem;">
-                        <div style="font-size:3rem;">📄</div>
-                        <div class="small">PDF</div>
+{% include 'includes/manual_navigation_assets.html' %}
+<div class="manual-layout">
+    <aside class="manual-toc" tabindex="0" aria-label="操作手順の目次スクロール領域">
+        <nav aria-label="操作手順の目次">
+            <h2 class="h6 fw-bold">メニュー別の操作手順</h2>
+            {% for group in menu_groups %}
+                {% if group.title %}<h2 class="manual-toc-group">{{ group.title }}</h2>{% endif %}
+                <ul class="manual-toc-links">
+                    {% for section in group.sections %}<li><a href="#{{ section.anchor }}"><i class="bi {{ section.icon }}" aria-hidden="true"></i><span>{{ section.manual.title }}</span></a></li>{% endfor %}
+                </ul>
+            {% endfor %}
+            {% if supplemental_sections %}
+                <h2 class="manual-toc-group">補足手順</h2>
+                <ul class="manual-toc-links">
+                    {% for section in supplemental_sections %}<li><a href="#{{ section.anchor }}"><i class="bi {{ section.icon }}" aria-hidden="true"></i><span>{{ section.manual.title }}</span></a></li>{% endfor %}
+                </ul>
+            {% endif %}
+        </nav>
+    </aside>
+    <div class="manual-content" aria-label="メニュー別の操作手順本文">
+        {% if not menu_sections %}<p class="alert alert-info">メニュー別の操作手順はまだ登録されていません。管理者が初期手順を登録してください。</p>{% endif %}
+        {% for section in manual_sections %}
+            {% if forloop.counter == menu_sections|length|add:1 and supplemental_sections %}<h2 class="h4 mb-3" id="manual-supplemental">補足手順</h2>{% endif %}
+            <section id="{{ section.anchor }}" class="manual-section card shadow-sm mb-4" tabindex="-1" aria-labelledby="{{ section.anchor }}-title">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+                        <div>
+                            <h2 class="h4" id="{{ section.anchor }}-title" tabindex="-1"><i class="bi {{ section.icon }}" aria-hidden="true"></i> {{ section.manual.title }}</h2>
+                            {% if not section.manual.is_published %}<span class="badge bg-secondary">非公開</span>{% endif %}
+                            {% if not section.manual.menu_key %}<span class="small text-muted">表示順 {{ section.manual.order }}</span>{% endif %}
+                        </div>
+                        <div class="d-flex gap-2 flex-wrap">
+                            {% if section.menu_url %}{% if section.manual.menu_key != 'view-history' or can_view_view_history %}<a class="btn btn-outline-secondary btn-sm" href="{{ section.menu_url }}">メニューを開く</a>{% endif %}{% endif %}
+                            <a class="btn btn-outline-primary btn-sm" href="{% url 'manual_edit' section.manual.pk %}?next={{ section.return_to|urlencode }}">編集</a>
+                            {% if not section.manual.menu_key %}
+                                <form method="post" action="{% url 'manual_delete' section.manual.pk %}" onsubmit="return confirm('この補足手順を削除しますか？');">
+                                    {% csrf_token %}<button class="btn btn-outline-danger btn-sm" type="submit">削除</button>
+                                </form>
+                            {% endif %}
+                        </div>
                     </div>
+                    {% for block in section.blocks %}
+                        <div class="manual-body-block{% if block.heading %} manual-body-block-labelled{% endif %}">
+                            {% if block.heading %}<h3 class="manual-body-heading" id="{{ section.anchor }}-block-{{ forloop.counter }}">{{ block.heading }}</h3>{% endif %}
+                            <div class="manual-text-body"{% if block.heading %} role="region" aria-labelledby="{{ section.anchor }}-block-{{ forloop.counter }}"{% endif %} style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ block.body }}</div>
+                        </div>
+                    {% endfor %}
                 </div>
-
-                <div class="card-body d-flex flex-column">
-                    <h5 class="card-title fw-bold" style="color:var(--tk-text);">
-                        <a href="{% url 'manual_detail' manual.pk %}"
-                           class="text-decoration-none stretched-link"
-                           style="color:inherit;">{{ manual.title }}</a>
-                    </h5>
-                    {% if manual.description %}
-                        <p class="card-text small text-muted flex-grow-1">{{ manual.description|truncatechars:80 }}</p>
-                    {% endif %}
-                    {% if not manual.is_published %}
-                        <span class="badge bg-secondary mt-auto align-self-start">非公開</span>
-                    {% endif %}
-                </div>
-
-                {% if user.is_staff or user.is_superuser %}
-                <div class="card-footer d-flex gap-2 justify-content-end"
-                     style="background:var(--tk-surface-warm); border-top-color:var(--tk-border); border-radius:0 0 1rem 1rem;">
-                    <a href="{% url 'manual_edit' manual.pk %}" class="btn btn-outline-primary btn-xs py-0 px-2" style="font-size:.8rem;">編集</a>
-                    <form method="post" action="{% url 'manual_delete' manual.pk %}"
-                          onsubmit="return confirm('「{{ manual.title }}」を削除しますか？');">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-outline-danger btn-xs py-0 px-2" style="font-size:.8rem;">削除</button>
-                    </form>
-                </div>
-                {% endif %}
-            </div>
-        </div>
+            </section>
         {% endfor %}
     </div>
-{% else %}
-    <div class="home-panel p-5 text-center">
-        <div style="font-size:3.5rem;">📭</div>
-        <p class="mt-3 text-muted">マニュアルはまだ登録されていません。</p>
-    </div>
-{% endif %}
+</div>
 
-<!-- PDF.js CDN -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs" type="module"></script>
-<script type="module">
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
-
-document.querySelectorAll('.pdf-thumb').forEach(async (canvas) => {
-    const url = canvas.dataset.pdfUrl;
-    const placeholder = canvas.nextElementSibling;
-    try {
-        const pdf = await pdfjsLib.getDocument(url).promise;
-        const page = await pdf.getPage(1);
-        const vp = page.getViewport({ scale: 1 });
-        const wrapW = canvas.closest('.manual-thumb-wrap').clientWidth || 400;
-        const scale = wrapW / vp.width;
-        const viewport = page.getViewport({ scale });
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    } catch (e) {
-        canvas.style.display = 'none';
-        placeholder.style.display = 'block';
-    }
-});
-</script>
 {% endblock %}

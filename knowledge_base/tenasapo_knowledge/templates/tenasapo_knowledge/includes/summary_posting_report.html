@@ -1,0 +1,50 @@
+<section class="card shadow-sm" aria-labelledby="posting-report-title">
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+                <h2 class="h5 summary-section-title" id="posting-report-title"><i class="bi bi-journal-text" aria-hidden="true"></i>投稿レポート</h2>
+                <p class="small text-muted mb-0">選択した月に投稿されたQ&amp;A・Tipsを、投稿日時の新しい順に表示します。</p>
+            </div>
+            <form method="get" action="{% url 'summary' %}" class="d-flex flex-wrap align-items-end gap-2" id="posting-report-month-form">
+                <input type="hidden" name="tab" value="report">
+                <input type="hidden" name="period" value="{{ selected_period }}">
+                <input type="hidden" name="sort_by" value="{{ sort_by }}">
+                {% if include_hidden %}<input type="hidden" name="include_hidden" value="1">{% endif %}
+                <div>
+                    <label for="posting-report-month" class="form-label small mb-1">投稿月</label>
+                    <input type="month" id="posting-report-month" name="report_month" value="{{ report_month }}" class="form-control form-control-sm" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-search me-1" aria-hidden="true"></i>表示</button>
+                <button type="submit" formaction="{% url 'summary_posting_report_pdf' %}" class="btn btn-outline-primary btn-sm" id="btnPostingReportPdf"><i class="bi bi-file-pdf me-1" aria-hidden="true"></i>PDF作成</button>
+            </form>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2 rounded-3 border bg-body-tertiary p-3 mb-3">
+            <strong class="me-2">{{ report_month_start|date:"Y年m月" }}</strong>
+            <span class="badge text-bg-primary">合計 {{ report_totals.total }} 件</span>
+            <span class="badge text-bg-light border">Q&amp;A {{ report_totals.faq }} 件</span>
+            <span class="badge text-bg-light border">Tips {{ report_totals.tips }} 件</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="posting-report-table">
+                <thead class="table-light text-nowrap">
+                    <tr><th scope="col">管理番号</th><th scope="col">種類</th><th scope="col">カテゴリ</th><th scope="col">タイトル</th><th scope="col">承認状況</th><th scope="col">投稿者</th><th scope="col">投稿日時</th></tr>
+                </thead>
+                <tbody>
+                    {% for article in report_articles %}
+                        <tr>
+                            <td class="text-nowrap small">{{ article.management_code|default:"—" }}</td>
+                            <td><span class="badge {% if article.kind == 'Q&A' %}text-bg-warning{% else %}text-bg-info{% endif %}">{{ article.kind }}</span></td>
+                            <td class="small">{{ article.category|default:"—" }}</td>
+                            <td class="fw-semibold">{% if article.detail_url %}<a href="{{ article.detail_url }}">{{ article.title }}</a>{% else %}{{ article.title }}{% endif %}</td>
+                            <td class="text-nowrap"><span class="badge {% if article.is_approved %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if article.is_approved %}承認済み{% else %}未承認{% endif %}</span></td>
+                            <td>{{ article.creator_name }}</td>
+                            <td class="text-nowrap small">{{ article.created_at|date:"Y/m/d H:i" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr><td colspan="7" class="text-center text-muted py-5">この月に投稿されたナレッジはありません。</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>

@@ -1,54 +1,75 @@
 {% extends "base.html" %}
 {% block title %}{{ form_title }} – Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-lg-7">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title }}
             </h1>
+            <p class="page-title-sub">メニューごとの使い方・操作手順を入力し、いつでも編集できます。</p>
         </div>
-        <div class="home-panel p-4">
+    </div>
+</div>
+{% endblock %}
 
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                {% for field in form.visible_fields %}
+                    <a href="#form-section-{{ field.name }}"{% if forloop.first %} class="is-current" aria-current="location"{% endif %}>{{ field.label }}</a>
                 {% endfor %}
-            {% endif %}
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+
 
             {% if form.errors %}
                 <div class="alert alert-danger">入力内容を確認してください。</div>
             {% endif %}
 
-            <form method="post" enctype="multipart/form-data" novalidate>
+            <form class="card shadow-sm" method="post" novalidate data-knowledge-completion="generic">
+                <div class="card-body p-4">
                 {% csrf_token %}
+                {% if return_to %}<input type="hidden" name="next" value="{{ return_to }}">{% endif %}
+                {% for hidden in form.hidden_fields %}{{ hidden }}{{ hidden.errors }}{% endfor %}
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
 
-                {% for field in form %}
-                <div class="mb-3">
-                    <label for="{{ field.id_for_label }}" class="form-label fw-semibold">
+                <div class="row g-3">
+                {% for field in form.visible_fields %}
+                <div class="col-12">
+                    <label for="{{ field.id_for_label }}" class="form-label form-section-label fw-semibold" id="form-section-{{ field.name }}" data-form-section tabindex="-1">
                         {{ field.label }}
                         {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
                     </label>
 
                     {% if field.name == 'is_published' %}
-                        <div class="form-check">
+                        <div class="form-check form-switch">
                             {{ field }}
                             <label class="form-check-label" for="{{ field.id_for_label }}">公開する</label>
                         </div>
-                    {% elif field.name == 'pdf_file' %}
-                        <input type="file" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
-                               accept=".pdf" class="form-control {% if field.errors %}is-invalid{% endif %}">
-                        {% if manual and manual.pdf_file %}
-                            <div class="form-text">現在のファイル: <a href="{{ manual.pdf_file.url }}" target="_blank">{{ manual.pdf_file.name }}</a>（変更する場合のみ選択）</div>
-                        {% endif %}
+                        <div class="form-text">非公開でも管理者の運用マニュアル画面には表示されます。一般ユーザーには公開されません。</div>
                     {% else %}
                         <div class="{% if field.name == 'order' %}col-md-4{% endif %}">
                             {{ field }}
                         </div>
+                        {% if field.name == 'title' %}
+                            <div class="form-text">マニュアルの内容が分かるタイトルを入力してください。</div>
+                        {% elif field.name == 'description' %}
+                            <div class="form-text">対象メニュー、できること、操作の順番を記載してください。改行はそのまま表示され、HTMLタグは文字として扱われます。</div>
+                            <div class="form-text">「内容」「操作手順」「注意点」をそれぞれ1行だけで入力すると、その行が色付きの見出しになります。各見出しの次の行から本文を入力してください。「対象・できること」も「内容」として表示されます。文章の途中に書いた場合や、独自の見出し名には色は付きません。</div>
+                        {% elif field.name == 'order' %}
+                            <div class="form-text">補足手順の表示順を指定してください。固定メニューの節はメニュー順で表示されます。</div>
+                        {% endif %}
                     {% endif %}
 
                     {% if field.errors %}
@@ -61,13 +82,14 @@
                     {% endif %}
                 </div>
                 {% endfor %}
+                </div>
+                </div>
 
-                <div class="d-flex gap-2 mt-4">
+                <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
                     <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
-                    <a href="{% url 'manual_list' %}" class="btn btn-outline-secondary">キャンセル</a>
+                    <a href="{% if return_to %}{{ return_to }}{% else %}{% url 'manual_list' %}{% endif %}" class="btn btn-outline-secondary">キャンセル</a>
                 </div>
             </form>
-        </div>
     </div>
 </div>
 
@@ -75,6 +97,10 @@
 // Bootstrap のクラスをフォームフィールドに適用
 document.querySelectorAll('input:not([type=checkbox]):not([type=file]), textarea, select').forEach(el => {
     el.classList.add('form-control');
+});
+document.querySelectorAll('.knowledge-form-layout .form-switch input[type=checkbox]').forEach(el => {
+    el.classList.add('form-check-input');
+    el.setAttribute('role', 'switch');
 });
 </script>
 {% endblock %}

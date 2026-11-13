@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.utils import timezone
 
-from .utils import resolve_user_display_name
+from .utils import can_view_view_history, resolve_user_display_name
 
 
 ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
@@ -50,6 +50,7 @@ def user_display_name(request):
             'current_user_display_name': '',
             'current_user_base_display_name': '',
             'current_user_is_customer': False,
+            'can_view_view_history': False,
             'current_user_view_mode': '',
             'can_switch_account_view_mode': False,
             'current_user_demo_expires_at_text': '',
@@ -94,6 +95,7 @@ def user_display_name(request):
         'current_user_display_name': f'{base_display_name}{mode_suffix}',
         'current_user_base_display_name': base_display_name,
         'current_user_is_customer': current_user_is_customer,
+        'can_view_view_history': not current_user_is_customer and can_view_view_history(request),
         'current_user_view_mode': view_mode,
         'can_switch_account_view_mode': can_switch_account_view_mode,
         'current_user_demo_expires_at_text': current_user_demo_expires_at_text,

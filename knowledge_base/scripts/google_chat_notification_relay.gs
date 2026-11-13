@@ -145,9 +145,34 @@ function doGet(e) {
 function doPost(e) {
   try {
     const raw = (e && e.postData && e.postData.contents) || '{}';
-    Logger.log('doPost start raw=%s', raw);
     const payload = JSON.parse(raw);
     const action = String(payload.action || 'chat_message').trim();
+    Logger.log('doPost start action=%s', action);
+
+    if (action === 'scheduled_card') {
+      const message = payload.payload;
+      if (!message || typeof message !== 'object' || Array.isArray(message)
+          || typeof message.text !== 'string' || !Array.isArray(message.cardsV2)
+          || message.cardsV2.length !== 1
+          || Object.keys(message).some(function(key) { return key !== 'text' && key !== 'cardsV2'; })) {
+        throw new Error('Invalid scheduled card');
+      }
+      // Only the Chat message is forwarded: never forward action/URL overrides.
+      const safePayload = JSON.stringify({text: message.text, cardsV2: message.cardsV2});
+      if (Utilities.newBlob(safePayload).getBytes().length >= 28000) {
+        throw new Error('Scheduled card is too large');
+      }
+      const scheduledResponse = UrlFetchApp.fetch(CHAT_WEBHOOK_URL, {
+        method: 'post', contentType: 'application/json; charset=UTF-8',
+        payload: safePayload, muteHttpExceptions: true,
+      });
+      const scheduledStatus = scheduledResponse.getResponseCode();
+      // No response body or article payload is logged/returned by this action.
+      return ContentService.createTextOutput(JSON.stringify({
+        ok: scheduledStatus >= 200 && scheduledStatus < 300,
+        action: 'scheduled_card', status: scheduledStatus,
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     if (action === 'create_draft') {
       const to = String(payload.to || '').trim();

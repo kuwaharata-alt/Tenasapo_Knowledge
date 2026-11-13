@@ -2,9 +2,46 @@ from django.db import models
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from calendar import monthrange
-from datetime import timedelta
+from datetime import date, timedelta
 import os
+
+from .chat_schedule import ChatNotificationSchedule, ChatNotificationDelivery
+
+
+POSTING_QUOTA_START = date(2026, 6, 1)
+
+
+def validate_quota_month(value):
+    if value < POSTING_QUOTA_START or value.day != 1:
+        raise ValidationError('対象月は2026年6月以降の月初日を指定してください。')
+
+
+class PostingQuota(models.Model):
+    """全メンバー共通の1人・1か月目標。初期値は登録しない。"""
+
+    effective_month = models.DateField('対象月', unique=True, validators=[validate_quota_month])
+    faq_count = models.PositiveIntegerField('Q&A月間件数', validators=[MinValueValidator(0)])
+    tips_count = models.PositiveIntegerField('Tips月間件数', validators=[MinValueValidator(0)])
+    alpha_count = models.PositiveIntegerField('＋α月間件数', default=0, validators=[MinValueValidator(0)])
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name='更新者',
+    )
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        ordering = ['effective_month']
+        verbose_name = '投稿目標'
+        verbose_name_plural = '投稿目標'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(effective_month__gte=POSTING_QUOTA_START, effective_month__day=1),
+                name='posting_quota_valid_month',
+            ),
+        ]
 
 
 INLINE_PREVIEWABLE_EXTENSIONS = {
@@ -169,8 +206,8 @@ class FAQCategory(models.Model):
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
     class Meta:
-        verbose_name = 'FAQカテゴリ'
-        verbose_name_plural = 'FAQカテゴリ'
+        verbose_name = 'Q&Aカテゴリ'
+        verbose_name_plural = 'Q&Aカテゴリ'
         ordering = ['parent_name', 'middle_name', 'child_name']
         constraints = [
             models.UniqueConstraint(
@@ -194,8 +231,8 @@ class FAQParentCategorySetting(models.Model):
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
     class Meta:
-        verbose_name = 'FAQ大カテゴリ設定'
-        verbose_name_plural = 'FAQ大カテゴリ設定'
+        verbose_name = 'Q&A大カテゴリ設定'
+        verbose_name_plural = 'Q&A大カテゴリ設定'
         ordering = ['name']
 
     def __str__(self):
@@ -247,6 +284,7 @@ class KnowledgeArticle(models.Model):
     )
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
     ai_review = models.TextField('AIレビュー', blank=True)
+    reviewer_comment = models.TextField('承認者コメント', blank=True, default='')
     remand_reason = models.TextField('差戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
     management_code = models.CharField('管理番号', max_length=10, unique=True, blank=True, null=True)
@@ -402,6 +440,7 @@ class TipsArticle(models.Model):
     )
     approved_by_name = models.CharField('承認者名', max_length=150, blank=True)
     ai_review = models.TextField('AIレビュー', blank=True)
+    reviewer_comment = models.TextField('承認者コメント', blank=True, default='')
     remand_reason = models.TextField('差戻し理由', blank=True)
     reference_links = models.JSONField('参考リンク', default=list, blank=True, help_text='参照用のURLを保存するリスト')
     management_code = models.CharField('管理番号', max_length=10, unique=True, blank=True, null=True)
@@ -722,7 +761,8 @@ class ArticleAttachment(models.Model):
 class Manual(models.Model):
     title = models.CharField('タイトル', max_length=200)
     description = models.TextField('説明', blank=True)
-    pdf_file = models.FileField('PDFファイル', upload_to='manuals/%Y/%m/')
+    menu_key = models.CharField('メニュー識別子', max_length=64, null=True, blank=True, unique=True, editable=False)
+    pdf_file = models.FileField('PDFファイル', upload_to='manuals/%Y/%m/', blank=True)
     is_published = models.BooleanField('公開', default=True)
     order = models.PositiveIntegerField('表示順', default=0)
     created_by = models.ForeignKey(
@@ -956,8 +996,8 @@ class ArticleGood(models.Model):
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
 
     class Meta:
-        verbose_name = 'FAQグッド'
-        verbose_name_plural = 'FAQグッド'
+        verbose_name = 'Q&Aグッド'
+        verbose_name_plural = 'Q&Aグッド'
         ordering = ['-created_at']
         constraints = [
             models.UniqueConstraint(
@@ -1016,8 +1056,8 @@ class ArticleFavorite(models.Model):
     created_at = models.DateTimeField('作成日時', auto_now_add=True)
 
     class Meta:
-        verbose_name = 'FAQお気に入り'
-        verbose_name_plural = 'FAQお気に入り'
+        verbose_name = 'Q&Aお気に入り'
+        verbose_name_plural = 'Q&Aお気に入り'
         ordering = ['-created_at']
         constraints = [
             models.UniqueConstraint(

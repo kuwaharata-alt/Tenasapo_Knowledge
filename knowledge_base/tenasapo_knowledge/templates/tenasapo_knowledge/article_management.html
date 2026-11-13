@@ -2,9 +2,75 @@
 {% load article_extras %}
 
 {% block title %}記事管理 | Nexus{% endblock %}
+{% block body_class %}article-management-page{% endblock %}
+
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-journal-text"></i></span>記事管理
+            </h1>
+            <p class="page-title-sub">Q&amp;A・Tipsの内容や公開状態を確認し、記事を編集できます。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block content %}
 <style>
+    .article-management-page .app-main { overflow: hidden; }
+    .article-management-page .app-content { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .article-management-page .app-content > :not(.mgmt-results-card) { flex-shrink: 0; }
+    .mgmt-results-card { flex: 1 1 0; min-height: 0; min-width: 0; overflow: hidden; }
+    .mgmt-results { flex: 1 1 0; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .mgmt-results thead { position: sticky; top: 0; z-index: 2; }
+    .mgmt-results:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -2px; }
+    #mgmt-table { width: 100%; min-width: 760px; table-layout: fixed; }
+    #mgmt-table > :not(caption) > * > * { padding: 1rem; }
+    .mgmt-expandable-row { cursor: pointer; }
+    .mgmt-title-text { display: block; font-weight: 600; overflow-wrap: anywhere; }
+    .mgmt-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem 1rem; margin-top: .5rem; font-size: .78rem; color: var(--tk-muted); overflow-wrap: anywhere; }
+    .mgmt-kind { color: #fff; }
+    .mgmt-kind-faq { background: var(--bs-danger); }
+    .mgmt-kind-tips { background: #0077cc; }
+    .mgmt-status-badge { display: inline-flex; align-items: center; justify-content: center; width: 4.5rem; height: 1.75rem; padding: .25rem .5rem; border: 0; border-radius: .375rem; font-size: .75rem; font-weight: 600; line-height: 1; white-space: nowrap; box-sizing: border-box; }
+    .mgmt-status-published { background: #dbeafe; color: #1e40af; }
+    .mgmt-status-pending { background: #fef3c7; color: #78350f; }
+    .mgmt-status-unpublished { background: #e5e7eb; color: #374151; }
+    .mgmt-row-actions { display: grid; grid-template-columns: minmax(0, 1fr) 2rem; align-items: center; gap: .5rem; }
+    .mgmt-edit-action { display: flex; justify-content: center; }
+    .mgmt-title-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; color: var(--tk-muted); border: 0; background: transparent; justify-self: end; }
+    .mgmt-title-btn:hover { color: var(--tk-primary-dark); }
+    .mgmt-title-btn:focus-visible, .mgmt-sort-links a:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 3px; }
+    .mgmt-sort-links a { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .65rem; border: 1px solid var(--tk-border); border-radius: .4rem; background: var(--tk-surface); color: var(--tk-muted); font-size: .8rem; text-decoration: none; }
+    .mgmt-sort-links a:hover { background: #f3f4f6; color: var(--tk-text); }
+    .mgmt-sort-links a[aria-current="true"] { color: var(--tk-primary-dark); border-color: var(--tk-primary); background: var(--tk-primary-soft); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+    .mgmt-filter-toggle { box-shadow: none; }
+    #managementFilterPanel .modal-body { padding: 1.25rem; }
+    #managementFilterPanel .form-label { font-size: .85rem; font-weight: 500; margin-bottom: .5rem; }
+    #managementFilterPanel :is(.btn, .form-select, .form-control) { min-height: 2.5rem; font-size: .875rem; line-height: 1.4; border-radius: .45rem; }
+    #managementFilterPanel .btn { display: inline-flex; align-items: center; justify-content: center; padding: .5rem .85rem; box-shadow: none; }
+    .mgmt-status-options { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .mgmt-type-buttons { display: inline-flex; flex-wrap: wrap; gap: .15rem; padding: .2rem; border: 1px solid var(--tk-border); border-radius: 2rem; background: #fff8f1; max-width: 100%; }
+    #managementFilterPanel .mgmt-type-buttons .btn { min-width: 4.5rem; border-radius: 2rem; border-color: transparent; }
+    #managementFilterPanel .mgmt-type-buttons .btn-check:not(:checked) + .btn { background: transparent; }
+    #managementFilterPanel .mgmt-type-faq { color: #b91c1c; }
+    #managementFilterPanel .mgmt-type-tips { color: #0056a3; }
+    #managementFilterPanel .btn-check:checked + .btn { background: var(--tk-primary-soft); color: var(--tk-primary-dark); border-color: var(--tk-primary-dark); }
+    #managementFilterPanel .btn-check:checked + .mgmt-type-faq { background: #fee2e2; color: #b91c1c; border-color: currentColor; }
+    #managementFilterPanel .btn-check:checked + .mgmt-type-tips { background: #dbeafe; color: #0056a3; border-color: currentColor; }
+    .mgmt-status-text-published { color: #1e40af; }
+    .mgmt-status-text-unpublished { color: #374151; }
+    #managementFilterPanel .mgmt-status-options .btn:hover { background: #fff8f1; }
+    #managementFilterPanel .btn-check:focus-visible + .btn { outline: 2px solid var(--tk-primary); outline-offset: 2px; }
+    .mgmt-demo-switch { display: flex; justify-content: center; padding-left: 0; }
+    .mgmt-demo-switch .form-check-input { float: none; margin-left: 0; }
+    .mgmt-inline-body { min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+    .mgmt-inline-body * { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+    .mgmt-inline-body img { height: auto; }
+    .mgmt-inline-body pre { white-space: pre-wrap; overflow-x: auto; }
+    @media (max-width: 575.98px) { #mgmt-table > :not(caption) > * > * { padding: .75rem; } }
     .mgmt-title-btn,
     .mgmt-title-btn:hover,
     .mgmt-title-btn:focus,
@@ -12,144 +78,116 @@
         box-shadow: none !important;
     }
 </style>
-<div class="page-title-panel mb-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-        <div>
-            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-journal-text"></i></span>記事管理
-            </h1>
-        </div>
-    </div>
-</div>
 
-{# ── フィルターフォーム ── #}
-<div class="card mb-4">
-    <div class="card-body py-3">
-        <form method="get" class="row g-2 align-items-end">
-            <div class="col-6 col-sm-4 col-md-2 col-xl-1">
-                <label class="form-label fw-semibold small mb-1">カテゴリ</label>
-                <select class="form-select form-select-sm" name="article_type">
-                    <option value="" {% if not article_type %}selected{% endif %}>すべて</option>
-                    <option value="faq" {% if article_type == 'faq' %}selected{% endif %}>FAQ</option>
-                    <option value="tips" {% if article_type == 'tips' %}selected{% endif %}>Tips</option>
-                </select>
+{# ── フィルタモーダル（既存のGETパラメータを保持）── #}
+<div class="modal fade" id="managementFilterPanel" tabindex="-1" aria-labelledby="managementFilterLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <form method="get" class="modal-content" id="managementFilterForm">
+            <div class="modal-header">
+                <h5 class="modal-title" id="managementFilterLabel">フィルタ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
-            <div class="col-6 col-sm-4 col-md-3 col-xl-2">
-                <label class="form-label fw-semibold small mb-1">作成者</label>
-                <select class="form-select form-select-sm" name="author">
+            <div class="modal-body">
+                <div class="row g-3 align-items-end">
+                    <input type="hidden" name="sort" value="{{ sort_by }}">
+                    <input type="hidden" name="dir" value="{{ sort_dir }}">
+                    <fieldset class="col-12 mb-0">
+                        <legend class="form-label float-none w-auto">状態</legend>
+                        <div class="mgmt-status-options">
+                            <input class="btn-check" type="radio" name="status" id="mgmtStatusAll" value=""{% if not status_filter %} checked{% endif %}>
+                            <label class="btn btn-outline-secondary" for="mgmtStatusAll">すべて</label>
+                            <input class="btn-check" type="radio" name="status" id="mgmtStatusPublished" value="published"{% if status_filter == 'published' %} checked{% endif %}>
+                            <label class="btn btn-outline-secondary" for="mgmtStatusPublished"><span class="mgmt-status-text-published">公開中</span></label>
+                            <input class="btn-check" type="radio" name="status" id="mgmtStatusUnpublished" value="unpublished" aria-describedby="mgmtStatusHelp"{% if status_filter == 'unpublished' %} checked{% endif %}>
+                            <label class="btn btn-outline-secondary" for="mgmtStatusUnpublished"><span class="mgmt-status-text-unpublished">非公開</span></label>
+                        </div>
+                        <div class="form-text" id="mgmtStatusHelp">非公開には未承認の記事も含まれます。</div>
+                    </fieldset>
+                    <fieldset class="col-12 mb-0">
+                        <legend class="form-label float-none w-auto">種別</legend>
+                        <div class="mgmt-type-buttons">
+                            <input class="btn-check" type="radio" name="article_type" id="mgmtTypeAll" value=""{% if not article_type %} checked{% endif %}>
+                            <label class="btn btn-outline-secondary" for="mgmtTypeAll">すべて</label>
+                            <input class="btn-check" type="radio" name="article_type" id="mgmtTypeFaq" value="faq"{% if article_type == 'faq' %} checked{% endif %}>
+                            <label class="btn btn-outline-danger mgmt-type-faq" for="mgmtTypeFaq">Q&amp;A</label>
+                            <input class="btn-check" type="radio" name="article_type" id="mgmtTypeTips" value="tips"{% if article_type == 'tips' %} checked{% endif %}>
+                            <label class="btn btn-outline-primary mgmt-type-tips" for="mgmtTypeTips">Tips</label>
+                        </div>
+                    </fieldset>
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="mgmtAuthor">作成者</label>
+                <select class="form-select" id="mgmtAuthor" name="author">
                     <option value="" {% if not author_filter %}selected{% endif %}>すべて</option>
                     {% for user_item in author_choices %}
                         <option value="{{ user_item.name }}" {% if author_filter == user_item.name %}selected{% endif %}>{{ user_item.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-6 col-sm-4 col-md-2 col-xl-1">
-                <label class="form-label fw-semibold small mb-1">公開状態</label>
-                <select class="form-select form-select-sm" name="status">
-                    <option value="" {% if not status_filter %}selected{% endif %}>すべて</option>
-                    <option value="published" {% if status_filter == 'published' %}selected{% endif %}>公開中</option>
-                    <option value="unpublished" {% if status_filter == 'unpublished' %}selected{% endif %}>非公開</option>
-                </select>
-            </div>
-            <div class="col-12 col-sm-auto">
-                <label class="form-label fw-semibold small mb-1">期間（作成日）</label>
-                <div class="d-flex gap-1 align-items-center">
-                    <input class="form-control form-control-sm" type="date" name="date_from" value="{{ date_from }}" style="width:8.5rem;">
-                    <span class="text-muted small">〜</span>
-                    <input class="form-control form-control-sm" type="date" name="date_to" value="{{ date_to }}" style="width:8.5rem;">
+            <fieldset class="col-12 col-md-6 mb-0">
+                <legend class="form-label float-none w-auto">作成日</legend>
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label" for="mgmtDateFrom">開始日</label>
+                        <input class="form-control" id="mgmtDateFrom" type="date" name="date_from" value="{{ date_from }}">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label" for="mgmtDateTo">終了日</label>
+                        <input class="form-control" id="mgmtDateTo" type="date" name="date_to" value="{{ date_to }}">
+                    </div>
+                </div>
+            </fieldset>
                 </div>
             </div>
-            {# ソート値を保持 #}
-            <input type="hidden" name="sort" value="{{ sort_by }}">
-            <input type="hidden" name="dir" value="{{ sort_dir }}">
-            <div class="col-12 col-sm-auto ms-sm-auto">
-                <button class="btn btn-primary btn-sm" type="submit">絞り込み</button>
-                <a class="btn btn-outline-secondary btn-sm ms-1" href="{% url 'article_management' %}">リセット</a>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary me-auto" href="{% url 'article_management' %}">リセット</a>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">閉じる</button>
+                <button class="btn btn-primary" type="submit">絞り込み</button>
             </div>
         </form>
     </div>
 </div>
 
-{# ── 件数表示 ── #}
-<div class="mb-2 text-muted small">{{ articles|length }} 件</div>
+{# ── ソート・フィルタ・件数 ── #}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <nav class="mgmt-sort-links d-flex flex-wrap gap-3" aria-label="並び替え">
+        {% for option in management_sort_options %}
+            <a href="{{ option.url }}"{% if option.active %} aria-current="true"{% endif %}>{{ option.label }}{% if option.active %}<i class="bi {% if option.direction == 'asc' %}bi-arrow-up{% else %}bi-arrow-down{% endif %}" aria-hidden="true"></i><span class="visually-hidden">{% if option.direction == 'asc' %}昇順{% else %}降順{% endif %}</span>{% else %}<i class="bi bi-arrow-down-up opacity-50" aria-hidden="true"></i>{% endif %}</a>
+        {% endfor %}
+    </nav>
+    <div class="d-flex align-items-center gap-3 ms-auto">
+        <button class="btn btn-outline-secondary btn-sm mgmt-filter-toggle flex-shrink-0" type="button" data-bs-toggle="modal" data-bs-target="#managementFilterPanel" aria-haspopup="dialog" aria-controls="managementFilterPanel">
+            <i class="bi bi-funnel" aria-hidden="true"></i> フィルタ{% if article_type or author_filter or status_filter or date_from or date_to %}<span class="badge bg-secondary ms-2">適用中</span>{% endif %}
+        </button>
+        <div class="small text-muted text-nowrap">表示件数 <strong class="text-body">{{ articles|length }}</strong> 件</div>
+    </div>
+</div>
 
 {# ── 一覧テーブル ── #}
-<div class="card">
-    <div class="table-responsive">
+<div class="card mgmt-results-card">
+    <div class="table-responsive mgmt-results" role="region" aria-label="記事管理一覧" tabindex="0">
         <table class="table table-hover align-middle mb-0" id="mgmt-table">
             <thead class="table-light">
                 <tr>
-                    <th style="width:5rem;" class="text-center">カテゴリ</th>
-                    <th style="width:7rem;" class="text-center">管理番号</th>
-                    <th class="text-center">タイトル</th>
-                    <th style="width:8rem;" class="text-center">作成者</th>
-                    <th style="width:8.5rem;" class="text-nowrap text-center">
-                        {% if sort_by == 'created_at' %}
-                            {% if sort_dir == 'asc' %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=desc" class="text-decoration-none text-dark">作成日 ▲</a>
-                            {% else %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=asc" class="text-decoration-none text-dark">作成日 ▼</a>
-                            {% endif %}
-                        {% else %}
-                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=created_at&dir=desc" class="text-decoration-none text-muted">作成日</a>
-                        {% endif %}
-                    </th>
-                    <th style="width:8.5rem;" class="text-nowrap text-center">更新日</th>
-                    <th style="width:6rem;" class="text-center">公開状況</th>
-                    <th style="width:5rem;" class="text-nowrap text-center">
-                        {% if sort_by == 'good_count' %}
-                            {% if sort_dir == 'asc' %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=desc" class="text-decoration-none text-dark">👍 ▲</a>
-                            {% else %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=asc" class="text-decoration-none text-dark">👍 ▼</a>
-                            {% endif %}
-                        {% else %}
-                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=good_count&dir=desc" class="text-decoration-none text-muted">👍</a>
-                        {% endif %}
-                    </th>
-                    <th style="width:5rem;" class="text-nowrap text-center">
-                        {% if sort_by == 'view_count' %}
-                            {% if sort_dir == 'asc' %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=desc" class="text-decoration-none text-dark">閲覧 ▲</a>
-                            {% else %}
-                                <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=asc" class="text-decoration-none text-dark">閲覧 ▼</a>
-                            {% endif %}
-                        {% else %}
-                            <a href="?article_type={{ article_type }}&author={{ author_filter|urlencode }}&status={{ status_filter }}&date_from={{ date_from }}&date_to={{ date_to }}&sort=view_count&dir=desc" class="text-decoration-none text-muted">閲覧</a>
-                        {% endif %}
-                    </th>
-                    <th style="width:6rem;" class="text-center">デモ閲覧</th>
-                    {% if can_edit %}
-                        <th style="width:4rem;" class="text-center"></th>
-                    {% endif %}
+                    <th scope="col" class="text-center">記事</th>
+                    <th scope="col" style="width:7rem;" class="text-center text-nowrap">公開状態</th>
+                    <th scope="col" style="width:5rem;" class="text-center text-nowrap">いいね</th>
+                    <th scope="col" style="width:5rem;" class="text-center text-nowrap">閲覧</th>
+                    <th scope="col" style="width:8rem;" class="text-center text-nowrap">デモ閲覧</th>
+                    <th scope="col" style="width:9rem;" class="text-center">操作</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in articles %}
-                    <tr>
-                        <td class="text-center">
-                            {% if item.type == 'faq' %}
-                                <span class="badge text-bg-primary">FAQ</span>
-                            {% else %}
-                                <span class="badge text-bg-info text-white">Tips</span>
-                            {% endif %}
-                        </td>
-                        <td class="text-center text-muted small text-nowrap">{{ item.management_code|default:"-" }}</td>
+                    <tr class="mgmt-expandable-row">
                         <td>
-                            <button
-                                type="button"
-                                class="btn btn-link text-start p-0 text-decoration-none text-dark mgmt-title-btn small shadow-none"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#inline-detail-{{ item.type }}-{{ item.id }}"
-                                aria-expanded="false"
-                                aria-controls="inline-detail-{{ item.type }}-{{ item.id }}"
-                                data-detail-id="detail-{{ item.type }}-{{ item.id }}"
-                                data-modal-title="{{ item.title|escapejs }}"
-                                data-modal-type="{{ item.type }}"
-                            >
-                                <span>{{ item.title }}</span>
-                                <i class="bi bi-chevron-down ms-1 mgmt-toggle-icon" aria-hidden="true"></i>
-                            </button>
+                            <span class="mgmt-title-text">{{ item.title }}</span>
+                            <div class="mgmt-item-meta">
+                                <span class="badge mgmt-kind {% if item.type == 'faq' %}mgmt-kind-faq{% else %}mgmt-kind-tips{% endif %}">{% if item.type == 'faq' %}Q&amp;A{% else %}Tips{% endif %}</span>
+                                <span>{{ item.management_code|default:"-" }}</span>
+                                <span>作成者 {{ item.creator_display_name|default:"-" }}</span>
+                                <span>作成日 {{ item.created_at|date:"Y/m/d" }}</span>
+                                <span>更新日 {{ item.updated_at|date:"Y/m/d" }}</span>
+                            </div>
                             {% if item.category_chips %}
                                 <div class="d-flex flex-wrap gap-1 mt-1">
                                     {% for chip in item.category_chips %}
@@ -158,22 +196,13 @@
                                 </div>
                             {% endif %}
                         </td>
-                        <td class="text-muted small text-truncate" style="max-width:8rem;" title="{{ item.creator_display_name }}">
-                            {{ item.creator_display_name|default:"-" }}
-                        </td>
-                        <td class="text-muted small text-nowrap">
-                            {{ item.created_at|date:"Y/m/d" }}
-                        </td>
-                        <td class="text-muted small text-nowrap">
-                            {{ item.updated_at|date:"Y/m/d" }}
-                        </td>
-                        <td>
+                        <td class="text-center">
                             {% if item.is_published and item.is_approved %}
-                                <span class="badge bg-success">公開中</span>
+                                <span class="badge mgmt-status-badge mgmt-status-published">公開中</span>
                             {% elif item.is_published and not item.is_approved %}
-                                <span class="badge bg-warning text-dark">未承認</span>
+                                <span class="badge mgmt-status-badge mgmt-status-pending">未承認</span>
                             {% else %}
-                                <span class="badge bg-secondary">非公開</span>
+                                <span class="badge mgmt-status-badge mgmt-status-unpublished">非公開</span>
                             {% endif %}
                         </td>
                         <td class="text-center">{{ item.good_count }}</td>
@@ -192,25 +221,48 @@
                                     {% csrf_token %}
                                     <input type="hidden" name="article_type" value="{{ item.type }}">
                                     <input type="hidden" name="article_id" value="{{ item.id }}">
-                                    <input type="checkbox" class="form-check-input demo-visibility-checkbox" aria-label="{{ item.title }}のデモ閲覧" {% if item.visible_to_demo %}checked{% endif %}>
+                                    <div class="form-check form-switch mgmt-demo-switch">
+                                        <input type="checkbox" class="form-check-input demo-visibility-checkbox" aria-label="{{ item.title }}のデモ閲覧" {% if item.visible_to_demo %}checked{% endif %}>
+                                    </div>
                                     <div class="small demo-visibility-status" role="status" aria-live="polite"></div>
                                 </form>
                             {% else %}
-                                <input type="checkbox" class="form-check-input" aria-label="{{ item.title }}のデモ閲覧" disabled {% if item.visible_to_demo %}checked{% endif %}>
+                                <div class="form-check form-switch mgmt-demo-switch">
+                                    <input type="checkbox" class="form-check-input" aria-label="{{ item.title }}のデモ閲覧" disabled {% if item.visible_to_demo %}checked{% endif %}>
+                                </div>
                             {% endif %}
                         </td>
-                        {% if can_edit %}
-                            <td>
+                        <td>
+                            <div class="mgmt-row-actions">
+                                <div class="mgmt-edit-action">
+                            {% if can_edit %}
                                 {% if item.type == 'faq' %}
                                     <a class="btn btn-outline-secondary btn-sm" href="{% url 'article_edit' item.id %}">編集</a>
                                 {% else %}
                                     <a class="btn btn-outline-secondary btn-sm" href="{% url 'tip_edit' item.id %}">編集</a>
                                 {% endif %}
-                            </td>
-                        {% endif %}
+                            {% endif %}
+                                </div>
+                                <button
+                                    type="button"
+                                    class="btn mgmt-title-btn shadow-none"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#inline-detail-{{ item.type }}-{{ item.id }}"
+                                    aria-expanded="false"
+                                    aria-controls="inline-detail-{{ item.type }}-{{ item.id }}"
+                                    aria-label="{{ item.title }}の本文を展開・折りたたみ"
+                                    title="本文を展開・折りたたみ"
+                                    data-detail-id="detail-{{ item.type }}-{{ item.id }}"
+                                    data-modal-title="{{ item.title|escapejs }}"
+                                    data-modal-type="{{ item.type }}"
+                                >
+                                    <i class="bi bi-chevron-down mgmt-toggle-icon" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                        </td>
                     </tr>
                     <tr>
-                        <td colspan="{% if can_edit %}11{% else %}10{% endif %}" class="py-0 border-0">
+                        <td colspan="6" class="py-0 border-0">
                             <div class="collapse" id="inline-detail-{{ item.type }}-{{ item.id }}">
                                 <div class="p-3 border-top bg-light">
                                     <div class="mgmt-inline-body" data-detail-source-id="detail-{{ item.type }}-{{ item.id }}">
@@ -222,7 +274,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="{% if can_edit %}11{% else %}10{% endif %}" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-4">
                             該当する記事がありません。
                         </td>
                     </tr>
@@ -473,6 +525,17 @@ document.addEventListener('DOMContentLoaded', function() {
             } finally {
                 checkbox.disabled = false;
             }
+        });
+    });
+
+    document.querySelectorAll('.mgmt-expandable-row').forEach(function(row) {
+        row.addEventListener('click', function(event) {
+            if (event.defaultPrevented ||
+                event.target.closest('a, button, input, select, textarea, label, form, summary, [role="button"], [contenteditable]') ||
+                window.getSelection()?.toString()) {
+                return;
+            }
+            row.querySelector('.mgmt-title-btn')?.click();
         });
     });
 

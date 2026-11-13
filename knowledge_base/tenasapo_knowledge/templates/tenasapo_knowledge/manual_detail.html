@@ -1,6 +1,21 @@
 {% extends "base.html" %}
 {% block title %}{{ manual.title }} – マニュアル – Nexus{% endblock %}
 
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+        <span class="page-title-icon"><i class="bi bi-file-earmark-text-fill"></i></span>{{ manual.title }}
+    </h1>
+    <p class="page-title-sub">メニューの使い方や操作手順を確認できます。</p>
+    {% if manual.description %}
+        <p class="small text-muted mt-2 mb-0">{{ manual.description|truncatechars:80 }}</p>
+    {% endif %}
+    {% if not manual.is_published %}
+        <span class="badge bg-secondary mt-2">非公開</span>
+    {% endif %}
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="d-flex align-items-center gap-2 mb-3">
     <a href="{% url 'manual_list' %}" class="btn btn-outline-secondary btn-sm">← 一覧へ</a>
@@ -9,115 +24,43 @@
     {% endif %}
 </div>
 
-<div class="page-title-panel mb-4">
-    <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
-        <span class="page-title-icon"><i class="bi bi-file-earmark-text-fill"></i></span>{{ manual.title }}
-    </h1>
-    {% if manual.description %}
-        <p class="page-title-sub">{{ manual.description }}</p>
-    {% endif %}
-    {% if not manual.is_published %}
-        <span class="badge bg-secondary mt-2">非公開</span>
-    {% endif %}
-</div>
-
-<div id="pdf-viewer-wrap" class="p-3 p-lg-4" style="background:#2b2b2b; border-radius:1rem; box-shadow:0 18px 40px rgba(0,0,0,0.25);">
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-        <h2 class="h6 text-white mb-0">全ページ表示</h2>
-        <a href="{{ manual.pdf_file.url }}" download class="btn btn-sm btn-outline-warning">PDFダウンロード</a>
-    </div>
-
-    <div class="row g-3">
-        <div class="col-lg-3">
-            <div class="p-2 rounded" style="background:#3c3c3c; max-height:78vh; overflow-y:auto;">
-                <div id="thumb-list" class="d-grid gap-2"></div>
+<div class="row g-4">
+    <aside class="col-12 col-lg-3">
+        <nav class="card shadow-sm" aria-label="マニュアル内の項目へ移動">
+            <div class="card-header bg-white fw-semibold">このマニュアル</div>
+            <div class="list-group list-group-flush">
+                <a class="list-group-item list-group-item-action" href="#manual-overview">概要</a>
+                <a class="list-group-item list-group-item-action" href="#manual-body">使い方・操作手順</a>
+                <a class="list-group-item list-group-item-action" href="#manual-settings">登録情報</a>
             </div>
-        </div>
-        <div class="col-lg-9">
-            <div id="page-stack" class="p-2 rounded" style="background:#3c3c3c; max-height:78vh; overflow-y:auto;"></div>
-        </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <article class="card shadow-sm">
+            <div class="card-body p-4 p-lg-5">
+                <section id="manual-overview" aria-labelledby="manual-overview-title" class="mb-4">
+                    <h2 id="manual-overview-title" class="h5">概要</h2>
+                    <p class="text-muted mb-0">{{ manual.title }}の操作を、以下の手順に沿って進めてください。</p>
+                </section>
+                <section id="manual-body" aria-labelledby="manual-body-title" class="border-top pt-4">
+                    <h2 id="manual-body-title" class="h5 mb-3">使い方・操作手順</h2>
+                    {% if manual.description %}
+                        <div class="manual-text-body" style="white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9;">{{ manual.description }}</div>
+                    {% else %}
+                        <p class="text-muted">操作手順はまだ登録されていません。</p>
+                        {% if user.is_staff or user.is_superuser %}<a href="{% url 'manual_edit' manual.pk %}" class="btn btn-outline-primary btn-sm">操作手順を登録</a>{% endif %}
+                    {% endif %}
+                </section>
+                <section id="manual-settings" aria-labelledby="manual-settings-title" class="border-top pt-4 mt-4">
+                    <h2 id="manual-settings-title" class="h6">登録情報</h2>
+                    <dl class="row small text-muted mb-0">
+                        <dt class="col-sm-3">表示順</dt><dd class="col-sm-9">{{ manual.order }}</dd>
+                        <dt class="col-sm-3">公開状態</dt><dd class="col-sm-9">{% if manual.is_published %}公開{% else %}非公開{% endif %}</dd>
+                        <dt class="col-sm-3">最終更新</dt><dd class="col-sm-9">{{ manual.updated_at|date:"Y/m/d H:i" }}</dd>
+                    </dl>
+                </section>
+            </div>
+        </article>
     </div>
 </div>
-
-<script type="module">
-import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs';
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
-
-const PDF_URL = '{{ manual.pdf_file.url }}';
-const pageStack = document.getElementById('page-stack');
-const thumbList = document.getElementById('thumb-list');
-
-function createPageCard(pageNo) {
-    const section = document.createElement('section');
-    section.id = `page-${pageNo}`;
-    section.className = 'mb-3';
-
-    const label = document.createElement('div');
-    label.className = 'small text-white-50 mb-1';
-    label.textContent = `${pageNo} ページ`;
-
-    const frame = document.createElement('div');
-    frame.style.cssText = 'background:#ffffff;border-radius:.5rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
-
-    const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';
-
-    frame.appendChild(canvas);
-    section.appendChild(label);
-    section.appendChild(frame);
-    pageStack.appendChild(section);
-    return canvas;
-}
-
-function createThumb(pageNo) {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn btn-sm text-start p-1';
-    button.style.cssText = 'background:#2b2b2b;color:#fff;border:1px solid #555;';
-    button.onclick = () => {
-        const target = document.getElementById(`page-${pageNo}`);
-        if (target) {
-            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    };
-
-    const frame = document.createElement('div');
-    frame.style.cssText = 'background:#fff;border-radius:.35rem;overflow:hidden;display:flex;align-items:center;justify-content:center;';
-
-    const canvas = document.createElement('canvas');
-    canvas.style.cssText = 'max-width:100%;max-height:100%;display:block;';
-
-    const label = document.createElement('div');
-    label.className = 'small mt-1';
-    label.textContent = `${pageNo} ページ`;
-
-    frame.appendChild(canvas);
-    button.appendChild(frame);
-    button.appendChild(label);
-    thumbList.appendChild(button);
-    return canvas;
-}
-
-async function renderIntoCanvas(page, canvas, targetWidth) {
-    const base = page.getViewport({ scale: 1 });
-    const scale = targetWidth / base.width;
-    const viewport = page.getViewport({ scale });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-}
-
-(async () => {
-    const pdfDoc = await pdfjsLib.getDocument(PDF_URL).promise;
-    for (let pageNo = 1; pageNo <= pdfDoc.numPages; pageNo++) {
-        const page = await pdfDoc.getPage(pageNo);
-
-        const mainCanvas = createPageCard(pageNo);
-        await renderIntoCanvas(page, mainCanvas, 1024);
-
-        const thumbCanvas = createThumb(pageNo);
-        await renderIntoCanvas(page, thumbCanvas, 220);
-    }
-})();
-</script>
 {% endblock %}

@@ -1,0 +1,16 @@
+<div class="category-sidebar target-os-filter">
+    <div class="category-sidebar-title">対象OS</div>
+    <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="対象OSの絞り込み">
+        <a class="list-group-item category-sidebar-link {% if not selected_target_os %}active{% endif %}" href="{{ target_os_all_url }}"{% if not selected_target_os %} aria-current="true"{% endif %}>
+            <span>すべて</span>
+        </a>
+        {% for option in target_os_options %}
+        <a class="list-group-item category-sidebar-link {% if option.selected %}active{% endif %}" href="{{ option.url }}"{% if option.selected %} aria-current="true"{% endif %}>
+            <span>{{ option.name }}</span>
+            <span class="category-count">{{ option.count }}件</span>
+        </a>
+        {% empty %}
+        <div class="list-group-item small text-muted">対象OSの登録がありません。</div>
+        {% endfor %}
+    </div>
+</div>

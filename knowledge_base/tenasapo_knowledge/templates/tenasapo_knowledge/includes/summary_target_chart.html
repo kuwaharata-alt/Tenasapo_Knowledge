@@ -1,0 +1,33 @@
+<script>
+// Chart.js 4 local plugin. Zero is a target; null/undefined is not.
+window.summaryTargetChart = function(payload, actualMax) {
+    const value = payload.value;
+    const hasTarget = typeof value === 'number' && Number.isFinite(value) && value >= 0;
+    const maximum = Math.max(actualMax || 0, hasTarget ? value : 0);
+    return {
+        suggestedMax: maximum > 0 ? Math.ceil(maximum * 1.3) : 5,
+        plugin: {
+            id: 'postingTargetLine',
+            afterDatasetsDraw(chart) {
+                if (!hasTarget || !chart.chartArea || !chart.scales.y) return;
+                const {ctx, chartArea: area} = chart;
+                const y = chart.scales.y.getPixelForValue(value);
+                if (!Number.isFinite(y)) return;
+                ctx.save();
+                ctx.strokeStyle = '#dc2626';
+                ctx.fillStyle = '#dc2626';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(area.left, y);
+                ctx.lineTo(area.right, y);
+                ctx.stroke();
+                ctx.font = '600 12px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`${payload.label}: ${value} 件`, area.right - 4, Math.max(area.top + 14, y - 5));
+                ctx.restore();
+            },
+        },
+    };
+};
+</script>

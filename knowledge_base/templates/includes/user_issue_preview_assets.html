@@ -1,0 +1,22 @@
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('form[data-knowledge-completion="user-issue"]');
+    const email = form?.elements.namedItem('email_addresses');
+    const login = document.getElementById('issue-preview-login');
+    const password = document.getElementById('issue-preview-password');
+    const helper = document.getElementById('issue-preview-email-help');
+    if (!email || !login || !password || !helper) return;
+
+    function synchronizePreview() {
+        const value = email.value.trim();
+        login.value = value;
+        password.value = value.includes('@') ? value.split('@', 1)[0].trim() : '';
+        helper.textContent = value
+            ? '入力したメールアドレスからのプレビューです。発行時に確定します。'
+            : 'メールアドレスを入力すると、ログインIDと初期パスワードのプレビューが表示されます。';
+    }
+    email.addEventListener('input', synchronizePreview);
+    email.addEventListener('change', synchronizePreview);
+    synchronizePreview();
+});
+</script>

@@ -1,0 +1,79 @@
+{% load summary_extras %}
+<details class="summary-detail-panel" open id="monthly-breakdown-{{ detail_key }}">
+    <summary><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>月別内訳（表示期間内）</summary>
+    {% include 'tenasapo_knowledge/includes/summary_detail_help.html' with kind='months' title='月別内訳（表示期間内）' explanation='1〜6月・7〜12月の半年タブで、必ず6か月分の枠を表示します。投稿数・承認数は選択した表示期間の実績です。当月・前月選択時は対象月以外の実績を含まず、空欄の月は0件で表示します。承認済み件数は各記事の現在の状態です。投稿目標の半期区分とは別です。' %}
+    {% with halves=months|calendar_half_years:posting_targets.target_month %}
+    <div class="summary-half-tabs" role="tablist" aria-label="月別内訳の半年選択">
+        {% for half in halves %}
+            <button type="button" role="tab" id="half-tab-{{ detail_key }}-{{ half.key }}" aria-controls="half-panel-{{ detail_key }}-{{ half.key }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}" tabindex="{% if forloop.first %}0{% else %}-1{% endif %}">{{ half.label }}</button>
+        {% endfor %}
+    </div>
+    {% for half in halves %}
+    <div class="summary-half-panel table-responsive" role="tabpanel" id="half-panel-{{ detail_key }}-{{ half.key }}" aria-labelledby="half-tab-{{ detail_key }}-{{ half.key }}" tabindex="0" {% if not forloop.first %}hidden{% endif %}>
+        <table class="table align-middle mb-0 summary-detail-table summary-monthly-table" aria-label="月別の投稿実績と承認済み件数">
+            <colgroup>
+                <col style="width: 22%;">
+                <col style="width: 30%;">
+                <col style="width: 16%;">
+                <col style="width: 16%;">
+                <col style="width: 16%;">
+            </colgroup>
+            <thead class="text-nowrap">
+                <tr>
+                    <th scope="col">年月</th>
+                    <th scope="col">集計項目</th>
+                    <th scope="col" class="text-end">合計</th>
+                    <th scope="col" class="text-end">Q&amp;A</th>
+                    <th scope="col" class="text-end">Tips</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for month_item in half.months %}
+                    <tr class="summary-month-start">
+                        <th scope="rowgroup" rowspan="2" class="text-nowrap summary-month-label">{{ month_item.month }}</th>
+                        <th scope="row" class="text-nowrap">投稿数</th>
+                        <td class="text-end">{{ month_item.post_count_total }}</td>
+                        <td class="text-end">{{ month_item.faq_post_count }}</td>
+                        <td class="text-end">{{ month_item.tips_post_count }}</td>
+                    </tr>
+                    <tr class="summary-month-approved">
+                        <th scope="row" class="text-nowrap">承認済み件数</th>
+                        <td class="text-end">{{ month_item.approved_count_total }}</td>
+                        <td class="text-end">{{ month_item.faq_approved_count }}</td>
+                        <td class="text-end">{{ month_item.tips_approved_count }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+    {% endwith %}
+    <script>
+        (() => {
+            const root = document.getElementById('monthly-breakdown-{{ detail_key }}');
+            const tabs = Array.from(root.querySelectorAll('[role="tab"]'));
+            const activate = tab => {
+                tabs.forEach(button => {
+                    const selected = button === tab;
+                    button.setAttribute('aria-selected', String(selected));
+                    button.tabIndex = selected ? 0 : -1;
+                    document.getElementById(button.getAttribute('aria-controls')).hidden = !selected;
+                });
+            };
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('click', () => activate(tab));
+                tab.addEventListener('keydown', event => {
+                    let next;
+                    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+                    else if (event.key === 'Home') next = 0;
+                    else if (event.key === 'End') next = tabs.length - 1;
+                    else return;
+                    event.preventDefault();
+                    activate(tabs[next]);
+                    tabs[next].focus();
+                });
+            });
+        })();
+    </script>
+</details>

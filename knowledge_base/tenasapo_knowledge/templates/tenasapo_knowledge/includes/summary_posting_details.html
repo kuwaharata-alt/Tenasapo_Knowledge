@@ -1,0 +1,39 @@
+<div class="summary-posting-details">
+    <div class="summary-detail-stack">
+    <section class="summary-detail-panel">
+        <h4 class="summary-detail-heading"><i class="bi bi-check2-square me-1" aria-hidden="true"></i>表示期間の投稿・承認状況</h4>
+        {% include 'tenasapo_knowledge/includes/summary_detail_help.html' with kind='period' title='表示期間の投稿・承認状況' explanation='選択期間に投稿された記事の投稿数と、現在の承認済み件数です。全期間を選択した場合は過去の投稿を含む累積実績、当月・前月の場合はその月の実績です。累積目標の開始月（2026年6月）とは別です。承認した日時での集計ではありません。' %}
+        <div class="table-responsive">
+            <table class="table align-middle mb-0 summary-detail-table" aria-label="表示期間の投稿数と承認済み件数">
+                {% include 'tenasapo_knowledge/includes/summary_detail_columns.html' %}
+                <thead>
+                    <tr><th scope="col">種類</th><th scope="col" class="text-end">投稿数</th><th scope="col" class="text-end">承認済み件数</th></tr>
+                </thead>
+                <tbody>
+                    <tr class="summary-detail-total"><th scope="row">合計</th><td class="text-end">{{ stats.post_count_total }}</td><td class="text-end">{{ stats.approved_count_total }}</td></tr>
+                    <tr><th scope="row">Q&amp;A</th><td class="text-end">{{ stats.faq_post_count }}</td><td class="text-end">{{ stats.faq_approved_count }}</td></tr>
+                    <tr><th scope="row">Tips</th><td class="text-end">{{ stats.tips_post_count }}</td><td class="text-end">{{ stats.tips_approved_count }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+        <details class="summary-detail-panel">
+            <summary><i class="bi bi-calendar-check me-1" aria-hidden="true"></i>当月実績（表示期間とは別）</summary>
+            {% include 'tenasapo_knowledge/includes/summary_detail_help.html' with kind='current' title='当月実績（表示期間とは別）' explanation='実際の当月の月初から本日までに投稿された記事が対象です。前月・全期間を選んでも、この欄は当月のままです。承認済み件数はその記事の現在の状態です。' %}
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 summary-detail-table" aria-label="当月の投稿数と承認済み件数">
+                    {% include 'tenasapo_knowledge/includes/summary_detail_columns.html' %}
+                    <thead>
+                        <tr><th scope="col">種類</th><th scope="col" class="text-end">投稿数</th><th scope="col" class="text-end">承認済み件数</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="summary-detail-total"><th scope="row">合計</th><td class="text-end">{{ stats.current_month_post_count_total }}</td><td class="text-end">{{ stats.current_month_approved_count_total }}</td></tr>
+                        <tr><th scope="row">Q&amp;A</th><td class="text-end">{{ stats.current_month_faq_post_count }}</td><td class="text-end">{{ stats.current_month_faq_approved_count }}</td></tr>
+                        <tr><th scope="row">Tips</th><td class="text-end">{{ stats.current_month_tips_post_count }}</td><td class="text-end">{{ stats.current_month_tips_approved_count }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </div>
+    {% include 'tenasapo_knowledge/includes/summary_monthly_breakdown.html' with months=stats.monthly_totals %}
+</div>

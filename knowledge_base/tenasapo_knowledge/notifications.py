@@ -91,6 +91,40 @@ def uses_google_apps_script():
     return bool((getattr(settings, 'GOOGLE_CHAT_GAS_WEB_APP_URL', '') or '').strip())
 
 
+def send_scheduled_google_chat_message(message):
+    """One attempt only; never fall back after a possibly accepted request.
+
+    GAS HTTP 200 alone is not evidence of Chat delivery: require its explicit
+    ok/status envelope. Direct Chat must return a message resource name.
+    Exception details deliberately contain no destination or response body.
+    """
+    if isinstance(message, str):
+        payload = {'text': message}
+    elif isinstance(message, dict) and set(message) <= {'text', 'cardsV2'} and isinstance(message.get('text'), str):
+        payload = message
+    else:
+        raise GoogleChatNotificationError('予約通知の形式が不正です。')
+    url = get_google_chat_target_url()
+    via_gas = uses_google_apps_script()
+    # Keep top-level text for older deployed relays, without a second request.
+    request_payload = ({'action': 'scheduled_card', 'payload': payload, 'text': payload['text']}
+                       if via_gas and 'cardsV2' in payload else payload)
+    try:
+        status, body = _request_json_post(url, json.dumps(request_payload, ensure_ascii=False).encode('utf-8'))
+        data = json.loads(body)
+        accepted = isinstance(data, dict) and 200 <= status < 300
+        if via_gas:
+            accepted = (accepted and data.get('ok') is True
+                        and type(data.get('status')) is int and 200 <= data['status'] < 300)
+        else:
+            accepted = accepted and isinstance(data.get('name'), str) and bool(data['name'])
+        if not accepted:
+            raise ValueError('unconfirmed response')
+    except Exception:
+        raise GoogleChatNotificationError('予約通知の送信結果を確認できません。') from None
+    return {'status_code': status, 'confirmed': True}
+
+
 def _request_json_post(url, payload_bytes):
     request = Request(
         url,

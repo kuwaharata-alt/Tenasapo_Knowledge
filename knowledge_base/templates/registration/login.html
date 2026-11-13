@@ -3,54 +3,189 @@
 
 {% block title %}ログイン | Nexus{% endblock %}
 
+{% block body_class %}login-page{% endblock %}
+
+{% block extra_css %}
+<style>
+    .login-page .app-content {
+        max-width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .login-layout {
+        flex: 1 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .login-panel {
+        width: 100%;
+        max-width: 520px;
+        background: var(--tk-surface);
+        border: 1px solid var(--tk-border);
+        border-radius: 1rem;
+        padding: 2rem;
+    }
+    .login-title {
+        font-family: var(--tk-ui-font);
+        font-size: 2rem;
+        font-weight: 400;
+        font-style: normal;
+        color: var(--tk-primary-dark);
+        letter-spacing: 0;
+        margin-bottom: 1.8rem;
+        text-align: center;
+    }
+    .login-field {
+        margin-bottom: 2rem;
+    }
+    .login-label {
+        display: block;
+        color: var(--tk-muted);
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    .login-input {
+        width: 100%;
+        border: 0;
+        border-bottom: 1px solid var(--tk-border);
+        border-radius: 0.6rem 0.6rem 0 0;
+        padding: 0.5rem 0;
+        background: transparent;
+        color: var(--tk-text);
+    }
+    .login-input:focus {
+        outline: none;
+        border-bottom-color: var(--tk-primary);
+        box-shadow: none;
+    }
+    .login-meta {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+        flex-wrap: nowrap;
+    }
+    .login-meta .form-check-label,
+    .login-meta a {
+        color: var(--tk-text);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+    .login-submit {
+        width: 100%;
+        border: 0;
+        border-radius: 0.75rem;
+        padding: 0.85rem 1rem;
+        font-weight: 700;
+        color: #fff;
+        background: var(--tk-primary);
+        box-shadow: none;
+    }
+    .login-submit:hover,
+    .login-submit:focus,
+    .login-submit:active {
+        background: var(--tk-primary-dark) !important;
+        color: #fff !important;
+    }
+    .login-separator {
+        text-align: center;
+        color: var(--tk-text);
+        margin: 1rem 0;
+    }
+    .login-google {
+        width: 100%;
+        border: 1px solid var(--tk-border);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        color: var(--tk-text);
+        text-decoration: none;
+        background: var(--tk-surface);
+    }
+    .login-google:hover {
+        color: var(--tk-text);
+        background: var(--tk-primary-soft);
+    }
+    .login-google-icon {
+        width: 1.2rem;
+        height: 1.2rem;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    @media (max-width: 576px) {
+        .login-panel {
+            max-width: 100%;
+            padding: 1.5rem;
+        }
+        .login-meta {
+            gap: 0.5rem;
+            font-size: 0.82rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-12 col-sm-8 col-md-5 col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h1 class="h4 mb-4">ログイン</h1>
-                {% if form.errors %}
-                    <div class="alert alert-danger" role="alert">
-                        アカウントまたはパスワードが正しくありません。
-                    </div>
-                {% endif %}
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="next" value="{{ next }}">
-                    <div class="mb-3">
-                        <label class="form-label" for="{{ form.username.id_for_label }}">ログインID</label>
-                        <input
-                            class="form-control"
-                            type="text"
-                            name="{{ form.username.html_name }}"
-                            id="{{ form.username.id_for_label }}"
-                            autocomplete="username"
-                            autofocus
-                            required
-                        >
-                    </div>
-                    <div class="mb-4">
-                        <label class="form-label" for="{{ form.password.id_for_label }}">パスワード</label>
-                        <input
-                            class="form-control"
-                            type="password"
-                            name="{{ form.password.html_name }}"
-                            id="{{ form.password.id_for_label }}"
-                            autocomplete="current-password"
-                            required
-                        >
-                    </div>
-                    <button class="btn btn-primary w-100" type="submit">ログイン</button>
-                </form>
-                <div class="mt-3 text-center">
-                    <a href="{% url 'password_reset' %}" class="small text-decoration-none">パスワードを忘れたときは</a>
-                </div>
-                <div class="text-center my-3 text-muted">または</div>
-                <a class="btn btn-outline-secondary w-100" href="{% provider_login_url 'google' process='login' next=next %}">
-                    Googleでログイン
-                </a>
+<div class="login-layout">
+    <div class="login-panel">
+        <h1 class="login-title">～Nexus～</h1>
+        {% if form.errors %}
+            <div class="alert alert-danger" role="alert">
+                アカウントまたはパスワードが正しくありません。
             </div>
-        </div>
+        {% endif %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+            <div class="login-field">
+                <label class="login-label" for="{{ form.username.id_for_label }}">ログイン ID</label>
+                <input
+                    class="login-input"
+                    type="text"
+                    name="{{ form.username.html_name }}"
+                    id="{{ form.username.id_for_label }}"
+                    value="{{ form.username.value|default:'' }}"
+                    autocomplete="username"
+                    autofocus
+                    required
+                >
+            </div>
+            <div class="login-field">
+                <label class="login-label" for="{{ form.password.id_for_label }}">パスワード</label>
+                <input
+                    class="login-input"
+                    type="password"
+                    name="{{ form.password.html_name }}"
+                    id="{{ form.password.id_for_label }}"
+                    autocomplete="current-password"
+                    required
+                >
+            </div>
+            <div class="login-meta">
+                <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" id="keep-login" name="remember_me">
+                    <label class="form-check-label" for="keep-login">ログイン状態を保持する</label>
+                </div>
+                <a href="{% url 'password_reset' %}">パスワードを忘れた場合</a>
+            </div>
+            <button class="btn login-submit" type="submit">ログイン</button>
+        </form>
+        <div class="login-separator">または</div>
+        <a class="login-google" href="{% provider_login_url 'google' process='login' next=next %}">
+            <svg class="login-google-icon" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.659 32.657 29.249 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.108 19.024 13 24 13c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/>
+                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.23 0-9.627-3.326-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-1.019 2.905-3.019 5.321-5.584 6.904l6.19 5.238C35.476 39.81 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+            </svg>
+            <span>Google でログインする（社員用）</span>
+        </a>
     </div>
 </div>
 {% endblock %}

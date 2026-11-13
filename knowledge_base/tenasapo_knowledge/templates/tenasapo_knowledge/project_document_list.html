@@ -1,72 +1,32 @@
 {% extends "base.html" %}
 
 {% block title %}ドキュメント保管庫 | Nexus{% endblock %}
+{% block body_class %}knowledge-split-page{% endblock %}
 
-{% block content %}
-<style>
-    /* ターコイズグリーン（ティール系）の上品なボタン用カスタムスタイル */
-    .btn-outline-turquoise {
-        color: #0b9385 !important;
-        border-color: #0b9385 !important;
-        background-color: transparent !important;
-        transition: all 0.2s ease-in-out;
-    }
-    .btn-outline-turquoise:hover,
-    .btn-outline-turquoise:focus,
-    .btn-outline-turquoise:active {
-        color: #ffffff !important;
-        background-color: #0b9385 !important;
-        border-color: #0b9385 !important;
-    }
-    .btn-outline-turquoise:disabled {
-        color: #adb5bd !important;
-        border-color: #e9ecef !important;
-        background-color: transparent !important;
-        cursor: not-allowed;
-    }
-</style>
-
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
         <div class="me-md-auto">
             <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-folder2-open"></i></span>ドキュメント保管庫
             </h1>
+            <p class="page-title-sub">案件ドキュメントの検索・ダウンロードができます。</p>
         </div>
         <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
             {% if can_create_document %}
-                <a class="btn btn-primary" href="{% url 'project_document_create' %}">登録</a>
+                <a class="btn btn-primary" href="{% url 'project_document_create' %}">新規登録</a>
             {% endif %}
         </div>
     </div>
 </div>
+{% endblock %}
 
-<div class="search-panel py-3 mb-4">
-    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
-        {% if selected_parent_category %}
-            <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
-        {% endif %}
-        {% if selected_category %}
-            <input type="hidden" name="category" value="{{ selected_category }}">
-        {% endif %}
-        <div class="col-12 col-md-7">
-            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="案件番号・顧客名・製品名・バージョン・タイトルで検索" aria-label="案件番号・顧客名・製品名・バージョン・タイトルで検索">
-        </div>
-        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-            <button class="btn btn-primary text-nowrap" type="submit" style="min-height:38px;">検索</button>
-            <input type="checkbox" class="btn-check" id="btn-check-temp" name="template" value="true" {% if temp_only %}checked{% endif %} onchange="this.form.submit()">
-            <label class="btn {% if temp_only %}btn-warning text-dark{% else %}btn-outline-warning{% endif %} d-flex align-items-center gap-1 fw-bold text-nowrap" for="btn-check-temp" style="min-height:38px;">
-                <i class="bi {% if temp_only %}bi-star-fill{% else %}bi-star{% endif %}"></i> Tempのみ
-            </label>
-        </div>
-    </form>
-</div>
-
-<div class="row g-4 align-items-start">
-    <aside class="col-12 col-lg-2 category-sidebar-col">
+{% block content %}
+<div class="row knowledge-split-row">
+    <aside class="col-12 col-lg-2 category-sidebar-col" tabindex="0" aria-label="カテゴリ一覧">
         <div class="category-sidebar">
             <div class="category-sidebar-title">カテゴリ</div>
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="カテゴリ項目">
                 <a
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
                     href="?q={{ query|urlencode }}"
@@ -141,7 +101,29 @@
         </div>
     </aside>
 
-    <section class="col-12 col-lg-10 category-content-col">
+    <section class="col-12 col-lg-10 category-content-col" tabindex="0" aria-label="ドキュメント一覧">
+        <div class="search-panel py-3">
+            <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+                {% if selected_parent_category %}
+                    <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
+                {% endif %}
+                {% if selected_category %}
+                    <input type="hidden" name="category" value="{{ selected_category }}">
+                {% endif %}
+                <div class="col-12 col-md-7">
+                    <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
+                </div>
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+                    <button class="btn btn-primary text-nowrap" type="submit" style="min-height:38px;">検索</button>
+                    <input type="checkbox" class="btn-check" id="btn-check-temp" name="template" value="true" {% if temp_only %}checked{% endif %} onchange="this.form.submit()">
+                    <label class="btn btn-toolbar-secondary d-flex align-items-center gap-1 text-nowrap" for="btn-check-temp" style="min-height:38px;">
+                        <i class="bi {% if temp_only %}bi-star-fill{% else %}bi-star{% endif %}"></i> Tempのみ
+                    </label>
+                </div>
+            </form>
+        </div>
+
+        <div class="knowledge-results" tabindex="0" role="region" aria-label="ドキュメント一覧">
         {% if grouped_documents %}
             <div class="d-flex flex-column gap-3">
                 {% for group in grouped_documents %}
@@ -151,60 +133,46 @@
                     {% for document in group.documents %}
                         <article class="card shadow-sm" style="border-radius:0.9rem; border-color:var(--tk-border);">
                             <div class="card-body">
-                                <div class="row g-3 align-items-center">
-                                    <div class="col-12 col-md-8 col-lg-8">
-                                        <!-- ドキュメントタイトル -->
-                                        <h5 class="fw-bold text-dark mb-2">
-                                            {% if document.is_template %}
-                                                <span class="badge bg-warning text-dark me-1" style="font-size: 0.75rem; vertical-align: middle;"><i class="bi bi-star-fill"></i> Temp</span>
-                                            {% endif %}
-                                            {{ document.title }}
-                                        </h5>
-
-                                        <!-- 製品名（バージョン） -->
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="flex-grow-1" style="min-width:0; overflow-wrap:anywhere;">
                                         {% if document.product_name %}
-                                            <div class="text-secondary mb-2" style="font-size:0.95rem;">
+                                            <div class="text-secondary mb-1" style="font-size:0.95rem;">
                                                 製品名: {{ document.product_name }}{% if document.product_version %}（{{ document.product_version }}）{% endif %}
                                             </div>
                                         {% endif %}
-
-                                        <!-- 【案件番号】顧客 -->
-                                        <div class="fw-semibold text-muted mb-0" style="font-size:0.9rem;">
-                                            【{{ document.project_number }}】{{ document.customer_name }}
+                                        <h5 class="fw-bold text-dark mb-0">{{ document.title }}</h5>
+                                        <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                            {% if document.is_template %}
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-star-fill" aria-hidden="true"></i> Temp</span>
+                                            {% endif %}
+                                            <span class="badge faq-category-chip">{{ document.category }}</span>
+                                            <span class="badge faq-meta-badge">{{ document.uploader_display_name|default:'-' }}</span>
+                                            <span class="badge faq-meta-badge">最終更新日：{{ document.updated_at|date:"Y/m/d" }}</span>
                                         </div>
                                     </div>
-
-                                    <!-- ボタンの配置変更 (7:3くらいのグリッド比率に設定) -->
-                                    <div class="col-12 col-md-4 col-lg-4 d-flex flex-column gap-2 align-items-start align-items-md-end justify-content-center">
-                                        <!-- 上段: 更新 履歴 -->
-                                        <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
-                                            {% if can_create_document %}
-                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{% url 'project_document_edit' document.id %}"><i class="bi bi-pencil-square"></i> 更新</a>
-                                            {% endif %}
-                                            <button class="btn btn-outline-turquoise btn-sm text-nowrap" onclick="openHistoryModal(this)" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"><i class="bi bi-clock-history"></i> 履歴</button>
-                                        </div>
-                                        <!-- 下段: Office版 PDF版 表示 -->
-                                        <div class="d-flex flex-wrap gap-2 justify-content-start justify-content-md-end">
-                                            {% if document.download_office_url %}
-                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{{ document.download_office_url }}?download=1"><i class="bi bi-file-earmark-word"></i> Office版</a>
-                                            {% else %}
-                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-word"></i> Office版</button>
-                                            {% endif %}
-
-                                            {% if document.download_pdf_url %}
-                                                <a class="btn btn-outline-turquoise btn-sm text-nowrap" href="{{ document.download_pdf_url }}?download=1"><i class="bi bi-file-earmark-pdf"></i> PDF版</a>
-                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" onclick="openPdfModal(this)" data-pdf-url="{{ document.download_pdf_url }}" data-pdf-title="{{ document.title }}"><i class="bi bi-eye"></i> 表示</button>
-                                            {% else %}
-                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-file-earmark-pdf"></i> PDF版</button>
-                                                <button class="btn btn-outline-turquoise btn-sm text-nowrap" disabled><i class="bi bi-eye"></i> 表示</button>
-                                            {% endif %}
-                                        </div>
+                                    <button class="btn btn-sm knowledge-action-toggle flex-shrink-0" type="button"
+                                        popovertarget="documentActions{{ document.id }}"
+                                        aria-label="{{ document.title }}の操作" aria-expanded="false" title="操作">
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+                                    <div id="documentActions{{ document.id }}" popover="auto" class="knowledge-action-menu">
+                                        {% if can_create_document %}
+                                            <a class="dropdown-item" href="{% url 'project_document_edit' document.id %}"><i class="bi bi-pencil-square me-2" aria-hidden="true"></i>更新</a>
+                                        {% endif %}
+                                        <button class="dropdown-item" type="button" onclick="openHistoryModal(this)" data-document-id="{{ document.id }}" data-document-title="{{ document.title }}"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>履歴</button>
+                                        {% if document.download_office_url %}
+                                            <a class="dropdown-item" href="{{ document.download_office_url }}?download=1"><i class="bi bi-file-earmark-word me-2" aria-hidden="true"></i>ダウンロード（Office版）</a>
+                                        {% else %}
+                                            <button class="dropdown-item" type="button" disabled aria-disabled="true"><i class="bi bi-file-earmark-word me-2" aria-hidden="true"></i>ダウンロード（Office版）</button>
+                                        {% endif %}
+                                        {% if document.download_pdf_url %}
+                                            <a class="dropdown-item" href="{{ document.download_pdf_url }}?download=1"><i class="bi bi-file-earmark-pdf me-2" aria-hidden="true"></i>ダウンロード（PDF版）</a>
+                                            <button class="dropdown-item" type="button" onclick="openPdfModal(this)" data-pdf-url="{{ document.download_pdf_url }}" data-pdf-title="{{ document.title }}"><i class="bi bi-eye me-2" aria-hidden="true"></i>表示</button>
+                                        {% else %}
+                                            <button class="dropdown-item" type="button" disabled aria-disabled="true"><i class="bi bi-file-earmark-pdf me-2" aria-hidden="true"></i>ダウンロード（PDF版）</button>
+                                            <button class="dropdown-item" type="button" disabled aria-disabled="true"><i class="bi bi-eye me-2" aria-hidden="true"></i>表示</button>
+                                        {% endif %}
                                     </div>
-                                </div>
-                                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
-                                    <span class="badge faq-category-chip">{{ document.category }}</span>
-                                    <span class="badge faq-meta-badge">{{ document.uploader_display_name|default:'-' }}</span>
-                                    <span class="badge faq-meta-badge">最終更新日：{{ document.updated_at|date:"Y/m/d" }}</span>
                                 </div>
                             </div>
                         </article>
@@ -217,6 +185,7 @@
                 <p class="mt-3 text-muted mb-0">該当するドキュメントはありません。</p>
             </div>
         {% endif %}
+        </div>
     </section>
 </div>
 
@@ -320,7 +289,7 @@ window.openHistoryModal = async function(btn) {
                         aOffice.className = 'btn btn-outline-primary btn-sm py-0 px-2 text-start';
                         aOffice.style.fontSize = '0.8rem';
                         aOffice.href = rev.download_office_url + '?download=1';
-                        aOffice.innerHTML = '<i class="bi bi-file-earmark-word"></i> Office版';
+                        aOffice.innerHTML = '<i class="bi bi-file-earmark-word"></i> ダウンロード（Office版）';
                         tdFiles.appendChild(aOffice);
                     }
                     
@@ -329,7 +298,7 @@ window.openHistoryModal = async function(btn) {
                         aPdf.className = 'btn btn-outline-secondary btn-sm py-0 px-2 text-start mt-1';
                         aPdf.style.fontSize = '0.8rem';
                         aPdf.href = rev.download_pdf_url + '?download=1';
-                        aPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> PDF版';
+                        aPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> ダウンロード（PDF版）';
                         tdFiles.appendChild(aPdf);
                     }
                     

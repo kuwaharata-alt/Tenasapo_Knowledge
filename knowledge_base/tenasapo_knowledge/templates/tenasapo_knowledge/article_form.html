@@ -1,35 +1,52 @@
 ﻿{% extends "base.html" %}
 
-{% block title %}{{ form_title|default:"FAQ登録" }} | Nexus{% endblock %}
+{% block title %}{% if form_title|slice:":3" == "FAQ" %}Q&amp;A{{ form_title|slice:"3:" }}{% else %}{{ form_title|default:"Q&amp;A登録" }}{% endif %} | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-                    <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"FAQ登録" }}
-                    {% if article and article.management_code %}<span class="badge bg-secondary" style="font-size:0.75rem;">{{ article.management_code }}</span>{% endif %}
-                    {% if article and article.is_approved and article.visible_to_customer %}<span class="badge bg-success">公開中</span>{% endif %}
-                </h1>
+                <div>
+                    <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                        <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{% if form_title|slice:":3" == "FAQ" %}Q&amp;A{{ form_title|slice:"3:" }}{% else %}{{ form_title|default:"Q&amp;A登録" }}{% endif %}
+                        {% if article and article.management_code %}<span class="badge bg-secondary" style="font-size:0.75rem;">{{ article.management_code }}</span>{% endif %}
+                        {% if article and article.is_approved and article.visible_to_customer %}<span class="badge bg-success">公開中</span>{% endif %}
+                    </h1>
+                    <p class="page-title-sub">Q&amp;Aの質問・回答や公開設定を入力・確認できます。</p>
+                </div>
             </div>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <form class="card shadow-sm" method="post" enctype="multipart/form-data" id="articleMainForm">
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    {% include 'includes/knowledge_form_navigation.html' with kind='faq' %}
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data" id="articleMainForm" data-knowledge-completion="faq">
             <div class="card-body p-4">
                 {% csrf_token %}
-                <input type="hidden" name="submit_action" id="id_submit_action" value="update">
+                <input type="hidden" name="submit_action" id="id_submit_action" value="{% if article_approval_status == 'remanded' %}correct{% else %}update{% endif %}">
                 {% if form.non_field_errors %}
                     <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                        <div class="form-section-label mb-0">カテゴリ <span class="text-danger">*</span></div>
-                        <div class="d-flex gap-2">
-                            <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
-                            <a class="btn btn-outline-primary btn-sm" href="{{ tag_create_url }}">タグ登録</a>
-                        </div>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-title" data-form-section tabindex="-1" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2" id="title-help">質問の内容がひと目で分かるタイトルを入力してください。</div>
+                        {% if is_demo_user %}
+                            <div class="alert alert-warning py-2 mb-2">デモ環境のため、一部の機能が制限されています</div>
+                        {% endif %}
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
+                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <div class="form-section-label mb-0" id="form-section-category" data-form-section tabindex="-1">カテゴリ <span class="text-danger">*</span></div>
                     </div>
                     <div class="col-12">
                         <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
@@ -62,23 +79,22 @@
                         </div>
                         {% for error in form.registered_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         <div id="faqCategoryHiddenContainer" style="display:none;"></div>
+                        {% if not article %}{% include 'includes/knowledge_duplicate_check_button.html' %}{% endif %}
+                        <div class="mt-3">
+                            <div class="form-text mb-2">カテゴリがない場合は下記ボタンから追加してください。</div>
+                            <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
+                            <a class="btn btn-outline-primary btn-sm" href="{{ tag_create_url }}" hidden>タグ登録</a>
+                        </div>
                     </div>
-                    <div class="col-12">
+                    <div class="col-12" hidden>
                         <label class="form-label form-subsection-label" for="{{ form.tags.id_for_label }}">{{ form.tags.label }}</label>
                         <input class="form-control{% if form.tags.errors %} is-invalid{% endif %}" type="text" name="{{ form.tags.html_name }}" id="{{ form.tags.id_for_label }}" value="{{ form.tags.value|default_if_none:'' }}" placeholder="例: IP, 設定, ネットワーク">
                         {% if form.tags.help_text %}<div class="form-text">{{ form.tags.help_text }}</div>{% endif %}
                         {% for error in form.tags.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
-                        {% if is_demo_user %}
-                            <div class="alert alert-warning py-2 mb-2">デモ環境のため、一部の機能が制限されています</div>
-                        {% endif %}
-                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
-                        {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <div class="form-section-label">対象OS <span class="text-danger">*</span></div>
+                        <div class="form-section-label" id="form-section-os" data-form-section tabindex="-1">対象OS <span class="text-danger">*</span></div>
+                        <div class="form-text mb-2">対象となるOS・バージョン・条件を選択してください。複数ある場合は行を追加できます。</div>
                     </div>
                     <div class="col-12">
                         <div id="articleTargetOsRows" class="d-flex flex-column gap-3">
@@ -119,58 +135,15 @@
                         <input type="hidden" name="{{ form.target_os_entries.html_name }}" id="{{ form.target_os_entries.id_for_label }}" value="{{ form.target_os_entries.value|default_if_none:'' }}">
                         {% for error in form.target_os_entries.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
+                    {{ form.source_published_at }}
+                    {{ form.expires_on }}
+                    {% for error in form.source_published_at.errors %}<div class="col-12"><div class="alert alert-danger">{{ form.source_published_at.label }}：{{ error }}</div></div>{% endfor %}
+                    {% for error in form.expires_on.errors %}<div class="col-12"><div class="alert alert-danger">{{ form.expires_on.label }}：{{ error }}</div></div>{% endfor %}
                     <div class="col-12">
-                        <div class="form-section-label">表示対象</div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div class="form-check mt-2">
-                            <input class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_customer.html_name }}" id="id_visible_to_customer" {% if form.visible_to_customer.value %}checked{% endif %}>
-                            <label class="form-check-label" for="id_visible_to_customer">カスタマーユーザーに表示する</label>
-                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div class="form-check mt-2">
-                            <input class="form-check-input{% if form.visible_to_systena.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_systena.html_name }}" id="id_visible_to_systena" {% if form.visible_to_systena.value %}checked{% endif %}>
-                            <label class="form-check-label" for="id_visible_to_systena">システナユーザーに表示する</label>
-                            {% for error in form.visible_to_systena.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <div class="form-check mt-2">
-                            <input class="form-check-input{% if form.visible_to_demo.errors %} is-invalid{% endif %}" type="checkbox" name="{{ form.visible_to_demo.html_name }}" id="id_visible_to_demo" {% if form.visible_to_demo.value %}checked{% endif %}>
-                            <label class="form-check-label" for="id_visible_to_demo">デモユーザーに表示する</label>
-                            {% for error in form.visible_to_demo.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                        </div>
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-subsection-label" for="{{ form.source_published_at.id_for_label }}">{{ form.source_published_at.label }} <span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.source_published_at.errors %} is-invalid{% endif %}" type="date" name="{{ form.source_published_at.html_name }}" id="{{ form.source_published_at.id_for_label }}" value="{{ form.source_published_at.value|date:'Y-m-d'|default_if_none:'' }}" required>
-                        {% for error in form.source_published_at.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label form-subsection-label" for="{{ form.expires_on.id_for_label }}">{{ form.expires_on.label }}</label>
-                        <input class="form-control{% if form.expires_on.errors %} is-invalid{% endif %}" type="date" name="{{ form.expires_on.html_name }}" id="{{ form.expires_on.id_for_label }}" value="{{ form.expires_on.value|date:'Y-m-d'|default_if_none:'' }}">
-                        {% for error in form.expires_on.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.question.id_for_label }}">質問 <span class="text-danger">*</span></label>
+                        <label class="form-label form-section-label" id="form-section-question" data-form-section tabindex="-1" for="{{ form.question.id_for_label }}">質問 <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">困っていることや確認したいことを、状況・条件とともに入力してください。「概要」「手順」など任意の見出しと本文をセットにして追加できます。</div>
                         {% if form.question.help_text %}<div class="form-text mb-2">{{ form.question.help_text }}</div>{% endif %}
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                            <span class="small text-muted me-1">スタイル</span>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-dark bg-white text-dark fw-bold" style="text-decoration:underline;" data-format-target="{{ form.question.id_for_label }}" data-format-name="tk_heading1">■ 見出し1</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-secondary bg-white text-dark" data-format-target="{{ form.question.id_for_label }}" data-format-name="tk_body">本文</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-danger bg-white text-danger fw-bold" data-format-target="{{ form.question.id_for_label }}" data-format-name="tk_caution">注意</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-primary bg-white text-primary fw-bold" data-format-target="{{ form.question.id_for_label }}" data-format-name="tk_point">ポイント</button>
-                        </div>
                         <textarea class="rich-text-source{% if form.question.errors %} is-invalid{% endif %}" name="{{ form.question.html_name }}" id="{{ form.question.id_for_label }}" rows="8" data-wysiwyg="true">{{ form.question.value|default_if_none:'' }}</textarea>
-                        <div class="small text-muted mb-1 d-none">プレビュー編集</div>
-                        <div
-                            class="form-control bg-white d-none"
-                            data-rich-editor-disabled-for="{{ form.question.id_for_label }}"
-                            contenteditable="true"
-                            style="min-height:12rem; max-height:24rem; overflow:auto;"
-                        ></div>
                         {% for error in form.question.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
@@ -206,23 +179,10 @@
                         {% endif %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.answer.id_for_label }}">回答 <span class="text-danger">*</span></label>
+                        <label class="form-label form-section-label" id="form-section-answer" data-form-section tabindex="-1" for="{{ form.answer.id_for_label }}">回答 <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">質問への回答や解決手順を、注意点も含めて分かりやすく入力してください。見出しと本文のセットは追加・並べ替えできます。</div>
                         {% if form.answer.help_text %}<div class="form-text mb-2">{{ form.answer.help_text }}</div>{% endif %}
-                        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-                            <span class="small text-muted me-1">スタイル</span>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-dark bg-white text-dark fw-bold" style="text-decoration:underline;" data-format-target="{{ form.answer.id_for_label }}" data-format-name="tk_heading1">■ 見出し1</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-secondary bg-white text-dark" data-format-target="{{ form.answer.id_for_label }}" data-format-name="tk_body">本文</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-danger bg-white text-danger fw-bold" data-format-target="{{ form.answer.id_for_label }}" data-format-name="tk_caution">注意</button>
-                            <button type="button" class="btn btn-sm rounded-pill px-3 shadow-sm border border-primary bg-white text-primary fw-bold" data-format-target="{{ form.answer.id_for_label }}" data-format-name="tk_point">ポイント</button>
-                        </div>
                         <textarea class="rich-text-source{% if form.answer.errors %} is-invalid{% endif %}" name="{{ form.answer.html_name }}" id="{{ form.answer.id_for_label }}" rows="8" data-wysiwyg="true">{{ form.answer.value|default_if_none:'' }}</textarea>
-                        <div class="small text-muted mb-1 d-none">プレビュー編集</div>
-                        <div
-                            class="form-control bg-white d-none"
-                            data-rich-editor-disabled-for="{{ form.answer.id_for_label }}"
-                            contenteditable="true"
-                            style="min-height:12rem; max-height:24rem; overflow:auto;"
-                        ></div>
                         {% for error in form.answer.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
@@ -258,7 +218,8 @@
                         {% endif %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label">参考</label>
+                        <label class="form-label form-section-label" id="form-section-reference" data-form-section tabindex="-1">参考</label>
+                        <div class="form-text mb-2">参考となるURLや補足資料がある場合は追加してください。未入力でも登録できます。</div>
                     </div>
                     <div class="col-12">
                         <label class="form-label form-subsection-label">参考URL</label>
@@ -298,16 +259,45 @@
                             </div>
                         {% endif %}
                     </div>
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-visibility" data-form-section tabindex="-1">表示対象</div>
+                        <div class="form-text mb-2">このQ&amp;Aを表示するユーザーの種類を選択してください。</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input{% if form.visible_to_customer.errors %} is-invalid{% endif %}" type="checkbox" role="switch" name="{{ form.visible_to_customer.html_name }}" id="id_visible_to_customer" {% if form.visible_to_customer.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_customer">カスタマーユーザーに表示する</label>
+                            {% for error in form.visible_to_customer.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input{% if form.visible_to_systena.errors %} is-invalid{% endif %}" type="checkbox" role="switch" name="{{ form.visible_to_systena.html_name }}" id="id_visible_to_systena" {% if form.visible_to_systena.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_systena">システナユーザーに表示する</label>
+                            {% for error in form.visible_to_systena.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input{% if form.visible_to_demo.errors %} is-invalid{% endif %}" type="checkbox" role="switch" name="{{ form.visible_to_demo.html_name }}" id="id_visible_to_demo" {% if form.visible_to_demo.value %}checked{% endif %}>
+                            <label class="form-check-label" for="id_visible_to_demo">デモユーザーに表示する</label>
+                            {% for error in form.visible_to_demo.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
                 <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">戻る</a>
-                {% if article %}
+                {% if article and article_approval_status == 'remanded' %}
                     <button class="btn btn-warning text-dark fw-semibold shadow-sm" type="submit" id="faqCorrectBtn">修正</button>
                 {% endif %}
-                <button class="btn btn-primary" type="submit" id="faqUpdateBtn">{{ submit_label|default:"登録" }}</button>
+                {% if article_approval_status != 'remanded' %}
+                    <button class="btn btn-primary" type="submit" id="faqUpdateBtn">{{ submit_label|default:"登録" }}</button>
+                {% endif %}
             </div>
         </form>
+
+        {% if not article %}{% include 'includes/knowledge_duplicate_check.html' %}{% endif %}
 
         {# ===== FAQプレビューモーダル ===== #}
         <div class="modal fade" id="faqPreviewModal" tabindex="-1" aria-labelledby="faqPreviewModalLabel" aria-hidden="true">
@@ -327,7 +317,7 @@
                             <article class="accordion-item faq-item">
                                 <h3 class="accordion-header">
                                     <div class="faq-question d-flex align-items-center gap-3 p-3">
-                                        <span class="badge text-bg-primary flex-shrink-0">FAQ</span>
+                                        <span class="badge text-bg-primary flex-shrink-0">Q&amp;A</span>
                                         <div class="flex-grow-1">
                                             <div class="faq-question-title fw-semibold" id="previewFaqTitle">（タイトル未入力）</div>
                                             <div id="previewFaqCategoryChips" class="d-flex flex-wrap gap-2 mt-2"></div>
@@ -336,7 +326,6 @@
                                 </h3>
                                 <div class="accordion-collapse">
                                     <div class="accordion-body">
-                                        <div id="previewFaqMetaBadges" class="d-flex flex-wrap gap-2 mb-3"></div>
                                         <div class="faq-question d-flex align-items-start gap-3 p-3 mb-3 rounded">
                                             <span class="badge text-bg-primary flex-shrink-0">Q</span>
                                             <div class="flex-grow-1 faq-body-indent" id="previewFaqQuestion">（質問未入力）</div>
@@ -359,7 +348,7 @@
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" id="faqPreviewConfirmBtn">この内容で{{ submit_label|default:"登録" }}</button>
+                        <button type="button" class="btn btn-primary" id="faqPreviewConfirmBtn">この内容で{% if article_approval_status == 'remanded' %}修正{% else %}{{ submit_label|default:"登録" }}{% endif %}</button>
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
                     </div>
                 </div>
@@ -377,7 +366,7 @@
                                     <span class="badge text-bg-success">承認</span>
                                     <span class="badge faq-meta-badge">承認者 {{ article_approver_display_name|default:"-" }}</span>
                                     {% if can_reset_article_approval %}
-                                        <form method="post" action="{% url 'article_approval_reset' article.id %}" class="d-inline" onsubmit="return confirm('このFAQの承認をリセットしますか？');">
+                                        <form method="post" action="{% url 'article_approval_reset' article.id %}" class="d-inline" onsubmit="return confirm('このQ&amp;Aの承認をリセットしますか？');">
                                             {% csrf_token %}
                                             {% if return_to %}<input type="hidden" name="next" value="{{ return_to }}">{% endif %}
                                             <button class="btn btn-outline-secondary btn-sm py-0 px-2" type="submit">承認リセット</button>
@@ -401,11 +390,11 @@
                         {% if can_approve_article or can_remand_article %}
                             <div class="d-flex align-items-center gap-2">
                                 {% if can_approve_article and not article.is_approved %}
-                                    <form method="post" action="{% url 'article_approve' article.id %}" onsubmit="return confirm('このFAQを承認しますか？');">
+                                    <form method="post" action="{% url 'article_approve' article.id %}" onsubmit="return confirm('このQ&amp;Aを承認しますか？');">
                                         {% csrf_token %}
                                         <input type="hidden" name="standard_contract_only" value="0">
-                                        <div class="form-check form-check-inline me-2">
-                                            <input class="form-check-input" type="checkbox" name="standard_contract_only" value="1" id="articleFormStandardOnly{{ article.id }}" {% if article.standard_contract_only %}checked{% endif %}>
+                                        <div class="form-check form-switch form-check-inline me-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" name="standard_contract_only" value="1" id="articleFormStandardOnly{{ article.id }}" {% if article.standard_contract_only %}checked{% endif %}>
                                             <label class="form-check-label small" for="articleFormStandardOnly{{ article.id }}">demoアカウント制限</label>
                                         </div>
                                         <div class="mt-2 mb-2">
@@ -428,6 +417,12 @@
                             </div>
                         {% endif %}
                     </div>
+                    {% if article.reviewer_comment %}
+                        <div>
+                            <div class="fw-semibold small mb-1">承認者コメント</div>
+                            <div class="border rounded p-3" style="white-space: pre-wrap; overflow-wrap: anywhere;">{{ article.reviewer_comment }}</div>
+                        </div>
+                    {% endif %}
                     {% if article_approval_status == 'remanded' and article.remand_reason %}
                         <div class="collapse" id="articleRemandReasonBlock">
                             <div class="alert alert-warning mb-0">{{ article.remand_reason|linebreaksbr }}</div>
@@ -455,10 +450,10 @@
             <section class="card border-danger shadow-sm mt-4">
                 <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
                     <div>
-                        <div class="fw-bold text-danger">FAQ削除</div>
-                        <div class="text-muted small">このFAQと登録済み画像を削除します。</div>
+                        <div class="fw-bold text-danger">Q&amp;A削除</div>
+                        <div class="text-muted small">このQ&amp;Aと登録済み画像を削除します。</div>
                     </div>
-                    <form method="post" action="{% url 'article_delete' article.id %}" onsubmit="return confirm('このFAQを削除しますか？');">
+                    <form method="post" action="{% url 'article_delete' article.id %}" onsubmit="return confirm('このQ&amp;Aを削除しますか？');">
                         {% csrf_token %}
                         <button class="btn btn-outline-danger" type="submit">削除</button>
                     </form>
@@ -470,7 +465,9 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+{% if not article %}{% include 'includes/knowledge_duplicate_check_assets.html' %}{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin" async onload="window.KnowledgeBlockEditors?.upgrade()"></script>
+{% include 'includes/knowledge_block_editor_assets.html' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     (function setupTargetOsVersionOptions() {
@@ -664,8 +661,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const checked = selectedValues.has(categoryId) ? ' checked' : '';
             const inputId = prefix + categoryId;
             return (
-                '<label class="category-checkbox d-flex align-items-center gap-2 mb-2">'
-                + '<input class="form-check-input" type="checkbox" id="' + inputId + '" data-category-id="' + categoryId + '"' + checked + '>'
+                '<label class="category-checkbox form-check form-switch d-flex align-items-center gap-2 mb-2 ps-0">'
+                + '<input class="form-check-input ms-0 mt-0 flex-shrink-0" type="checkbox" role="switch" id="' + inputId + '" data-category-id="' + categoryId + '"' + checked + '>'
                 + '<span>' + category.name + '</span>'
                 + '</label>'
             );
@@ -792,802 +789,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })();
 
-    function legacyMarkupToHtml(text) {
-        if (!text) {
-            return '';
-        }
-        return String(text)
-            .replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>')
-            .replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>')
-            .replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>')
-            .replace(/\[size=(\d{1,3})\]([\s\S]*?)\[\/size\]/gi, function(_, size, content) {
-                const n = Number(size);
-                if (!Number.isFinite(n) || n < 8 || n > 20 || n % 2 !== 0) {
-                    return content;
-                }
-                return '<span style="font-size:' + n + 'pt;">' + content + '</span>';
-            })
-            .replace(/\[color=(#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1;">$2</span>');
-    }
-
-    function plainTextToEditorHtml(text, editor) {
-        const normalized = String(text || '')
-            .replace(/\r\n?|\u2028|\u2029/g, '\n');
-        return editor.dom.encode(normalized).replace(/\n/g, '<br>');
-    }
-
-    function getChildNodeIndex(node) {
-        if (!node || !node.parentNode) {
-            return -1;
-        }
-        return Array.prototype.indexOf.call(node.parentNode.childNodes, node);
-    }
-
-    function splitHtmlLines(html) {
-        return String(html || '').split(/<br\b[^>]*>/i);
-    }
-
-    function buildNormalLineBlock(editor, html) {
-        const block = editor.getDoc().createElement('div');
-        block.innerHTML = html && html.trim() ? html : '<br data-mce-bogus="1">';
-        editor.dom.setStyle(block, 'fontWeight', '400');
-        editor.dom.setStyle(block, 'fontSize', '10pt');
-        editor.dom.setStyle(block, 'textDecoration', 'none');
-        editor.dom.setStyle(block, 'color', '#000000');
-        editor.dom.setStyle(block, 'marginLeft', '0');
-        editor.dom.setStyle(block, 'textIndent', '1em');
-        return block;
-    }
-
-    function buildHeadingLineBlock(editor, html) {
-        const block = editor.getDoc().createElement('div');
-        const container = editor.getDoc().createElement('div');
-        container.innerHTML = html || '';
-
-        let text = container.innerText || container.textContent || '';
-        text = text.trim().replace(/^[■・]\s*/, '');
-        editor.dom.addClass(block, 'tk-heading1-line');
-        if (text) {
-            block.textContent = text;
-        } else {
-            block.innerHTML = '<br data-mce-bogus="1">';
-        }
-
-        editor.dom.setStyle(block, 'fontWeight', '700');
-        editor.dom.setStyle(block, 'fontSize', '12pt');
-        editor.dom.setStyle(block, 'textDecoration', 'underline');
-        editor.dom.setStyle(block, 'color', '#000000');
-        editor.dom.setStyle(block, 'marginLeft', '0');
-        editor.dom.setStyle(block, 'paddingLeft', '1.4em');
-        editor.dom.setStyle(block, 'textIndent', '-1.4em');
-        editor.dom.setStyle(block, 'lineHeight', '2');
-
-        return block;
-    }
-
-    function applyHeadingToCurrentVisualLine(editor, block) {
-        if (!block || block.tagName === 'LI') {
-            return false;
-        }
-
-        const range = editor.selection.getRng();
-        if (!range || !block.innerHTML || block.innerHTML.indexOf('<br') === -1) {
-            return false;
-        }
-
-        const brs = Array.from(block.querySelectorAll('br'));
-        if (!brs.length) {
-            return false;
-        }
-
-        let lineIndex = 0;
-        brs.forEach(function(br) {
-            const parent = br.parentNode;
-            const index = getChildNodeIndex(br);
-            if (!parent || index < 0) {
-                return;
-            }
-            try {
-                if (range.comparePoint(parent, index + 1) <= 0) {
-                    lineIndex += 1;
-                }
-            } catch (error) {
-                // comparePoint が使えないケースでは何もしない
-            }
-        });
-
-        const lines = splitHtmlLines(block.innerHTML);
-        if (lines.length <= 1) {
-            return false;
-        }
-
-        lineIndex = Math.max(0, Math.min(lineIndex, lines.length - 1));
-
-        const fragment = editor.getDoc().createDocumentFragment();
-        const lineBlocks = [];
-        lines.forEach(function(lineHtml, index) {
-            const lineBlock = index === lineIndex
-                ? buildHeadingLineBlock(editor, lineHtml)
-                : buildNormalLineBlock(editor, lineHtml);
-            lineBlocks.push(lineBlock);
-            fragment.appendChild(lineBlock);
-        });
-
-        const parent = block.parentNode;
-        if (!parent) {
-            return false;
-        }
-
-        parent.replaceChild(fragment, block);
-
-        const headingBlock = lineBlocks[lineIndex];
-        if (headingBlock) {
-            editor.selection.select(headingBlock, true);
-            editor.selection.collapse(false);
-        }
-
-        return true;
-    }
-
-    if (window.tinymce) {
-        function markEmptyListWrappers(editor) {
-            editor.getBody().querySelectorAll('li').forEach(function(listItem) {
-                const meaningfulNodes = Array.from(listItem.childNodes).filter(function(node) {
-                    return node.nodeType !== Node.TEXT_NODE || node.textContent.trim() !== '';
-                });
-                const isEmptyWrapper = meaningfulNodes.length === 1
-                    && meaningfulNodes[0].nodeType === Node.ELEMENT_NODE
-                    && (meaningfulNodes[0].tagName === 'UL' || meaningfulNodes[0].tagName === 'OL');
-                listItem.classList.toggle('tk-list-wrapper', isEmptyWrapper);
-            });
-        }
-
-        tinymce.init({
-            selector: 'textarea[data-wysiwyg="true"]',
-            language: 'ja',
-            language_url: 'https://cdn.jsdelivr.net/npm/tinymce@7/langs/ja.js',
-            menubar: false,
-            branding: false,
-            height: 340,
-            plugins: 'lists link code paste',
-            toolbar: 'undo redo | bold underline strikethrough | forecolor backcolor | fontsize | bullist numlist numlist_start | blockquote | link | removeformat | code | tk_heading1 tk_border | styles',
-            fontsize_formats: '8pt 9pt 10pt 11pt 12pt 13pt 14pt 15pt 16pt 17pt 18pt',
-            paste_as_text: true,
-            smart_paste: false,
-            formats: {
-                tk_heading1: {
-                    block: 'div',
-                    styles: { fontWeight: '700', fontSize: '12pt', textDecoration: 'underline', color: '#000000', marginLeft: '0', paddingLeft: '0' }
-                },
-                tk_body: {
-                    block: 'div',
-                    styles: { fontWeight: '400', fontSize: '10pt', textDecoration: 'none', color: '#000000', marginLeft: '0', textIndent: '1em' }
-                },
-                tk_caution: {
-                    inline: 'span',
-                    styles: { fontWeight: '700', fontSize: '12pt', color: '#ff0000' }
-                },
-                tk_point: {
-                    inline: 'span',
-                    styles: { fontWeight: '700', fontSize: '12pt', color: '#0d6efd' }
-                },
-                tk_border: {
-                    inline: 'span',
-                    styles: { border: '1px solid #000000', padding: '0.25em 0.4em', lineHeight: '1.9' }
-                }
-            },
-            style_formats: [
-                {
-                    title: '本文（標準サイズ 黒）',
-                    format: 'tk_body'
-                },
-                {
-                    title: '注意（太字 12pt 赤）',
-                    format: 'tk_caution'
-                },
-                {
-                    title: 'ポイント（太字 12pt 青字）',
-                    format: 'tk_point'
-                }
-            ],
-            content_style: 'body { font-family: "Meiryo UI", "Meiryo", "Yu Gothic UI", "Yu Gothic", "Hiragino Maru Gothic ProN", system-ui, sans-serif; font-size: 10pt; color: #000000; line-height: 1.5; margin-left: 1cm; margin-right: 1cm; } p { margin: 0 0 0.35em; } div[style*="font-weight: 700"] { display: block; margin: 0.5em 0; margin-left: 0 !important; } div[style*="font-weight: 400"] { margin-left: 0 !important; text-indent: 1em !important; } li div[style*="font-weight: 400"] { margin-left: 0 !important; text-indent: 0 !important; } .tk-heading1-line::before { content: "■ "; } ul, ol { margin: 0.25rem 0; padding-left: 2.5em; list-style-position: outside; } ol > li::marker { content: counter(list-item) ".\\00a0"; } ul > li::marker { content: "•\\00a0"; } li { padding-left: 0; text-indent: 0 !important; margin-bottom: 0.1rem; } li.tk-list-wrapper { list-style-type: none; } li.tk-list-wrapper::marker { content: ""; } blockquote { margin: 0.5rem 0; padding: 0.4rem 0.9rem; border-left: 4px solid #ddd; background: #fafafa; color: #555; font-style: italic; }',
-            valid_elements: 'p[style],br,strong/b,em/i,u,s,span[style],div[class|style],ul,ol[start],li[value|class],a[href|target|rel],h1[class|style],h2[class|style],h3[class|style],h4[class|style],blockquote,pre,code',
-            valid_styles: {
-                '*': 'color,background-color,font-size,text-decoration,font-weight,border,padding,padding-left,margin-left,text-indent,line-height'
-            },
-            setup: function(editor) {
-                editor.on('init', function() {
-                    const raw = editor.getContent({ format: 'raw' });
-                    if (raw && raw.indexOf('[') !== -1) {
-                        editor.setContent(legacyMarkupToHtml(raw));
-                    }
-                    markEmptyListWrappers(editor);
-                });
-
-                editor.on('keyup', function(e) {
-                    if (e.key === 'Tab') {
-                        markEmptyListWrappers(editor);
-                        editor.nodeChanged();
-                    }
-                });
-
-                editor.on('drop', function(e) {
-                    const dataTransfer = e.dataTransfer || (e.originalEvent && e.originalEvent.dataTransfer);
-                    if (!dataTransfer) {
-                        return;
-                    }
-
-                    const droppedImageFiles = Array.from(dataTransfer.files || []).filter(function(file) {
-                        return file && file.type && file.type.indexOf('image/') === 0;
-                    });
-                    if (!droppedImageFiles.length) {
-                        return;
-                    }
-
-                    e.preventDefault();
-                    const now = Date.now();
-                    const renamedImageFiles = droppedImageFiles.map(function(file, index) {
-                        const type = String(file.type || 'image/png');
-                        const rawExt = (type.split('/')[1] || 'png').toLowerCase();
-                        const ext = rawExt === 'jpeg' ? 'jpg' : rawExt.replace(/[^a-z0-9]/g, '') || 'png';
-                        const generatedName = 'drop_' + now + '_' + (index + 1) + '.' + ext;
-                        try {
-                            return new File([file], generatedName, {
-                                type: file.type || 'image/png',
-                                lastModified: Date.now(),
-                            });
-                        } catch (error) {
-                            return file;
-                        }
-                    });
-
-                    if (editor.id === questionFieldId) {
-                        mergeFilesToInput(articleQuestionImagesInput, renamedImageFiles);
-                        renamedImageFiles.forEach(function(file) {
-                            const markerText = questionImageMarkerFromFileName(file.name);
-                            if (markerText) {
-                                insertQuestionImageMarker(markerText);
-                            }
-                        });
-                    } else if (editor.id === answerBodyFieldId) {
-                        mergeFilesToInput(articleImagesInput, renamedImageFiles);
-                        renamedImageFiles.forEach(function(file) {
-                            const markerText = imageMarkerFromFileName(file.name);
-                            if (markerText) {
-                                insertImageMarkerToBody(markerText);
-                            }
-                        });
-                    }
-
-                    editor.nodeChanged();
-                });
-
-                editor.on('BeforeGetContent', function() {
-                    markEmptyListWrappers(editor);
-                });
-
-                editor.on('paste', function(e) {
-                    const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData) || window.clipboardData;
-                    if (!clipboardData) {
-                        return;
-                    }
-
-                    const clipboardItems = Array.from(clipboardData.items || []);
-                    const clipboardImageFiles = clipboardItems
-                        .filter(function(item) {
-                            return item && item.kind === 'file' && item.type && item.type.indexOf('image/') === 0;
-                        })
-                        .map(function(item) {
-                            return item.getAsFile();
-                        })
-                        .filter(function(file) {
-                            return !!file;
-                        });
-
-                    if (clipboardImageFiles.length > 0) {
-                        e.preventDefault();
-
-                        const now = Date.now();
-                        const renamedImageFiles = clipboardImageFiles.map(function(file, index) {
-                            const type = String(file.type || 'image/png');
-                            const rawExt = (type.split('/')[1] || 'png').toLowerCase();
-                            const ext = rawExt === 'jpeg' ? 'jpg' : rawExt.replace(/[^a-z0-9]/g, '') || 'png';
-                            const generatedName = 'clipboard_' + now + '_' + (index + 1) + '.' + ext;
-                            try {
-                                return new File([file], generatedName, {
-                                    type: file.type || 'image/png',
-                                    lastModified: Date.now(),
-                                });
-                            } catch (error) {
-                                return file;
-                            }
-                        });
-
-                        if (editor.id === questionFieldId) {
-                            mergeFilesToInput(articleQuestionImagesInput, renamedImageFiles);
-                            renamedImageFiles.forEach(function(file) {
-                                const markerText = questionImageMarkerFromFileName(file.name);
-                                if (markerText) {
-                                    insertQuestionImageMarker(markerText);
-                                }
-                            });
-                        } else if (editor.id === answerBodyFieldId) {
-                            mergeFilesToInput(articleImagesInput, renamedImageFiles);
-                            renamedImageFiles.forEach(function(file) {
-                                const markerText = imageMarkerFromFileName(file.name);
-                                if (markerText) {
-                                    insertImageMarkerToBody(markerText);
-                                }
-                            });
-                        }
-
-                        editor.nodeChanged();
-                        return;
-                    }
-
-                    const plainText = clipboardData.getData('text/plain');
-                    if (typeof plainText !== 'string' || plainText === '') {
-                        return;
-                    }
-
-                    e.preventDefault();
-                    editor.undoManager.transact(function() {
-                        editor.insertContent(plainTextToEditorHtml(plainText, editor));
-                        editor.formatter.apply('tk_body');
-                    });
-                    editor.nodeChanged();
-                });
-
-                // Enterキー後の新しい段落のスタイルをリセット
-                editor.on('newBlock', function(e) {
-                    const newBlock = e.newBlock;
-                    if (!newBlock) return;
-                    const style = newBlock.getAttribute('style') || '';
-                    // 前の段落が見出し1スタイル（font-weight:700 + underline）だった場合リセット
-                    if (style.indexOf('font-weight: 700') !== -1 || style.indexOf('font-weight:700') !== -1) {
-                        newBlock.removeAttribute('style');
-                        newBlock.innerHTML = '<br data-mce-bogus="1">';
-                    }
-                });
-
-                // 見出し1ボタン
-                editor.ui.registry.addButton('tk_heading1', {
-                    text: '見出し1',
-                    tooltip: '見出し1（太字 12pt 下線 黒）を適用',
-                    onAction: function() {
-                        applyHeading1WithMarker(editor);
-                    }
-                });
-
-                // 枠線ボタン
-                editor.ui.registry.addButton('tk_border', {
-                    text: '枠線',
-                    tooltip: 'テキストに枠線を適用',
-                    onAction: function() {
-                        editor.formatter.toggle('tk_border');
-                    }
-                });
-                
-                // ナンバリング途中開始ボタン
-                editor.ui.registry.addButton('numlist_start', {
-                    text: 'リスト番号指定',
-                    tooltip: 'リストの開始番号を指定',
-                    onAction: function() {
-                        const num = prompt('リストの開始番号を入力してください (例: 1, 3, 10):', '1');
-                        if (num !== null && num.trim() !== '') {
-                            const startNum = parseInt(num, 10);
-                            if (!isNaN(startNum) && startNum > 0) {
-                                editor.undoManager.transact(function() {
-                                    let orderedList = editor.dom.getParent(editor.selection.getNode(), 'ol');
-
-                                    if (!orderedList) {
-                                        editor.execCommand('InsertOrderedList');
-                                        orderedList = editor.dom.getParent(editor.selection.getNode(), 'ol');
-                                    }
-
-                                    if (orderedList) {
-                                        if (startNum === 1) {
-                                            orderedList.removeAttribute('start');
-                                        } else {
-                                            orderedList.setAttribute('start', String(startNum));
-                                        }
-                                        editor.nodeChanged();
-                                    } else {
-                                        alert('番号付きリストを作成できませんでした。まず対象テキストを選択してから実行してください。');
-                                    }
-                                });
-                            } else {
-                                alert('正の整数を入力してください。');
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        document.querySelectorAll('form').forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                const submitter = e.submitter;
-                if (submitter && submitter.dataset.skipEditorValidation === 'true') {
-                    return;
-                }
-                if (window.tinymce) {
-                    tinymce.triggerSave();
-                    
-                    // Validate required editor fields
-                    let errors = [];
-                    const requiredEditorIds = new Set([
-                        '{{ form.question.id_for_label }}',
-                        '{{ form.answer.id_for_label }}'
-                    ]);
-                    tinymce.editors.forEach(function(editor) {
-                        const textarea = document.getElementById(editor.id);
-                        if (textarea && textarea.classList.contains('rich-text-source') && requiredEditorIds.has(editor.id)) {
-                            const content = editor.getContent({ format: 'text' }).trim();
-                            if (!content) {
-                                const label = document.querySelector('label[for="' + editor.id + '"]');
-                                const fieldName = label ? label.textContent.trim() : editor.id;
-                                errors.push(fieldName + ' は入力必須です');
-                            }
-                        }
-                    });
-                    
-                    if (errors.length > 0) {
-                        e.preventDefault();
-                        alert(errors.join('\n'));
-                    }
-                }
-            }, false);
-        });
-
-        window.applyHeading1WithMarker = function(editor) {
-            const node = editor.selection.getNode();
-            const block = editor.dom.getParent(node, 'p,div,li,h1,h2,h3,h4') || node;
-            if (!block) return;
-
-            if (applyHeadingToCurrentVisualLine(editor, block)) {
-                editor.nodeChanged();
-                return;
-            }
-            
-            let text = block.innerText || block.textContent;
-            text = text.trim().replace(/^[■・]\s*/, '');
-            editor.dom.addClass(block, 'tk-heading1-line');
-            if (text) {
-                block.textContent = text;
-            } else {
-                block.innerHTML = '<br data-mce-bogus="1">';
-            }
-            editor.dom.removeClass(block, 'tk-heading1');
-            
-            editor.dom.setStyle(block, 'fontWeight', '700');
-            editor.dom.setStyle(block, 'fontSize', '12pt');
-            editor.dom.setStyle(block, 'textDecoration', 'underline');
-            editor.dom.setStyle(block, 'color', '#000000');
-            editor.dom.setStyle(block, 'marginLeft', '0');
-            editor.dom.setStyle(block, 'paddingLeft', '1.4em');
-            editor.dom.setStyle(block, 'textIndent', '-1.4em');
-            editor.dom.setStyle(block, 'lineHeight', '2');
-            
-            editor.nodeChanged();
-        };
-
-        document.querySelectorAll('[data-format-target][data-format-name]').forEach(function(button) {
-            button.addEventListener('click', function() {
-                const targetId = this.dataset.formatTarget;
-                const formatName = this.dataset.formatName;
-                const editor = window.tinymce ? window.tinymce.get(targetId) : null;
-                if (!editor || !formatName) {
-                    return;
-                }
-                editor.focus();
-                if (formatName === 'tk_heading1') {
-                    applyHeading1WithMarker(editor);
-                } else {
-                    editor.formatter.apply(formatName);
-                }
-                editor.save();
-            });
-        });
-    }
-
-    const savedSelections = new Map();
-
-    function rememberSelection(targetId) {
-        const editor = getEditor(targetId);
-        if (!editor) {
-            return;
-        }
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-            return;
-        }
-        const range = selection.getRangeAt(0);
-        if (!editor.contains(range.commonAncestorContainer)) {
-            return;
-        }
-        savedSelections.set(targetId, range.cloneRange());
-    }
-
-    function restoreSelection(targetId) {
-        const range = savedSelections.get(targetId);
-        if (!range) {
-            return;
-        }
-        const selection = window.getSelection();
-        if (!selection) {
-            return;
-        }
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-
-    function escapeHtml(text) {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-    function applyRichMarkup(escapedText) {
-        let rendered = escapedText;
-        for (let i = 0; i < 10; i++) {
-            const next = rendered.replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>');
-            if (next === rendered) {
-                break;
-            }
-            rendered = next;
-        }
-        for (let i = 0; i < 10; i++) {
-            const next = rendered.replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>');
-            if (next === rendered) {
-                break;
-            }
-            rendered = next;
-        }
-        for (let i = 0; i < 10; i++) {
-            const next = rendered.replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>');
-            if (next === rendered) {
-                break;
-            }
-            rendered = next;
-        }
-        for (let i = 0; i < 10; i++) {
-            const next = rendered.replace(/\[size=(\d{1,3})\]([\s\S]*?)\[\/size\]/gi, function(_, size, content) {
-                const n = Number(size);
-                    if (!Number.isFinite(n) || n < 8 || n > 20 || n % 2 !== 0) {
-                    return '[size=' + size + ']' + content + '[/size]';
-                }
-                    return '<span style="font-size:' + n + 'pt;">' + content + '</span>';
-            });
-            if (next === rendered) {
-                break;
-            }
-            rendered = next;
-        }
-        for (let i = 0; i < 10; i++) {
-            const next = rendered.replace(/\[color=(#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1;">$2</span>');
-            if (next === rendered) {
-                break;
-            }
-            rendered = next;
-        }
-        return rendered;
-    }
-
-    function markupToEditorHtml(value) {
-        // Apply markup processing to entire text first, then split into lines
-        let rendered = applyRichMarkup(escapeHtml(value || ''));
-        const lines = rendered.split(/\r?\n/);
-        return lines.map(function(line) {
-            if (!line.trim()) {
-                return '<div><br></div>';
-            }
-            return '<div>' + line + '</div>';
-        }).join('');
-    }
-
-    function normalizeColor(value) {
-        if (!value) {
-            return '';
-        }
-        const color = value.toLowerCase().replace(/\s+/g, '');
-        const map = {
-            'rgb(0,0,0)': 'black',
-            'rgb(255,0,0)': 'red',
-            'rgb(0,0,255)': 'blue',
-            'rgb(255,165,0)': 'orange',
-            'rgb(128,0,128)': 'purple',
-        };
-        return map[color] || color;
-    }
-
-    function nodeToMarkup(node) {
-        if (node.nodeType === Node.TEXT_NODE) {
-            return node.nodeValue || '';
-        }
-
-        if (node.nodeType !== Node.ELEMENT_NODE) {
-            return '';
-        }
-
-        const element = node;
-        const tagName = element.tagName.toLowerCase();
-        const childText = Array.from(element.childNodes).map(nodeToMarkup).join('');
-
-        if (tagName === 'br') {
-            return '\n';
-        }
-
-        if (tagName === 'div' || tagName === 'p') {
-            return childText + '\n';
-        }
-
-        if (tagName === 'strong' || tagName === 'b') {
-            return '[b]' + childText + '[/b]';
-        }
-
-        if (tagName === 'u') {
-            return '[u]' + childText + '[/u]';
-        }
-
-        if (tagName === 's' || tagName === 'strike' || tagName === 'del') {
-            return '[s]' + childText + '[/s]';
-        }
-
-        if (tagName === 'span') {
-            let wrapped = childText;
-            const sizeMatch = (element.style.fontSize || '').match(/(\d{1,3})pt/i);
-            const color = normalizeColor(element.style.color || '');
-            const decoration = ((element.style.textDecorationLine || element.style.textDecoration || '') + '').toLowerCase();
-            
-            // Check if this span has no style attributes - if so, just return childText
-            const hasOwnStyle = sizeMatch || color || decoration || (element.style.fontWeight && Number(element.style.fontWeight) >= 600);
-            if (!hasOwnStyle) {
-                return childText;
-            }
-
-            if (sizeMatch) {
-                const size = Number(sizeMatch[1]);
-                if (size >= 8 && size <= 20 && size % 2 === 0) {
-                    wrapped = '[size=' + size + ']' + wrapped + '[/size]';
-                }
-            }
-            if (color) {
-                wrapped = '[color=' + color + ']' + wrapped + '[/color]';
-            }
-            if (decoration.includes('line-through')) {
-                wrapped = '[s]' + wrapped + '[/s]';
-            }
-            if (decoration.includes('underline')) {
-                wrapped = '[u]' + wrapped + '[/u]';
-            }
-            if (element.style.fontWeight && Number(element.style.fontWeight) >= 600) {
-                wrapped = '[b]' + wrapped + '[/b]';
-            }
-            return wrapped;
-        }
-
-        return childText;
-    }
-
-    function editorToMarkup(editor) {
-        const text = Array.from(editor.childNodes).map(nodeToMarkup).join('');
-        return text;
-    }
-
-    function syncHiddenTextarea(targetId) {
-        const textarea = document.getElementById(targetId);
-        const editor = document.querySelector('[data-rich-editor-for="' + targetId + '"]');
-        if (!textarea || !editor) {
-            return;
-        }
-        textarea.value = editorToMarkup(editor);
-    }
-
-    function getEditor(targetId) {
-        return document.querySelector('[data-rich-editor-for="' + targetId + '"]');
-    }
-
-    function applyStyleToSelection(editor, styleSpec) {
-        const selection = window.getSelection();
-        if (!selection || selection.rangeCount === 0) {
-            return false;
-        }
-        const range = selection.getRangeAt(0);
-        if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
-            return false;
-        }
-
-        const onlyBold = styleSpec.bold && !styleSpec.underline && !styleSpec.strike && !styleSpec.size && !styleSpec.color;
-        const wrapper = document.createElement(onlyBold ? 'strong' : 'span');
-        if (wrapper.tagName.toLowerCase() === 'span') {
-            if (styleSpec.weight) {
-                wrapper.style.fontWeight = styleSpec.weight;
-            }
-            if (styleSpec.bold) {
-                wrapper.style.fontWeight = '700';
-            }
-            if (styleSpec.underline || styleSpec.strike) {
-                const decorations = [];
-                if (styleSpec.underline) {
-                    decorations.push('underline');
-                }
-                if (styleSpec.strike) {
-                    decorations.push('line-through');
-                }
-                wrapper.style.textDecorationLine = decorations.join(' ');
-            }
-            if (styleSpec.size) {
-                wrapper.style.fontSize = styleSpec.size + 'pt';
-            }
-            if (styleSpec.color) {
-                wrapper.style.color = styleSpec.color;
-            }
-        }
-
-        const fragment = range.extractContents();
-        wrapper.appendChild(fragment);
-        range.insertNode(wrapper);
-
-        selection.removeAllRanges();
-        const keepRange = document.createRange();
-        keepRange.selectNodeContents(wrapper);
-        selection.addRange(keepRange);
-        return true;
-    }
-
-    function getPresetStyleSpec(presetName) {
-        const presets = {
-            heading1: { bold: true, underline: true, strike: false, weight: null, size: 14, color: 'black' },
-            body: { bold: false, underline: false, strike: false, weight: '400', size: 10, color: 'black' },
-            caution: { bold: true, underline: false, strike: false, weight: null, size: 12, color: 'red' },
-            point: { bold: true, underline: false, strike: false, weight: null, size: 12, color: 'blue' },
-        };
-        return presets[presetName] || null;
-    }
-
-    function applyStyleToTarget(targetId, styleSpec, showAlert) {
-        const editor = getEditor(targetId);
-        if (!editor) {
-            return;
-        }
-        if (!styleSpec.bold && !styleSpec.underline && !styleSpec.strike && !styleSpec.size && !styleSpec.color) {
-            return;
-        }
-        editor.focus();
-        restoreSelection(targetId);
-        const applied = applyStyleToSelection(editor, styleSpec);
-        if (!applied) {
-            if (showAlert) {
-                alert('文字列を選択してから装飾を適用してください。');
-            }
-            return;
-        }
-        rememberSelection(targetId);
-        syncHiddenTextarea(targetId);
-    }
-
-    document.querySelectorAll('textarea[id]').forEach(function(textarea) {
-        const editor = getEditor(textarea.id);
-        if (!editor) {
-            return;
-        }
-        editor.innerHTML = markupToEditorHtml(textarea.value || '');
-        ['mouseup', 'keyup', 'touchend'].forEach(function(eventName) {
-            editor.addEventListener(eventName, function() {
-                rememberSelection(textarea.id);
-            });
-        });
-        editor.addEventListener('input', function() {
-            syncHiddenTextarea(textarea.id);
-            rememberSelection(textarea.id);
-        });
-        syncHiddenTextarea(textarea.id);
-    });
-
     // 質問画像の1枚ずつ本文挿入
     const articleQuestionImagesInput = document.getElementById('{{ form.question_images.id_for_label }}');
     const articleQuestionImageDropZone = document.getElementById('article_question_image_drop_zone');
@@ -1606,6 +807,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!markerText) {
             return;
         }
+        if (window.KnowledgeBlockEditors?.insertMarker(questionFieldId, markerText)) return;
 
         const editor = window.tinymce ? window.tinymce.get(questionFieldId) : null;
         if (editor) {
@@ -1791,6 +993,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!markerText) {
             return;
         }
+        if (window.KnowledgeBlockEditors?.insertMarker(answerBodyFieldId, markerText)) return;
 
         const editor = window.tinymce ? window.tinymce.get(answerBodyFieldId) : null;
         if (editor) {
@@ -1877,6 +1080,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 insertImageMarkerToBody(markerText);
             }
         });
+    });
+
+    window.KnowledgeBlockEditors.configureImages(questionFieldId, function(files) {
+        mergeFilesToInput(articleQuestionImagesInput, files);
+        files.forEach(file => insertQuestionImageMarker(questionImageMarkerFromFileName(file.name)));
+    });
+    window.KnowledgeBlockEditors.configureImages(answerBodyFieldId, function(files) {
+        mergeFilesToInput(articleImagesInput, files);
+        files.forEach(file => insertImageMarkerToBody(imageMarkerFromFileName(file.name)));
     });
 
     function addPreviewImageAlias(images, name, url) {
@@ -2074,10 +1286,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function syncArticleFormBeforeSubmit() {
         updateReferenceLinksHidden();
-        document.querySelectorAll('[data-rich-editor-for]').forEach(function(editor) {
-            const targetId = editor.dataset.richEditorFor;
-            syncHiddenTextarea(targetId);
-        });
+        window.KnowledgeBlockEditors.syncForm(articleMainForm);
     }
 
     if (articleMainForm) {
@@ -2087,26 +1296,38 @@ document.addEventListener('DOMContentLoaded', function() {
             if (submitter && submitter.dataset.skipPreview === 'true') {
                 return;
             }
+            if (!window.KnowledgeBlockEditors.validate(articleMainForm)) {
+                e.preventDefault();
+                return;
+            }
             if (isFaqPreviewConfirmed) {
                 return;
             }
             e.preventDefault();
-            if (typeof window.renderFaqPreview === 'function') {
-                const renderResult = window.renderFaqPreview();
-                if (renderResult && typeof renderResult.then === 'function') {
-                    renderResult.then(function() {
-                        if (renderFaqPreviewRequest !== renderResult) {
-                            return;
-                        }
-                        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
-                        modal.show();
-                    }).catch(function() {});
-                    return;
-                }
+            if (typeof window.confirmKnowledgeDuplicates === 'function') {
+                window.confirmKnowledgeDuplicates(articleMainForm, showFaqPreview);
+            } else {
+                showFaqPreview();
             }
-            const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
-            modal.show();
         });
+    }
+
+    function showFaqPreview() {
+        if (typeof window.renderFaqPreview === 'function') {
+            const renderResult = window.renderFaqPreview();
+            if (renderResult && typeof renderResult.then === 'function') {
+                renderResult.then(function() {
+                    if (renderFaqPreviewRequest !== renderResult) {
+                        return;
+                    }
+                    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
+                    modal.show();
+                }).catch(function() {});
+                return;
+            }
+        }
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('faqPreviewModal'));
+        modal.show();
     }
 
     // ===== FAQプレビュー =====
@@ -2122,14 +1343,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function getRichTextContent(fieldId) {
-            if (window.tinymce) {
-                const editor = window.tinymce.get(fieldId);
-                if (editor) {
-                    return editor.getContent();
-                }
-            }
-            const textarea = document.getElementById(fieldId);
-            return textarea ? textarea.value : '';
+            return window.KnowledgeBlockEditors.sync(fieldId);
         }
 
         function getTargetOsChips() {
@@ -2160,20 +1374,6 @@ document.addEventListener('DOMContentLoaded', function() {
             return labels;
         }
 
-        function formatDate(dateStr) {
-            if (!dateStr) {
-                return '';
-            }
-            const d = new Date(dateStr);
-            if (isNaN(d)) {
-                return dateStr;
-            }
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return y + '/' + m + '/' + day;
-        }
-
         function canInlinePreviewFileName(fileName) {
             const dotIndex = String(fileName || '').lastIndexOf('.');
             if (dotIndex < 0) {
@@ -2185,8 +1385,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         function renderFaqPreview() {
             const title = (document.getElementById('{{ form.title.id_for_label }}') || {}).value || '';
-            const sourcePublishedAt = (document.getElementById('{{ form.source_published_at.id_for_label }}') || {}).value || '';
-            const expiresOn = (document.getElementById('{{ form.expires_on.id_for_label }}') || {}).value || '';
             const categoryLabels = getSelectedCategoryLabels();
             const targetOsChips = getTargetOsChips();
             const questionHtml = getRichTextContent('{{ form.question.id_for_label }}');
@@ -2228,29 +1426,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 span.textContent = text;
                 chipsEl.appendChild(span);
             });
-
-            // --- メタバッジ ---
-            const metaEl = document.getElementById('previewFaqMetaBadges');
-            metaEl.innerHTML = '';
-            const today = new Date();
-            const ty = today.getFullYear();
-            const tm = String(today.getMonth() + 1).padStart(2, '0');
-            const td = String(today.getDate()).padStart(2, '0');
-            const todayStr = ty + '/' + tm + '/' + td;
-
-            function addBadge(text) {
-                const span = document.createElement('span');
-                span.className = 'badge faq-meta-badge';
-                span.textContent = text;
-                metaEl.appendChild(span);
-            }
-            addBadge('掲載日 ' + todayStr);
-            if (expiresOn) {
-                addBadge('掲載期限 ' + formatDate(expiresOn));
-            }
-            if (sourcePublishedAt) {
-                addBadge('ソース公開日 ' + formatDate(sourcePublishedAt));
-            }
 
             // --- 質問・回答（一覧と同じサーバー描画） ---
             const questionEl = document.getElementById('previewFaqQuestion');
@@ -2402,6 +1577,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         collectPreviewImages(articleImagesInput, '[data-preview-answer-image]')
                     );
                 })
+
                 .catch(function() {
                     questionEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';
                     answerEl.innerHTML = '<span class="text-danger">プレビューの生成に失敗しました。</span>';

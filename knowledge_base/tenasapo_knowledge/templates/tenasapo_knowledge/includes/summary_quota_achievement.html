@@ -1,0 +1,37 @@
+<button type="button" class="btn btn-sm border-0 p-1 text-nowrap shadow-none summary-quota-trigger" popovertarget="quota-popup-{{ forloop.counter }}" aria-label="{{ item.name }}の目標達成状況を確認" title="目標の不足件数を確認">
+        {% if progress != None %}
+            <span class="badge {% if progress.achieved %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if progress.achieved %}達成{% else %}未達成{% endif %}</span>
+        {% else %}
+            <span class="badge text-bg-secondary">目標未確定</span>
+        {% endif %}
+    <i class="bi bi-info-circle small ms-1" aria-hidden="true"></i>
+</button>
+<div popover="auto" id="quota-popup-{{ forloop.counter }}" class="summary-quota-popup" aria-label="投稿目標の達成状況">
+    <div class="d-flex justify-content-between align-items-center gap-3 summary-quota-popup-header">
+        <strong><i class="bi bi-bullseye me-2" aria-hidden="true"></i>{{ item.name }}の達成状況</strong>
+        <button type="button" class="btn-close" popovertarget="quota-popup-{{ forloop.counter }}" popovertargetaction="hide" aria-label="閉じる"></button>
+    </div>
+    <div>
+        <p class="small text-muted mt-3 mb-2">{% if selected_period == 'all' %}累積目標{% else %}月間目標{% endif %}：{{ posting_targets.target_month|date:"Y年m月" }}{% if selected_period == 'all' %}まで（2026年6月開始）{% endif %}</p>
+        {% if progress != None %}
+            <div class="summary-quota-status{% if progress.achieved %} is-achieved{% endif %}">
+                <strong><i class="bi {% if progress.achieved %}bi-check-circle-fill{% else %}bi-flag-fill{% endif %} me-2" aria-hidden="true"></i>{% if progress.achieved %}目標達成{% else %}目標は未達成です{% endif %}</strong>
+                <span class="small">{% if progress.achieved %}Q&amp;A・Tipsの基本目標と追加枠を満たしています。{% else %}下の不足件数を確認して、次の投稿につなげましょう。{% endif %}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-baseline border rounded-3 p-3">
+                <span>投稿実績（合計）</span><strong class="fs-4">{{ item.post_count_total }} <span class="small fw-normal">件</span></strong>
+            </div>
+            <p class="small fw-semibold mt-3 mb-2">目標までの不足件数</p>
+            <dl class="summary-quota-metrics">
+                <div><dt>Q&amp;A</dt><dd>{{ progress.faq_missing }} <span>件</span></dd></div>
+                <div><dt>Tips</dt><dd>{{ progress.tips_missing }} <span>件</span></dd></div>
+                <div><dt>＋α</dt><dd>{{ progress.alpha_missing }} <span>件</span></dd></div>
+            </dl>
+            <p class="mb-2">＋α {{ progress.alpha_fulfilled }}/{{ progress.alpha_target }}（充足数/目標件数）</p>
+            <p class="small text-muted mb-0">＋αはQ&amp;A・Tipsの基本目標を超えた投稿で満たす共通の追加枠です。</p>
+        {% else %}
+            <div class="summary-quota-status"><strong><i class="bi bi-info-circle me-2" aria-hidden="true"></i>目標がまだ確定していません</strong></div>
+            <p class="mb-0">対象期間の目標が未設定、設定不足、または2026年6月の開始前のため、判定できません。未設定は0件として扱いません。</p>
+        {% endif %}
+    </div>
+</div>

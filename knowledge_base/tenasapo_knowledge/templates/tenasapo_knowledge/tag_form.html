@@ -2,16 +2,33 @@
 
 {% block title %}{{ form_title }} | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-tags-fill"></i></span>{{ form_title }}
             </h1>
+            <p class="page-title-sub">記事の分類や検索に使うタグ名を入力・確認できます。</p>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <form class="card shadow-sm" method="post">
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-name" class="is-current" aria-current="location">{{ form.name.label }}</a>
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" data-knowledge-completion="generic">
             <div class="card-body p-4">
                 {% csrf_token %}
                 {% if return_to %}
@@ -23,8 +40,9 @@
 
                 <div class="row g-3">
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
-                        <input class="form-control{% if form.name.errors %} is-invalid{% endif %}" type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}" value="{{ form.name.value|default_if_none:'' }}" placeholder="例: IP" required>
+                        <label class="form-label form-section-label" id="form-section-name" data-form-section tabindex="-1" for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                        <input class="form-control{% if form.name.errors %} is-invalid{% endif %}" type="text" name="{{ form.name.html_name }}" id="{{ form.name.id_for_label }}" value="{{ form.name.value|default_if_none:'' }}" placeholder="例: IP" required{% if form.name.field.max_length %} data-completion-maxlength="{{ form.name.field.max_length }}"{% endif %}>
+                        <div class="form-text">記事の分類や検索に使うタグ名を入力してください。</div>
                         {% for error in form.name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                 </div>

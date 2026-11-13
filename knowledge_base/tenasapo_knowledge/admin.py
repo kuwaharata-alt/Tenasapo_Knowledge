@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .forms import ManualForm
 from .models import (
     ArticleGood,
     ArticleAttachment,
@@ -114,10 +115,19 @@ class UserProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Manual)
 class ManualAdmin(admin.ModelAdmin):
-    list_display = ('title', 'is_published', 'order', 'created_by', 'created_at', 'updated_at')
+    form = ManualForm
+    readonly_fields = ('menu_key',)
+    fields = ('menu_key', 'title', 'description', 'is_published', 'order', 'created_by')
+    list_display = ('title', 'menu_key', 'is_published', 'order', 'created_by', 'created_at', 'updated_at')
     list_filter = ('is_published',)
     search_fields = ('title', 'description')
     ordering = ('order', '-created_at')
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and not (obj and obj.menu_key)
+
+    def delete_queryset(self, request, queryset):
+        queryset.filter(menu_key__isnull=True).delete()
 
     def save_model(self, request, obj, form, change):
         if not obj.created_by:

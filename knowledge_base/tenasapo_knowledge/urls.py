@@ -1,5 +1,6 @@
 from django.urls import path
 from django.views.generic import RedirectView
+from .chat_schedule_settings import ChatScheduleSettingsView
 from .views import (
     ArticleListView,
     ArticleManagementView,
@@ -27,6 +28,7 @@ from .views import (
     KnowledgeArticleImageAttachmentDeleteView,
     KnowledgeArticleDetailView,
     KnowledgeInputHubView,
+    KnowledgeDuplicateCandidatesView,
     KnowledgeArticleUpdateView,
     LoginHistoryListView,
     ManualCreateView,
@@ -46,7 +48,9 @@ from .views import (
     RevisionHistoryUpdateView,
     ReviewListView,
     SummaryView,
+    PostingQuotaSettingsView,
     SummaryPDFView,
+    SummaryPostingReportPDFView,
     SummaryNotifyChatAPIView,
     TipsApproveView,
     TipsApprovalResetView,
@@ -76,6 +80,7 @@ from .views import (
 )
 
 urlpatterns = [
+    path('summary/report/pdf/', SummaryPostingReportPDFView.as_view(), name='summary_posting_report_pdf'),
     path('', HomeView.as_view(), name='home'),
     path('first-login-registration/', FirstLoginRegistrationView.as_view(), name='first_login_registration'),
     path('login-lp/', LoginLandingPageView.as_view(), name='login_lp'),
@@ -108,6 +113,7 @@ urlpatterns = [
     path('knowledge/toggle-good/', FAQGoodToggleView.as_view(), name='faq_toggle_good'),
     path('knowledge/toggle-favorite/', FAQFavoriteToggleView.as_view(), name='faq_toggle_favorite'),
     path('knowledge/preview-render/', PreviewRenderView.as_view(), name='preview_render'),
+    path('knowledge/duplicate-candidates/', KnowledgeDuplicateCandidatesView.as_view(), name='knowledge_duplicate_candidates'),
     path('knowledge/create/', KnowledgeArticleCreateView.as_view(), name='article_create'),
     path('knowledge/input/', KnowledgeInputHubView.as_view(), name='knowledge_input'),
     path('knowledge/<int:pk>/edit/', KnowledgeArticleUpdateView.as_view(), name='article_edit'),
@@ -139,6 +145,8 @@ urlpatterns = [
     path('histories/revisions/', RevisionHistoryListView.as_view(), name='revision_history_list'),
     path('histories/views/', ViewHistoryListView.as_view(), name='view_history_list'),
     path('summary/', SummaryView.as_view(), name='summary'),
+    path('summary/chat-schedule/', ChatScheduleSettingsView.as_view(), name='chat_schedule_settings'),
+    path('summary/quotas/', PostingQuotaSettingsView.as_view(), name='posting_quota_settings'),
     path('summary/pdf/', SummaryPDFView.as_view(), name='summary_pdf'),
     path('summary/notify/', SummaryNotifyChatAPIView.as_view(), name='summary_notify_chat'),
     path(

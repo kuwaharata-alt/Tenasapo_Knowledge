@@ -2,51 +2,79 @@
 
 {% block title %}初回登録 | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
-        <div class="card shadow-sm">
-            <div class="card-body p-4 p-md-5">
-                <h1 class="h3 mb-3">初回登録</h1>
-                <p class="text-muted mb-4">初回ログオン時のユーザー情報を登録してください。</p>
+    <div class="col-12">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-person-fill-gear"></i></span>初回登録
+            </h1>
+            <p class="page-title-sub">初回ログオン時のユーザー情報を登録してください。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-department" class="is-current" aria-current="location">所属部署</a>
+                <a href="#form-section-group">所属グループ</a>
+                <a href="#form-section-employee">社員番号</a>
+                <a href="#form-section-login">ログインID</a>
+                <a href="#form-section-name">ユーザー名（漢字）</a>
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form method="post" class="card shadow-sm" data-knowledge-completion="first-login">
+            <div class="card-body p-4">
+                {% csrf_token %}
                 {% if form_error %}
                 <div class="alert alert-danger" role="alert">{{ form_error }}</div>
                 {% endif %}
-                <form method="post" class="d-flex flex-column gap-3">
-                    {% csrf_token %}
-                    <div>
-                        <label class="form-label" for="departmentName">所属部署</label>
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-department" data-form-section tabindex="-1" for="departmentName">所属部署</label>
                         <input class="form-control" id="departmentName" type="text" value="{{ department_name }}" readonly>
+                        <div class="form-text">登録されている所属部署を確認してください（変更不可）。</div>
                     </div>
-                    <div>
-                        <label class="form-label" for="groupName">所属グループ</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-group" data-form-section tabindex="-1" for="groupName">所属グループ</label>
                         <select class="form-select" id="groupName" name="group" required>
                             <option value="">選択してください</option>
                             {% for group_name in allowed_groups %}
                             <option value="{{ group_name }}" {% if selected_group == group_name %}selected{% endif %}>{{ group_name }}</option>
                             {% endfor %}
                         </select>
+                        <div class="form-text">所属するグループを選択してください。</div>
                     </div>
-                    <div>
-                        <label class="form-label" for="employeeNumber">社員番号</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-employee" data-form-section tabindex="-1" for="employeeNumber">社員番号</label>
                         <input class="form-control" id="employeeNumber" name="employee_number" type="text" maxlength="6" value="{{ initial_employee_number }}" required>
                         <div class="form-text">数字6桁で入力してください（管理番号として保存されます）。</div>
                     </div>
-                    <div>
-                        <label class="form-label" for="loginId">ログインID</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-login" data-form-section tabindex="-1" for="loginId">ログインID</label>
                         <input class="form-control" id="loginId" name="login_id" type="text" value="{{ initial_login_id }}" required>
                         <div class="form-text">メールアドレスの@より前（ユーザー名部分）を入力してください。</div>
                     </div>
-                    <div>
-                        <label class="form-label" for="userName">ユーザー名（漢字）</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-name" data-form-section tabindex="-1" for="userName">ユーザー名（漢字）</label>
                         <input class="form-control" id="userName" name="user_name" type="text" value="{{ initial_user_name }}">
+                        <div class="form-text">表示に使用するユーザー名を漢字で入力してください。</div>
                     </div>
-                    <div>
-                        <button type="submit" class="btn btn-primary">登録</button>
-                    </div>
-                </form>
+                </div>
             </div>
-        </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <button type="submit" class="btn btn-primary">登録</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}

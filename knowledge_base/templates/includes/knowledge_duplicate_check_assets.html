@@ -1,0 +1,163 @@
+<script>
+// 新規登録のみ。入力・添付を保持したまま、既存記事確認から従来のプレビューへ接続する。
+document.addEventListener('DOMContentLoaded', function() {
+    const element = document.getElementById('knowledgeDuplicateModal');
+    if (!element) return;
+    const status = document.getElementById('knowledgeDuplicateStatus');
+    const results = document.getElementById('knowledgeDuplicateResults');
+    const categories = document.getElementById('knowledgeDuplicateCategories');
+    const proceed = document.getElementById('knowledgeDuplicateContinue');
+    const retry = document.getElementById('knowledgeDuplicateRetry');
+    const previous = document.getElementById('knowledgeDuplicatePrevious');
+    const next = document.getElementById('knowledgeDuplicateNext');
+    const pageLabel = document.getElementById('knowledgeDuplicatePage');
+    let activeForm = null;
+    let onContinue = null;
+    let selectedIds = [];
+    let currentPage = 1;
+    let requestId = 0;
+    let controller = null;
+    let modalShown = false;
+    let candidatesReady = false;
+
+    function currentIds() {
+        return Array.from(new Set(Array.from(activeForm.querySelectorAll(
+            'input[type="hidden"][name="registered_category"]'
+        ), input => input.value))).sort();
+    }
+
+    async function load(page) {
+        const id = ++requestId;
+        if (controller) controller.abort();
+        const requestController = new AbortController();
+        controller = requestController;
+        const timeout = setTimeout(() => requestController.abort(), 15000);
+        currentPage = page;
+        candidatesReady = false;
+        proceed.disabled = true;
+        previous.disabled = true;
+        next.disabled = true;
+        retry.hidden = true;
+        results.replaceChildren();
+        categories.replaceChildren();
+        pageLabel.textContent = '';
+        status.textContent = '同じカテゴリの記事を確認しています…';
+        element.setAttribute('aria-busy', 'true');
+        try {
+            const url = new URL(element.dataset.candidatesUrl, window.location.href);
+            selectedIds.forEach(value => url.searchParams.append('registered_category', value));
+            url.searchParams.set('page', String(page));
+            const response = await fetch(url, {signal: requestController.signal, cache: 'no-store', credentials: 'same-origin'});
+            if (!response.ok) throw new Error('候補取得エラー');
+            const data = await response.json();
+            if (id !== requestId) return;
+            data.categories.forEach(name => {
+                const chip = document.createElement('span');
+                chip.className = 'badge rounded-pill text-bg-light border text-wrap';
+                chip.textContent = name;
+                categories.appendChild(chip);
+            });
+            data.results.forEach(item => {
+                const row = document.createElement('div');
+                row.className = 'list-group-item p-3';
+                const heading = document.createElement('div');
+                heading.className = 'd-flex align-items-start gap-2';
+                const badge = document.createElement('span');
+                badge.className = 'badge flex-shrink-0';
+                badge.style.backgroundColor = item.kind === 'FAQ' ? '#dc3545' : '#0077cc';
+                const kindLabels = {FAQ: 'Q&A', Tips: 'Tips'};
+                badge.textContent = kindLabels[item.kind] || item.kind;
+                const link = document.createElement('a');
+                link.className = 'fw-semibold text-break';
+                link.textContent = item.title + ' ↗';
+                // APIはアプリ内の詳細URLのみを返す。
+                const detailUrl = new URL(item.url, window.location.href);
+                if (detailUrl.origin !== window.location.origin) throw new Error('不正なリンク');
+                link.href = detailUrl.href;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.setAttribute('aria-label', item.title + '（新しいタブで詳細を確認）');
+                heading.append(badge, link);
+                const meta = document.createElement('div');
+                meta.className = 'small text-muted mt-2 text-break';
+                meta.textContent = item.management_code + ' ｜ ' + item.categories.join('、');
+                row.append(heading, meta);
+                results.appendChild(row);
+            });
+            status.textContent = data.total === 0
+                ? (onContinue ? '同じカテゴリの記事は見つかりませんでした。プレビューへ進めます。' : '同じカテゴリの記事は見つかりませんでした。入力を続けられます。')
+                : '同じカテゴリの記事：' + data.total + '件。タイトルや詳細を確認してください。';
+            pageLabel.textContent = data.page + ' / ' + data.pages + ' ページ';
+            previous.disabled = data.page <= 1;
+            next.disabled = data.page >= data.pages;
+            candidatesReady = true;
+            proceed.disabled = !modalShown;
+        } catch (error) {
+            if (id !== requestId) return;
+            results.replaceChildren();
+            status.textContent = '記事を取得できませんでした。カテゴリの選択と通信状態を確認し、再読み込みしてください。';
+            retry.hidden = false;
+        } finally {
+            clearTimeout(timeout);
+            if (id === requestId) element.removeAttribute('aria-busy');
+        }
+    }
+
+    window.confirmKnowledgeDuplicates = function(form, callback) {
+        activeForm = form;
+        onContinue = typeof callback === 'function' ? callback : null;
+        proceed.hidden = !onContinue;
+        document.getElementById('knowledgeDuplicateInstructions').textContent = onContinue
+            ? '選択したカテゴリの既存ナレッジを確認してください。同じ内容の記事がなければ、プレビューへ進んでください。'
+            : '選択したカテゴリの既存ナレッジを確認してください。確認後は「入力に戻る」で入力を続けられます。';
+        selectedIds = currentIds();
+        bootstrap.Modal.getOrCreateInstance(element).show();
+        load(1);
+    };
+    document.querySelectorAll('[data-knowledge-duplicate-check]').forEach(button => {
+        button.addEventListener('click', function() {
+            const form = button.closest('form');
+            if (!form) return;
+            const feedback = form.querySelector('[data-knowledge-duplicate-feedback]');
+            const hasCategory = Array.from(form.querySelectorAll(
+                'input[type="hidden"][name="registered_category"]'
+            )).some(input => input.value);
+            if (feedback) feedback.hidden = hasCategory;
+            if (!hasCategory) return;
+            window.confirmKnowledgeDuplicates(form);
+        });
+    });
+    previous.addEventListener('click', () => load(currentPage - 1));
+    next.addEventListener('click', () => load(currentPage + 1));
+    retry.addEventListener('click', () => {
+        selectedIds = currentIds();
+        load(1);
+    });
+    proceed.addEventListener('click', function() {
+        if (proceed.disabled || !onContinue) return;
+        if (JSON.stringify(currentIds()) !== JSON.stringify(selectedIds)) {
+            selectedIds = currentIds();
+            load(1);
+            return;
+        }
+        const callback = onContinue;
+        onContinue = null;
+        proceed.disabled = true;
+        element.addEventListener('hidden.bs.modal', callback, {once: true});
+        bootstrap.Modal.getOrCreateInstance(element).hide();
+    });
+    element.addEventListener('shown.bs.modal', function() {
+        modalShown = true;
+        proceed.disabled = !candidatesReady;
+    });
+    element.addEventListener('hide.bs.modal', function() {
+        modalShown = false;
+        proceed.disabled = true;
+    });
+    element.addEventListener('hidden.bs.modal', function() {
+        ++requestId;
+        if (controller) controller.abort();
+        onContinue = null;
+    });
+});
+</script>

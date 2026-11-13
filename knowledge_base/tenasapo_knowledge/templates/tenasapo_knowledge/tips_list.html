@@ -2,6 +2,30 @@
 {% load article_extras %}
 
 {% block title %}Tips | Nexus{% endblock %}
+{% block body_class %}knowledge-split-page{% endblock %}
+
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="me-md-auto">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-lightbulb-fill"></i></span>Tips
+            </h1>
+            <p class="page-title-sub">便利な使い方や業務に役立つヒントを検索・閲覧できます。</p>
+        </div>
+        <div class="flex-md-fill d-flex justify-content-md-center">
+            {% if is_demo_user %}
+                <div class="alert alert-warning py-2 px-3 mb-0">この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。</div>
+            {% endif %}
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
+            {% if user.is_staff or user.is_superuser %}
+                <a class="btn btn-primary" href="{% url 'tip_create' %}">新規登録</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block content %}
 <style>
@@ -26,148 +50,15 @@
         cursor: not-allowed;
     }
 </style>
-<div class="page-title-panel mb-4">
-    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
-        <div class="me-md-auto">
-            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-lightbulb-fill"></i></span>Tips
-            </h1>
-        </div>
-        <div class="flex-md-fill d-flex justify-content-md-center">
-            {% if is_demo_user %}
-                <div class="alert alert-warning py-2 px-3 mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。{% if current_user_demo_expires_at_text %}（閲覧期限：{{ current_user_demo_expires_at_text }}）{% endif %}</div>
-            {% endif %}
-        </div>
-        <div class="d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
-            {% if user.is_staff or user.is_superuser %}
-                <a class="btn btn-primary" href="{% url 'tip_create' %}">Tips登録</a>
-                {% if can_approve_tip %}
-                    <a class="btn btn-outline-primary" href="{% url 'review_list' %}?type=tips">レビュー</a>
-                {% else %}
-                    <button class="btn btn-outline-secondary" type="button" disabled aria-disabled="true">レビュー</button>
-                {% endif %}
-            {% endif %}
-        </div>
-    </div>
-</div>
 
-<div class="search-panel py-3 mb-4">
-
-    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
-        {% if selected_parent_category %}
-            <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
-        {% endif %}
-        {% if selected_category %}
-            <input type="hidden" name="category" value="{{ selected_category }}">
-        {% endif %}
-        <div class="col-12 col-md-7">
-            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
-        </div>
-        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-            <button class="btn btn-primary" type="submit">検索</button>
-            {% if can_use_favorite %}
-                <a
-                    class="btn {% if favorite_only %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                    {% if not favorite_only %}style="background-color:rgba(255,193,7,.18);"{% endif %}
-                    href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if not favorite_only %}&favorite_only=1{% endif %}"
-                >
-                    {% if favorite_only %}☆表示解除{% else %}☆のみ表示{% endif %}
-                </a>
-            {% endif %}
-            {% if can_edit_tip %}
-                <button
-                    class="btn {% if active_filter_count %}btn-info{% else %}btn-outline-info{% endif %} position-relative"
-                    {% if not active_filter_count %}style="background-color:rgba(13,202,240,.18);"{% endif %}
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#tipsFilterPanel"
-                    aria-expanded="{% if active_filter_count %}true{% else %}false{% endif %}"
-                    aria-controls="tipsFilterPanel"
-                >
-                    <i class="bi bi-funnel"></i> フィルター{% if active_filter_count %}<span class="badge rounded-pill bg-danger ms-1" style="font-size:0.65rem;">{{ active_filter_count }}</span>{% endif %}
-                </button>
-            {% endif %}
-        </div>
-        {% if can_edit_tip %}
-        <div class="col-12">
-            <div class="collapse {% if active_filter_count %}show{% endif %}" id="tipsFilterPanel">
-                <div class="border rounded p-3 mt-1" style="background:var(--tk-panel-bg,#fff);">
-                    <div class="row g-3 align-items-start">
-                        <div class="col-12 col-md-3 col-xl-2">
-                            <label class="form-label small fw-semibold mb-1">承認状態</label>
-                            <select class="form-select form-select-sm" name="filter_approval">
-                                <option value="">すべて</option>
-                                <option value="approved" {% if filter_approval == 'approved' %}selected{% endif %}>承認済</option>
-                                <option value="remanded" {% if filter_approval == 'remanded' %}selected{% endif %}>差戻し</option>
-                                <option value="pending" {% if filter_approval == 'pending' %}selected{% endif %}>登録（未承認）</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3 col-xl-3">
-                            <div class="d-flex flex-column gap-2">
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">作成者</label>
-                                    <select class="form-select form-select-sm" name="filter_creator">
-                                        <option value="">すべて</option>
-                                        {% for cid, cname in filter_creator_choices %}
-                                            <option value="{{ cid }}" {% if filter_creator == cid|stringformat:"s" %}selected{% endif %}>{{ cname }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">承認者</label>
-                                    <select class="form-select form-select-sm" name="filter_approver">
-                                        <option value="">すべて</option>
-                                        {% for aid, aname in filter_approver_choices %}
-                                            <option value="{{ aid }}" {% if filter_approver == aid|stringformat:"s" %}selected{% endif %}>{{ aname }}</option>
-                                        {% endfor %}
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-md-3 col-xl-2">
-                            <div class="d-flex flex-column gap-2">
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">作成日（開始）</label>
-                                    <input type="date" class="form-control form-control-sm" name="filter_created_from" value="{{ filter_created_from }}">
-                                </div>
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">作成日（終了）</label>
-                                    <input type="date" class="form-control form-control-sm" name="filter_created_to" value="{{ filter_created_to }}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12 col-md-3 col-xl-2">
-                            <div class="d-flex flex-column gap-2">
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">掲載期限（開始）</label>
-                                    <input type="date" class="form-control form-control-sm" name="filter_expires_from" value="{{ filter_expires_from }}">
-                                </div>
-                                <div>
-                                    <label class="form-label small fw-semibold mb-1">掲載期限（終了）</label>
-                                    <input type="date" class="form-control form-control-sm" name="filter_expires_to" value="{{ filter_expires_to }}">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-12 d-flex gap-2 justify-content-end mt-1">
-                            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> 絞り込む</button>
-                            <a href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if favorite_only %}&favorite_only=1{% endif %}" class="btn btn-outline-secondary btn-sm">フィルター解除</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-    </form>
-</div>
-
-<div class="row g-4 align-items-start">
-    <aside class="col-12 col-lg-2 category-sidebar-col">
+<div class="row knowledge-split-row">
+    <aside class="col-12 col-lg-2 category-sidebar-col has-os-filter" tabindex="0" aria-label="カテゴリ一覧">
         <div class="category-sidebar">
             <div class="category-sidebar-title">カテゴリ</div>
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="カテゴリ項目">
                 <a
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
-                    href="?q={{ query|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
+                    href="?q={{ query|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}"
                 >
                     <span>すべて</span>
                     <span class="category-count">{{ all_count|default:0 }}件</span>
@@ -175,7 +66,7 @@
                 {% for parent_category in parent_categories %}
                     <a
                         class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
-                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
+                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}"
                         aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
                         aria-controls="categoryChildren{{ forloop.counter }}"
                     >
@@ -191,7 +82,7 @@
                                 {% if child_category.count > 0 %}
                                     <a
                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
+                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}"
                                     >
                                         <span>{{ child_category.name }}</span>
                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -221,7 +112,7 @@
                                                 {% if child_category.count > 0 %}
                                                     <a
                                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}"
+                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}{% if favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}"
                                                     >
                                                         <span>{{ child_category.name }}</span>
                                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -237,10 +128,121 @@
                 {% endfor %}
             </div>
         </div>
+        {% include "includes/target_os_filter.html" %}
     </aside>
 
-    <section class="col-12 col-lg-10 category-content-col">
+    <section class="col-12 col-lg-10 category-content-col" tabindex="0" aria-label="Tips一覧">
+        <div class="search-panel py-3">
 
+            <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+                {% if selected_parent_category %}
+                    <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
+                {% endif %}
+                {% if selected_category %}
+                    <input type="hidden" name="category" value="{{ selected_category }}">
+                {% endif %}
+                {% if selected_target_os %}
+                    <input type="hidden" name="target_os" value="{{ selected_target_os }}">
+                {% endif %}
+                <div class="col-12 col-md-7">
+                    <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
+                </div>
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+                    <button class="btn btn-primary" type="submit">検索</button>
+                    {% if can_use_favorite %}
+                        <a
+                            class="btn btn-toolbar-secondary{% if favorite_only %} is-selected{% endif %}"
+                            href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if not favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}"
+                        >
+                            {% if favorite_only %}☆表示解除{% else %}☆のみ表示{% endif %}
+                        </a>
+                    {% endif %}
+                    {% if can_edit_tip %}
+                        <button
+                            class="btn btn-toolbar-secondary{% if active_filter_count %} is-selected{% endif %} position-relative"
+                            type="button"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#tipsFilterPanel"
+                            aria-expanded="{% if active_filter_count %}true{% else %}false{% endif %}"
+                            aria-controls="tipsFilterPanel"
+                        >
+                            <i class="bi bi-funnel"></i> フィルタ{% if active_filter_count %}<span class="badge rounded-pill bg-danger ms-1" style="font-size:0.65rem;">{{ active_filter_count }}</span>{% endif %}
+                        </button>
+                    {% endif %}
+                </div>
+                {% if can_edit_tip %}
+                <div class="col-12">
+                    <div class="collapse {% if active_filter_count %}show{% endif %}" id="tipsFilterPanel">
+                        <div class="border rounded p-3 mt-1" style="background:var(--tk-panel-bg,#fff);">
+                            <div class="row g-3 align-items-start">
+                                <div class="col-12 col-md-3 col-xl-2">
+                                    <label class="form-label small fw-semibold mb-1">承認状態</label>
+                                    <select class="form-select form-select-sm" name="filter_approval">
+                                        <option value="">すべて</option>
+                                        <option value="approved" {% if filter_approval == 'approved' %}selected{% endif %}>承認済</option>
+                                        <option value="remanded" {% if filter_approval == 'remanded' %}selected{% endif %}>差戻し</option>
+                                        <option value="pending" {% if filter_approval == 'pending' %}selected{% endif %}>登録（未承認）</option>
+                                    </select>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-3">
+                                    <div class="d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">作成者</label>
+                                            <select class="form-select form-select-sm" name="filter_creator">
+                                                <option value="">すべて</option>
+                                                {% for cid, cname in filter_creator_choices %}
+                                                    <option value="{{ cid }}" {% if filter_creator == cid|stringformat:"s" %}selected{% endif %}>{{ cname }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">承認者</label>
+                                            <select class="form-select form-select-sm" name="filter_approver">
+                                                <option value="">すべて</option>
+                                                {% for aid, aname in filter_approver_choices %}
+                                                    <option value="{{ aid }}" {% if filter_approver == aid|stringformat:"s" %}selected{% endif %}>{{ aname }}</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-2">
+                                    <div class="d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">作成日（開始）</label>
+                                            <input type="date" class="form-control form-control-sm" name="filter_created_from" value="{{ filter_created_from }}">
+                                        </div>
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">作成日（終了）</label>
+                                            <input type="date" class="form-control form-control-sm" name="filter_created_to" value="{{ filter_created_to }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-3 col-xl-2">
+                                    <div class="d-flex flex-column gap-2">
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">掲載期限（開始）</label>
+                                            <input type="date" class="form-control form-control-sm" name="filter_expires_from" value="{{ filter_expires_from }}">
+                                        </div>
+                                        <div>
+                                            <label class="form-label small fw-semibold mb-1">掲載期限（終了）</label>
+                                            <input type="date" class="form-control form-control-sm" name="filter_expires_to" value="{{ filter_expires_to }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-12 d-flex gap-2 justify-content-end mt-1">
+                                    <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> 絞り込む</button>
+                                    <a href="?q={{ query|urlencode }}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if favorite_only %}&favorite_only=1{% endif %}{% if selected_target_os %}&target_os={{ selected_target_os|urlencode }}{% endif %}" class="btn btn-outline-secondary btn-sm">フィルタ解除</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="knowledge-results" tabindex="0" role="region" aria-label="Tips一覧">
         {% if grouped_tips %}
             <div class="faq-group-list">
                 {% for group in grouped_tips %}
@@ -252,74 +254,74 @@
                             {% for tip in group.articles %}
                                 <article class="accordion-item faq-item">
                                     <h3 class="accordion-header" id="tipsHeading{{ forloop.parentloop.counter }}{{ tip.id }}">
-                                        <div class="faq-question d-flex align-items-center gap-3 p-3">
-                                            <div class="d-flex flex-column align-items-start gap-1 flex-shrink-0">
-                                                <span class="badge text-bg-primary">Tips</span>
-                                                {% if not current_user_is_customer and tip.management_code %}<span class="badge text-bg-light border text-muted" style="font-size:0.7rem;">{{ tip.management_code }}</span>{% endif %}
-                                            </div>
+                                        <div class="faq-question d-flex align-items-start gap-3 p-3">
                                             <div class="flex-grow-1">
+                                                {% if tip.is_new_badge %}
+                                                    <div class="d-flex align-items-center gap-1 mb-1"><span class="knowledge-status text-bg-danger knowledge-new-badge">New</span></div>
+                                                {% endif %}
                                                    <div class="faq-question-title fw-semibold">
-                                                       {% if tip.is_new_badge %}
-                                                           <span class="badge text-bg-danger me-1 flex-shrink-0" style="font-size: 0.65rem; vertical-align: middle;">New</span>
+                                                       {% if can_use_favorite %}
+                                                           {% if can_edit_tip or tip.can_view_content %}
+                                                               <button
+                                                                   class="btn btn-sm rounded-circle flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                                                                   type="button"
+                                                                   data-tip-id="{{ tip.id }}"
+                                                                   data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
+                                                                   aria-pressed="{% if tip.is_favorited %}true{% else %}false{% endif %}"
+                                                                   aria-label="{% if tip.is_favorited %}お気に入りから削除{% else %}お気に入りに追加{% endif %}"
+                                                               >
+                                                                   <i class="bi {% if tip.is_favorited %}bi-star-fill{% else %}bi-star{% endif %}" aria-hidden="true"></i>
+                                                               </button>
+                                                           {% endif %}
                                                        {% endif %}
-                                                       <span style="vertical-align: middle;">{{ tip.title }}</span>
+                                                       <span class="faq-question-title-text">
+                                                           {{ tip.title }}
+                                                       </span>
                                                    </div>
-                                                {% if tip.can_view_content and tip.category_chips %}
-                                                    <div class="d-flex flex-wrap gap-2 mt-2">
-                                                        {% for category in tip.category_chips %}
-                                                            <span class="badge faq-category-chip">{{ category }}</span>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-                                                {% if tip.can_view_content and tip.target_os_chips %}
-                                                    <div class="d-flex flex-wrap gap-2 mt-2">
-                                                        {% for target_os in tip.target_os_chips %}
-                                                            <span class="badge faq-meta-badge faq-os-chip">対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}</span>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
+                                                <div class="knowledge-title-meta d-flex flex-wrap gap-2 mt-1">
+                                                    <span class="badge faq-meta-badge knowledge-neutral-badge">掲載日 {{ tip.published_at|date:"Y/m/d" }}</span>
+                                                    {% if user.is_staff or user.is_superuser %}
+                                                        <span class="badge faq-meta-badge knowledge-neutral-badge">掲載者 {{ tip.creator_display_name|default:"-" }}</span>
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                             <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
                                                 {% if can_edit_tip %}
                                                     <div class="d-flex align-items-center gap-1 mb-1">
-                                                        <span style="font-size: 0.8rem; color: #6c757d;" class="fw-semibold">
-                                                            ステータス：{% if tip.is_approved %}公開中(承認済){% elif tip.approval_status == 'corrected' %}修正{% elif tip.approval_status == 'remanded' %}差戻し{% else %}登録{% endif %}
+                                                        <span class="knowledge-status {% if tip.is_approved %}knowledge-status-approved{% elif tip.approval_status == 'corrected' %}knowledge-status-corrected{% elif tip.approval_status == 'remanded' %}knowledge-status-remanded{% else %}knowledge-status-registered{% endif %}">
+                                                            <span class="visually-hidden">ステータス：</span>{% if tip.is_approved %}公開中(承認済){% elif tip.approval_status == 'corrected' %}修正{% elif tip.approval_status == 'remanded' %}差戻し{% else %}登録{% endif %}
                                                         </span>
                                                     </div>
                                                 {% endif %}
                                                 <div class="d-flex align-items-center gap-1">
                                                     {% if can_edit_tip %}
-                                                        {% if can_edit_tip %}
-                                                            <a class="btn btn-outline-turquoise btn-sm flex-shrink-0" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
-                                                        {% endif %}
-                                                        {% if tip.approval_status == 'approved' or tip.ai_review or tip.remand_reason %}
-                                                            <button
-                                                                class="btn btn-outline-turquoise btn-sm flex-shrink-0 knowledge-review-btn"
-                                                                type="button"
-                                                                data-title="{{ tip.title|escapejs }}"
-                                                                data-approval-status="{{ tip.approval_status|default:'' }}"
-                                                                data-ai-review="{{ tip.ai_review|default:''|escapejs }}"
-                                                                data-remand-reason="{{ tip.remand_reason|default:''|escapejs }}"
-                                                            >レビュー</button>
-                                                        {% else %}
-                                                            <button
-                                                                class="btn btn-outline-turquoise btn-sm flex-shrink-0"
-                                                                type="button"
-                                                                disabled
-                                                                aria-disabled="true"
-                                                            >レビュー</button>
-                                                        {% endif %}
-                                                        {% if can_use_favorite %}
-                                                            <button
-                                                                class="btn btn-sm rounded-circle flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                                                                type="button"
-                                                                data-tip-id="{{ tip.id }}"
-                                                                data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
-                                                                aria-label="お気に入り"
-                                                            >
-                                                                {% if tip.is_favorited %}★{% else %}☆{% endif %}
-                                                            </button>
-                                                        {% endif %}
+                                                        <button
+                                                            class="btn btn-sm knowledge-action-toggle"
+                                                            type="button"
+                                                            popovertarget="tipsActions{{ tip.id }}"
+                                                            aria-label="記事の操作"
+                                                            aria-expanded="false"
+                                                        ><i class="bi bi-three-dots-vertical" aria-hidden="true"></i></button>
+                                                        <div id="tipsActions{{ tip.id }}" popover="auto" class="knowledge-action-menu">
+                                                            <a class="dropdown-item" href="{% url 'tip_edit' tip.id %}?next={{ request.get_full_path|urlencode }}">編集</a>
+                                                            {% if tip.approval_status == 'approved' or tip.ai_review or tip.remand_reason %}
+                                                                <button
+                                                                    class="dropdown-item knowledge-review-btn"
+                                                                    type="button"
+                                                                    data-title="{{ tip.title|escapejs }}"
+                                                                    data-approval-status="{{ tip.approval_status|default:'' }}"
+                                                                    data-ai-review="{{ tip.ai_review|default:''|escapejs }}"
+                                                                    data-remand-reason="{{ tip.remand_reason|default:''|escapejs }}"
+                                                                >レビュー</button>
+                                                            {% else %}
+                                                                <button
+                                                                    class="dropdown-item"
+                                                                    type="button"
+                                                                    disabled
+                                                                    aria-disabled="true"
+                                                                >レビュー</button>
+                                                            {% endif %}
+                                                        </div>
                                                         <button
                                                             class="btn btn-sm rounded-circle faq-toggle collapsed flex-shrink-0"
                                                             type="button"
@@ -339,17 +341,6 @@
                                                                 aria-label="グッド"
                                                             >
                                                                 👍 <span class="tips-good-count">{{ tip.good_count }}</span>
-                                                            </button>
-                                                        {% endif %}
-                                                        {% if tip.can_view_content and can_use_favorite %}
-                                                            <button
-                                                                class="btn btn-sm rounded-circle flex-shrink-0 tips-favorite-btn {% if tip.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                                                                type="button"
-                                                                data-tip-id="{{ tip.id }}"
-                                                                data-favorited="{% if tip.is_favorited %}1{% else %}0{% endif %}"
-                                                                aria-label="お気に入り"
-                                                            >
-                                                                ☆
                                                             </button>
                                                         {% endif %}
                                                         <button
@@ -374,27 +365,20 @@
                                         data-tip-id="{{ tip.id }}"
                                     >
                                         <div class="accordion-body">
-                                            <div class="d-flex flex-wrap gap-2 mb-3">
-                                                <span class="badge faq-meta-badge">掲載日 {{ tip.published_at|date:"Y/m/d" }}</span>
-                                                {% if tip.expires_on %}
-                                                    <span class="badge faq-meta-badge">掲載期限 {{ tip.expires_on|date:"Y/m/d" }}</span>
-                                                {% endif %}
-                                                {% if tip.source_published_at %}
-                                                    <span class="badge faq-meta-badge">ソース公開日 {{ tip.source_published_at|date:"Y/m/d" }}</span>
-                                                {% endif %}
-                                                {% if user.is_staff or user.is_superuser %}
-                                                    <span class="badge faq-meta-badge">投稿者 {{ tip.creator_display_name|default:"-" }}</span>
-                                                {% endif %}
-                                                {% if can_view_approval_meta and approval_enabled %}
-                                                    <span class="badge text-bg-secondary">
-                                                        {% if tip.is_approved %}
-                                                            承認者 {{ tip.approver_display_name|default:"-" }}
-                                                        {% else %}
-                                                            未承認
-                                                        {% endif %}
-                                                    </span>
-                                                {% endif %}
-                                            </div>
+                                            {% if tip.can_view_content and tip.category_chips %}
+                                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                                    {% for category in tip.category_chips %}
+                                                        <span class="badge faq-category-chip knowledge-neutral-badge">{{ category }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                            {% if tip.can_view_content and tip.target_os_chips %}
+                                                <div class="d-flex flex-wrap gap-2 mt-2">
+                                                    {% for target_os in tip.target_os_chips %}
+                                                        <span class="badge faq-meta-badge faq-os-chip knowledge-neutral-badge">対象OS {{ target_os.name }}{% if target_os.version %} {{ target_os.version }}{% endif %}{% if target_os.condition %} {{ target_os.condition }}{% endif %}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
                                             {% if tip.can_view_content and tip.pdf_file %}
                                                 <div class="d-flex justify-content-end mb-3">
                                                     <button
@@ -416,11 +400,11 @@
                                                             {% for attachment in tip.file_attachments %}
                                                                 <li class="d-flex align-items-center gap-2">
                                                                     <span class="small text-muted flex-grow-1">・{{ attachment.display_name }}</span>
-                                                                    <span class="d-inline-flex align-items-center justify-content-end gap-2" style="min-width: 11rem;">
+                                                                    <span class="d-inline-flex align-items-center justify-content-end gap-2 flex-shrink-0">
                                                                         {% if attachment.can_inline_preview %}
-                                                                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}" target="_blank" rel="noopener">表示</a>
+                                                                            <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}" target="_blank" rel="noopener" title="表示" aria-label="{{ attachment.display_name }}を表示（新しいタブ）"><i class="bi bi-eye" aria-hidden="true"></i></a>
                                                                         {% endif %}
-                                                                        <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}?download=1">ダウンロード</a>
+                                                                        <a class="btn btn-outline-secondary btn-sm" href="{{ attachment.download_url }}?download=1" title="ダウンロード" aria-label="{{ attachment.display_name }}をダウンロード"><i class="bi bi-download" aria-hidden="true"></i></a>
                                                                     </span>
                                                                 </li>
                                                             {% endfor %}
@@ -449,7 +433,7 @@
                                                     {% endwith %}
                                                 {% endif %}
                                             {% else %}
-                                                <div class="alert alert-warning mb-0">現在のアカウントでは、このコンテンツの閲覧が制限されております。{% if current_user_demo_expires_at_text %}（閲覧期限：{{ current_user_demo_expires_at_text }}）{% endif %}</div>
+                                                <div class="alert alert-warning mb-0">この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。</div>
                                             {% endif %}
                                             {% if tip.can_view_content and tip.reference_links %}
                                                 <div class="border-top pt-3 mt-3">
@@ -480,6 +464,7 @@
         {% else %}
             <div class="alert alert-info" role="status">表示できるTipsがありません。</div>
         {% endif %}
+        </div>
     </section>
 </div>
 
@@ -585,6 +570,7 @@ setTimeout(() => {
         el.style.cursor = 'pointer';
         el.style.userSelect = 'none';
         el.addEventListener('click', function(e) {
+            if (e.target.closest('button, a, .knowledge-action-menu')) return;
             const header = this.closest('.accordion-header');
             if (!header) return;
             const toggleBtn = header.querySelector('.faq-toggle');
@@ -593,13 +579,6 @@ setTimeout(() => {
             }
         });
     });
-    // ボタンやリンククリックで親のクリックイベントを伝播させない
-    document.querySelectorAll('.faq-question button, .faq-question a').forEach(el => {
-        el.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
     document.querySelectorAll('.knowledge-review-btn').forEach(button => {
         button.addEventListener('click', function(e) {
             e.stopPropagation();
@@ -634,19 +613,17 @@ function adjustExpandedItemIntoView(panel) {
         return;
     }
 
-    const rootStyle = getComputedStyle(document.documentElement);
-    const navbarOffsetRaw = rootStyle.getPropertyValue('--tk-navbar-offset').trim();
-    const parsedOffset = Number.parseFloat(navbarOffsetRaw);
-    const navbarOffsetPx = Number.isFinite(parsedOffset) ? parsedOffset * 16 : 72;
-    const topPadding = navbarOffsetPx + 12;
+    const scrollContainer = accordionItem.closest('.knowledge-results');
+    if (!scrollContainer) return;
 
     const ensureVisible = () => {
         const rect = accordionItem.getBoundingClientRect();
-        const topLimit = topPadding;
-        const bottomLimit = window.innerHeight - 12;
+        const viewport = scrollContainer.getBoundingClientRect();
+        const topLimit = viewport.top + 12;
+        const bottomLimit = viewport.bottom - 12;
         if (rect.top < topLimit || rect.bottom > bottomLimit) {
-            const targetY = window.scrollY + rect.top - topPadding;
-            window.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
+            const targetY = scrollContainer.scrollTop + rect.top - topLimit;
+            scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: 'auto' });
         }
     };
 
@@ -824,7 +801,13 @@ document.querySelectorAll('.tips-favorite-btn[data-tip-id]').forEach(button => {
                 this.dataset.favorited = data.favorited ? '1' : '0';
                 this.classList.toggle('btn-warning', data.favorited);
                 this.classList.toggle('btn-outline-warning', !data.favorited);
-                this.textContent = data.favorited ? '★' : '☆';
+                this.setAttribute('aria-pressed', data.favorited ? 'true' : 'false');
+                this.setAttribute('aria-label', data.favorited ? 'お気に入りから削除' : 'お気に入りに追加');
+                const icon = this.querySelector('.bi');
+                if (icon) {
+                    icon.classList.toggle('bi-star-fill', data.favorited);
+                    icon.classList.toggle('bi-star', !data.favorited);
+                }
             })
             .catch(() => {});
     });

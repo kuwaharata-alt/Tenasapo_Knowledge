@@ -1,0 +1,120 @@
+<style>
+    .manual-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; align-items: start; }
+    .manual-content { min-width: 0; }
+    .manual-toc { border: 1px solid var(--tk-border); border-radius: .9rem; padding: 1rem; background: var(--tk-surface); overflow: auto; max-height: 15rem; overscroll-behavior: contain; }
+    .manual-toc-group { margin: 1.25rem .6rem .5rem; color: var(--tk-muted); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .manual-toc-links { list-style: none; padding: 0; margin: 0; }
+    .manual-toc a { display: flex; align-items: center; gap: .65rem; padding: .6rem .75rem; border-radius: .5rem; color: var(--tk-text); text-decoration: none; line-height: 1.5; overflow-wrap: anywhere; }
+    .manual-toc a .bi { flex: 0 0 1.1rem; }
+    .manual-toc a:hover { background: var(--tk-primary-soft, #fff3e8); }
+    .manual-toc a.is-current { background: #ffe6d2; color: #854018; box-shadow: inset 3px 0 #e87524; font-weight: 600; }
+    .manual-toc a.is-current.is-partially-visible { background: #fff3e8; color: #a56a40; box-shadow: inset 3px 0 #f5bb91; }
+    .manual-toc:focus-visible, .manual-toc a:focus-visible, .manual-section:focus-visible, .manual-section h2:focus-visible { outline: 2px solid var(--tk-primary, #e87524); outline-offset: 3px; }
+    .manual-section { scroll-margin-top: 1rem; min-width: 0; }
+    .manual-body-block-labelled { margin-top: 1.5rem; border-left: 3px solid var(--tk-primary, #e87524); padding-left: 1rem; }
+    .manual-body-heading { font-size: 1rem; font-weight: 700; color: var(--tk-primary-dark, #854018); padding: .5rem .75rem; margin: 0 0 .75rem; background: var(--tk-primary-soft, #fff3e8); border-radius: .35rem; }
+    .manual-text-body { line-height: 1.85; }
+    @media (min-width: 992px) {
+        .manual-layout { grid-template-columns: minmax(13rem, 1fr) minmax(0, 4fr); }
+        .manual-toc { position: sticky; top: 0; max-height: var(--manual-toc-height, calc(100dvh - 16rem)); }
+    }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Independent of form navigation: the app pane, not window, owns scrolling.
+    const root = document.getElementById('app-main');
+    const layout = root?.querySelector('.manual-layout');
+    const toc = layout?.querySelector('.manual-toc');
+    if (!toc) return;
+    const entries = Array.from(toc.querySelectorAll('a[href^="#"]')).map(link => {
+        let section;
+        try { section = document.getElementById(decodeURIComponent(link.hash.slice(1))); }
+        catch (_) { return null; }
+        return section && layout.contains(section) && section.matches('.manual-section')
+            ? { link, section } : null;
+    }).filter(Boolean);
+    const boundToc = () => {
+        layout.style.setProperty('--manual-toc-height', `${Math.max(0, root.clientHeight - 32)}px`);
+    };
+    let scheduled = false;
+    const updateCurrent = () => {
+        scheduled = false;
+        const rect = root.getBoundingClientRect();
+        const paneTop = rect.top + root.clientTop;
+        const top = Math.max(paneTop, 0);
+        const bottom = Math.min(paneTop + root.clientHeight, window.innerHeight);
+        let first = null;
+        entries.forEach(({ link, section }) => {
+            const box = section.getBoundingClientRect();
+            const visible = section.getClientRects().length > 0 && box.height > 0
+                && top < bottom && box.top < bottom && box.bottom > top;
+            const partial = visible && (box.top < top - 1 || box.bottom > bottom + 1);
+            link.classList.toggle('is-current', visible);
+            link.classList.toggle('is-partially-visible', partial);
+            if (visible && !first) {
+                first = link;
+                link.setAttribute('aria-current', 'location');
+            } else link.removeAttribute('aria-current');
+        });
+        // Never use scrollIntoView: that also moves app-main or the page.
+        if (first) {
+            const box = first.getBoundingClientRect();
+            const nav = toc.getBoundingClientRect();
+            const navTop = nav.top + toc.clientTop;
+            const navBottom = navTop + toc.clientHeight;
+            if (box.top < navTop || box.bottom > navBottom) {
+                toc.scrollTo({ top: toc.scrollTop + (box.top < navTop
+                    ? box.top - navTop : box.bottom - navBottom), behavior: 'instant' });
+            }
+        }
+    };
+    const schedule = () => {
+        if (!scheduled) { scheduled = true; requestAnimationFrame(updateCurrent); }
+    };
+    const navigate = (entry, smooth) => {
+        const top = root.scrollTop + entry.section.getBoundingClientRect().top
+            - root.getBoundingClientRect().top - root.clientTop - 16;
+        root.scrollTo({ top, behavior: smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'smooth' : 'instant' });
+        const heading = document.getElementById(`${entry.section.id}-title`) || entry.section;
+        heading.setAttribute('tabindex', '-1');
+        heading.focus({ preventScroll: true });
+        schedule();
+    };
+    entries.forEach(entry => entry.link.addEventListener('click', event => {
+        if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey
+            || event.shiftKey || event.altKey || entry.link.hasAttribute('download')
+            || (entry.link.target && entry.link.target !== '_self')) return;
+        event.preventDefault();
+        if (location.hash !== entry.link.hash) history.pushState(null, '', entry.link.hash);
+        navigate(entry, true);
+    }));
+    let hashScheduled = false;
+    const followHash = () => {
+        if (hashScheduled) return;
+        hashScheduled = true;
+        requestAnimationFrame(() => {
+            hashScheduled = false;
+            const entry = entries.find(item => item.link.hash === location.hash);
+            if (entry) navigate(entry, false);
+            else schedule();
+        });
+    };
+    root.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('hashchange', followHash);
+    window.addEventListener('popstate', followHash);
+    const resized = () => { boundToc(); schedule(); };
+    window.addEventListener('resize', resized);
+    if (window.ResizeObserver) {
+        const observer = new ResizeObserver(resized);
+        observer.observe(root);
+        const content = layout.querySelector('.manual-content');
+        if (content) observer.observe(content);
+    }
+    boundToc();
+    updateCurrent();
+    const loaded = () => requestAnimationFrame(followHash);
+    if (document.readyState === 'complete') loaded();
+    else window.addEventListener('load', loaded, { once: true });
+});
+</script>

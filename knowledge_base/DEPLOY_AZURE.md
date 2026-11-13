@@ -1,5 +1,7 @@
 # Azure App Service へのデプロイ手順
 
+Google Chatの予約通知を本番で使う場合は、[Azure Linux向け定期実行手順](AZURE_SCHEDULED_GOOGLE_CHAT.md)も参照してください。Windowsのタスク スケジューラは本番では使用しません。
+
 ## 前提条件
 - Azure サブスクリプションがアクティブ
 - Azure CLI がインストール済み（`az --version`）
@@ -85,8 +87,12 @@ cd c:\webapps\knowledge_base
 # 本番用 static ファイルを準備
 .\.venv\Scripts\python.exe manage.py collectstatic --noinput
 
-# ZIP 作成
-Compress-Archive -Path . -DestinationPath ..\app.zip -Exclude .venv, .git, db.sqlite3, sent_emails
+# ZIP 作成（Compress-Archive に -Exclude はないため先に絞り込む）
+$excluded = @('OLD', '.venv', 'venv', '.git', '.env', '.vscode', 'db.sqlite3', 'sent_emails', 'backups', 'media', 'logs', '__pycache__')
+$deployFiles = Get-ChildItem -Force | Where-Object {
+  $_.Name -notin $excluded -and $_.Name -notlike '.env.*' -and $_.Name -notlike 'client_secret_*.json'
+}
+Compress-Archive -LiteralPath $deployFiles.FullName -DestinationPath ..\app.zip -Force
 
 # アップロード
 az webapp deployment source config-zip `
