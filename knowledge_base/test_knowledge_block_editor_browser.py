@@ -63,9 +63,9 @@ class KnowledgeBlockEditorBrowserTests(unittest.TestCase):
             raise unittest.SkipTest('Chrome/Edge/Chromium is required')
         cls.assets = (Path(__file__).parent / 'templates/includes/knowledge_block_editor_assets.html').read_text(encoding='utf-8')
 
-    def run_checks(self, checks, *, original='', tiny=False, mode='normal'):
+    def run_checks(self, checks, *, original='', tiny=False, mode='normal', source_name='body'):
         fixture = '''<!doctype html><meta charset="utf-8"><form id="article">
-<label for="original">Original body</label><textarea id="original" name="body" required data-wysiwyg="true">''' + html.escape(original) + '''</textarea>
+<label for="original">Original body</label><textarea id="original" name="''' + html.escape(source_name, quote=True) + '''" required data-wysiwyg="true">''' + html.escape(original) + '''</textarea>
 <textarea id="other" name="other" data-wysiwyg="true"></textarea>
 <button id="submit" type="submit">Save</button></form><pre id="result">PENDING</pre>'''
         setup = '<script>window.tinyMode = ' + repr(mode) + ';' + (TINY_STUB if tiny else '') + '</script>'
@@ -102,6 +102,42 @@ document.addEventListener('DOMContentLoaded', async () => {
             start = result.stdout.find('<pre id="result">')
             report = result.stdout[start:result.stdout.find('</pre>', start)]
             self.assertIn('>PASS: block editor', report, report or result.stderr[-2000:])
+
+    def test_heading_shortcuts_for_question_answer_and_tips(self):
+        original = ('<div class="knowledge-content-section"><h3>既存の見出し</h3>'
+                    '<div class="knowledge-section-body"><p>本文を保持</p></div></div>')
+        for source_name in ('question', 'answer', 'body'):
+            for tiny in (False, True):
+                with self.subTest(source_name=source_name, tiny=tiny):
+                    self.run_checks(r'''
+                    await sleep(30);
+                    const expected = source.name === 'question' ? ['質問'] : ['概要', '手順', '注意事項', '備考'];
+                    const shortcuts = card => [...card.querySelectorAll('.knowledge-block-heading-shortcuts button')];
+                    assert(api.getHtml('original') === initial, 'shortcuts do not rewrite existing content');
+                    assert(shortcuts(cards()[0]).map(button => button.textContent).join(',') === expected.join(','), 'correct shortcuts for field');
+                    assert(!document.querySelector('[data-knowledge-editor="other"] .knowledge-block-heading-shortcuts'), 'unrelated field has no shortcuts');
+                    let submissions = 0, updates = 0;
+                    form.addEventListener('submit', event => { event.preventDefault(); submissions++; });
+                    source.addEventListener('input', () => updates++);
+                    heading(cards()[0]).setAttribute('aria-invalid', 'true');
+                    for (const button of shortcuts(cards()[0])) {
+                        assert(button.type === 'button', 'shortcut is not a submit control');
+                        button.click();
+                        assert(heading(cards()[0]).value === button.textContent, 'click replaces heading with preset');
+                        assert(document.activeElement === heading(cards()[0]), 'heading receives focus');
+                        assert(!heading(cards()[0]).hasAttribute('aria-invalid'), 'heading error cleared');
+                        assert(source.value.includes('<h3>' + button.textContent + '</h3>'), 'source synchronized immediately');
+                        assert(source.value.includes('<p>本文を保持</p>'), 'body preserved');
+                    }
+                    assert(updates === expected.length && submissions === 0, 'changes dispatched without form submission');
+                    edit(heading(cards()[0]), '自由入力');
+                    assert(source.value.includes('<h3>自由入力</h3>'), 'custom heading still supported');
+                    add();
+                    assert(shortcuts(cards()[1]).length === expected.length, 'new section has matching shortcuts');
+                    shortcuts(cards()[1])[0].click();
+                    assert(heading(cards()[1]).value === expected[0], 'new section shortcut works');
+                    assert(heading(cards()[0]).value === '自由入力', 'other section unchanged');
+                    ''', original=original, tiny=tiny, source_name=source_name)
 
     def test_paste_inserts_plain_text_without_clipboard_formatting(self):
         for tiny in (False, True):

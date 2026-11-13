@@ -3,6 +3,9 @@
 .knowledge-block-card { border: 1px solid #e8d9cb; border-radius: .65rem; background: #fff; overflow: hidden; }
 .knowledge-block-header { background: #fff3e5; border-bottom: 1px solid #efdbc5; padding: .8rem 1rem; }
 .knowledge-block-heading { width: 100%; box-sizing: border-box; border: 1px solid #c9b8a6; border-radius: .3rem; padding: .5rem; }
+.knowledge-block-heading-shortcuts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.knowledge-block-heading-shortcuts > button { border: 1px solid #bca58b; border-radius: .35rem; padding: .3rem .7rem; background: #fffaf4; color: #633d19; cursor: pointer; }
+.knowledge-block-heading-shortcuts > button:hover { background: #f5e1c9; }
 .knowledge-block-body { padding: 1rem; }
 .knowledge-block-body textarea { width: 100%; min-height: 200px; resize: vertical; box-sizing: border-box; }
 .knowledge-block-card:not(.knowledge-editor-ready) .knowledge-block-body textarea { display: block !important; visibility: visible !important; }
@@ -173,6 +176,25 @@
             block.heading.removeAttribute('aria-invalid');
             block.headingChanged = true; changed(record);
         });
+        const presets = {question: ['質問'], answer: ['概要', '手順', '注意事項', '備考'], body: ['概要', '手順', '注意事項', '備考']}[record.source.name];
+        if (presets) {
+            const shortcuts = document.createElement('div');
+            shortcuts.className = 'knowledge-block-heading-shortcuts';
+            shortcuts.setAttribute('role', 'group');
+            shortcuts.setAttribute('aria-label', '見出しのショートカット');
+            presets.forEach(text => {
+                const button = document.createElement('button');
+                button.type = 'button'; button.textContent = text;
+                button.setAttribute('aria-label', '見出しに「' + text + '」を入力');
+                button.addEventListener('click', () => {
+                    block.heading.value = text;
+                    block.heading.dispatchEvent(new Event('input', {bubbles: true}));
+                    block.heading.focus();
+                });
+                shortcuts.append(button);
+            });
+            block.heading.after(shortcuts);
+        }
         block.input.addEventListener('input', () => {
             block.body = safeFallback(block.input.value); block.bodyChanged = true; changed(record);
         });
