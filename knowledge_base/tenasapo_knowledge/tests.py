@@ -957,7 +957,8 @@ class KnowledgeArticleListTests(KnowledgeListAssertions, TestCase):
         self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
         self.assertNotIn(unapproved_article.pk, [item.pk for item in response.context['articles']])
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_approve_article_from_edit_page(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -1106,7 +1107,8 @@ class KnowledgeArticleListTests(KnowledgeListAssertions, TestCase):
         self.assertContains(response, restricted_article.title)
         self.assertNotContains(response, restricted_article.body)
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_remand_article_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -2043,7 +2045,8 @@ class TipsListTests(KnowledgeListAssertions, TestCase):
             {'新着未承認Tips', '新着承認済みTips'},
         )
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_remand_tip_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -2084,7 +2087,8 @@ class TipsListTests(KnowledgeListAssertions, TestCase):
         self.assertFalse(tip.is_approved)
         self.assertEqual(tip.remand_reason, '表現を見直してください。')
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_approve_tip_and_default_is_standard_restricted(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
