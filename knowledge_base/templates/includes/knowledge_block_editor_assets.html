@@ -176,7 +176,8 @@
         block.input.addEventListener('input', () => {
             block.body = safeFallback(block.input.value); block.bodyChanged = true; changed(record);
         });
-        ['paste', 'drop'].forEach(name => block.input.addEventListener(name, event => receiveImages(record, block, event, name)));
+        block.input.addEventListener('paste', event => receivePaste(record, block, event));
+        block.input.addEventListener('drop', event => receiveImages(record, block, event, 'drop'));
         for (const direction of ['up', 'down']) block[direction].addEventListener('click', () => {
             const index = record.blocks.indexOf(block), next = index + (direction === 'up' ? -1 : 1);
             if (next < 0 || next >= record.blocks.length) return;
@@ -207,6 +208,32 @@
         block.read = null;
         block.card.classList.remove('knowledge-editor-ready');
         block.input.hidden = false; block.input.style.display = ''; block.input.value = block.bodyChanged ? block.body : editableHtml(block.body);
+    }
+    function receivePaste(record, block, event) {
+        const transfer = event.clipboardData || event.originalEvent?.clipboardData;
+        if (!transfer) return false;
+        const text = transfer.getData?.('text/plain') || '';
+        if (!text) return receiveImages(record, block, event, 'paste');
+        // Never insert clipboard HTML, even when Office/browser formatting is present.
+        event.preventDefault();
+        event.stopImmediatePropagation?.();
+        record.active = block;
+        const content = escape(text.replace(/\r\n?/g, '\n')).replace(/\n/g, '<br>');
+        if (block.editor) {
+            const insert = () => block.editor.insertContent(content);
+            if (block.editor.undoManager) block.editor.undoManager.transact(insert);
+            else insert();
+            block.body = block.editor.getContent();
+            block.editor.setDirty(false);
+        } else {
+            const input = block.input;
+            input.setRangeText(content, input.selectionStart, input.selectionEnd, 'end');
+            block.body = safeFallback(input.value);
+        }
+        block.bodyChanged = true;
+        block.input.value = block.body;
+        changed(record);
+        return true;
     }
     function receiveImages(record, block, event, kind) {
         if (!record.images) return false;
@@ -242,6 +269,7 @@
         try {
             const promise = window.tinymce.init({
                 target: block.input, plugins: 'lists', toolbar: 'undo redo | bold italic | bullist numlist',
+                paste_as_text: true,
                 license_key: 'gpl', indent: false, indent_use_margin: false,
                 height: 200, min_height: 160, resize: true, menubar: false, statusbar: false,
                 branding: false, promotion: false, browser_spellcheck: true,
@@ -266,7 +294,7 @@
                     });
                     editor.on('input change Undo Redo', event => read(editor, event));
                     editor.on('init input change SetContent Undo Redo focus blur', () => state(record, Boolean(editor.hasFocus?.())));
-                    editor.on('paste', event => receiveImages(record, block, event, 'paste'));
+                    editor.on('paste', event => receivePaste(record, block, event));
                     editor.on('drop', event => receiveImages(record, block, event, 'drop'));
                     editor.on('focus', () => { record.active = block; state(record, true); });
                     editor.on('blur', () => {

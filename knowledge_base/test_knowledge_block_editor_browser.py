@@ -103,6 +103,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             report = result.stdout[start:result.stdout.find('</pre>', start)]
             self.assertIn('>PASS: block editor', report, report or result.stderr[-2000:])
 
+    def test_paste_inserts_plain_text_without_clipboard_formatting(self):
+        for tiny in (False, True):
+            with self.subTest(tiny=tiny):
+                self.run_checks(r'''
+                await sleep(30);
+                const input = body(cards()[0]);
+                const transfer = new DataTransfer();
+                transfer.setData('text/plain', '貼り付け <script> & text\r\n次の行');
+                transfer.setData('text/html', '<b style="color:red">WRONG FORMAT</b>');
+                const event = new ClipboardEvent('paste', {clipboardData: transfer, cancelable: true, bubbles: true});
+                if (window.tinymce) {
+                    assert(tinyOptions[0].paste_as_text === true, 'TinyMCE plain text mode enabled');
+                    tinyInstances.get(input.id).emit('paste', event);
+                } else {
+                    input.value = 'beforeAFTER'; input.setSelectionRange(6, 11);
+                    input.dispatchEvent(event);
+                    assert(input.value.startsWith('before'), 'selection replacement preserves prefix');
+                    assert(!input.value.includes('AFTER'), 'selection replaced');
+                }
+                const value = api.getHtml('original');
+                assert(event.defaultPrevented, 'default rich paste prevented');
+                assert(value.includes('貼り付け &lt;script&gt; &amp; text<br>次の行'), 'escaped text and line breaks retained');
+                assert(!value.includes('WRONG FORMAT') && !value.includes('<script>'), 'clipboard HTML never inserted');
+                assert(api.hasContent('original'), 'paste synchronizes source');
+                ''', tiny=tiny)
+
     def test_native_fallback_structure_events_validation_and_submit(self):
         self.run_checks(r'''
         assert(source.hidden && source.id === 'original' && source.name === 'body', 'source identity retained');
