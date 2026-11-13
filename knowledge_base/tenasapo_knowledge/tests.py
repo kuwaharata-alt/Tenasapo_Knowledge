@@ -3,6 +3,7 @@ import json
 import re
 from datetime import timedelta
 from datetime import date
+from html import unescape
 from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
 
@@ -23,12 +24,41 @@ from .models import (
     FAQCategory,
     FAQParentCategorySetting,
     KnowledgeArticle,
+    KnowledgeArticleImageAttachment,
     LoginHistory,
     TipsArticle,
     TipsFavorite,
     UserProfile,
     default_expires_on,
 )
+
+
+def knowledge_form_data(category_name, *, title, **fields):
+    """Submit registered categories and OS controls, as the current UI does."""
+    parent, middle, *children = category_name.split('/')
+    category, _ = FAQCategory.objects.get_or_create(
+        parent_name=parent, middle_name=middle, child_name='/'.join(children),
+    )
+    return {
+        'registered_category': [category.pk],
+        'title': title,
+        'target_os_name': 'Windows PC',
+        'target_os_version': '11',
+        **fields,
+    }
+
+
+class KnowledgeListAssertions:
+    def assertListedTitles(self, response, context_key, items):
+        """Check result rows, not unrelated links or embedded script data."""
+        self.assertEqual(response.status_code, 200)
+        expected = [item.title for item in items]
+        self.assertCountEqual([item.title for item in response.context[context_key]], expected)
+        titles = re.findall(
+            r'<span class="faq-question-title-text">\s*(.*?)\s*</span>',
+            response.content.decode(), re.DOTALL,
+        )
+        self.assertCountEqual([unescape(title.strip()) for title in titles], expected)
 
 
 class LoginRedirectTests(TestCase):
@@ -88,6 +118,7 @@ class HomeViewTests(TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username='home-user', password='password')
+        UserProfile.objects.create(user=self.user, skip_login_lp=True)
 
     def test_demo_group_user_does_not_see_home_menu_section(self):
         demo_group, _ = Group.objects.get_or_create(name='Demo')
@@ -115,6 +146,7 @@ class HomeViewTests(TestCase):
             password='password',
             is_staff=True,
         )
+        UserProfile.objects.create(user=admin_user, skip_login_lp=True)
         self.client.force_login(admin_user)
 
         response = self.client.get(reverse('home'))
@@ -130,6 +162,7 @@ class HomeViewTests(TestCase):
             password='password',
             is_staff=True,
         )
+        UserProfile.objects.create(user=staff_user, skip_login_lp=True)
         self.client.force_login(staff_user)
 
         response = self.client.get(reverse('home'))
@@ -140,7 +173,7 @@ class HomeViewTests(TestCase):
         self.assertNotContains(response, 'GAS手動下書きテスト')
 
 
-class KnowledgeArticleListTests(TestCase):
+class KnowledgeArticleListTests(KnowledgeListAssertions, TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username='member', password='password')
@@ -154,7 +187,7 @@ class KnowledgeArticleListTests(TestCase):
         self.visible_article = KnowledgeArticle.objects.create(
             title='閲覧できる記事',
             customer=self.customer,
-            category='ネットワーク,AWS',
+            category='ネットワーク/AWS',
             body='本文',
         )
         self.hidden_article = KnowledgeArticle.objects.create(
@@ -175,8 +208,7 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertContains(response, self.visible_article.title)
-        self.assertContains(response, self.hidden_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
 
     def test_user_can_filter_faq_by_parent_category(self):
         self.client.force_login(self.user)
@@ -184,8 +216,7 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'), {'parent_category': parent_category})
 
-        self.assertContains(response, self.visible_article.title)
-        self.assertNotContains(response, self.hidden_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article])
 
     def test_article_list_shows_parent_category_sidebar_and_group_titles(self):
         self.client.force_login(self.user)
@@ -199,17 +230,23 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, 'faq-group-title')
 
     def test_article_list_shows_all_parent_categories_even_without_articles(self):
+        for name in ['Microsoft 365', '運用・保守']:
+            FAQCategory.objects.create(parent_name=name, middle_name='設定')
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('article_list'))
 
         self.assertContains(response, 'Microsoft 365')
         self.assertContains(response, '運用・保守')
+        self.assertTrue({'Microsoft 365', '運用・保守'}.issubset(
+            {group['name'] for group in response.context['parent_categories']}
+        ))
 
-    def test_customer_user_cannot_see_hidden_parent_category_articles(self):
+    def test_legacy_parent_visibility_does_not_hide_customer_visible_articles(self):
         customer_group, _ = Group.objects.get_or_create(name='カスタマー')
         self.user.groups.add(customer_group)
         FAQParentCategorySetting.objects.create(name='PC', visible_to_customer=False)
+        FAQCategory.objects.create(parent_name='PC', middle_name='設定')
         hidden_parent_article = KnowledgeArticle.objects.create(
             title='PC向けFAQ',
             category='PC/設定',
@@ -220,8 +257,10 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertNotContains(response, hidden_parent_article.title)
-        self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
+        self.assertListedTitles(response, 'articles', [
+            self.visible_article, self.hidden_article, hidden_parent_article,
+        ])
+        self.assertIn('PC', [group['name'] for group in response.context['parent_categories']])
 
     def test_customer_user_can_toggle_article_favorite(self):
         customer_group, _ = Group.objects.get_or_create(name='カスタマー')
@@ -254,8 +293,7 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'), {'favorite_only': '1'})
 
-        self.assertContains(response, self.visible_article.title)
-        self.assertNotContains(response, self.hidden_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article])
 
     def test_systena_user_can_use_article_favorite_filter(self):
         systena_group, _ = Group.objects.get_or_create(name='システナ')
@@ -266,8 +304,7 @@ class KnowledgeArticleListTests(TestCase):
         response = self.client.get(reverse('article_list'), {'favorite_only': '1'})
 
         self.assertContains(response, '☆表示解除')
-        self.assertContains(response, self.visible_article.title)
-        self.assertNotContains(response, self.hidden_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article])
 
     def test_render_inline_images_with_japanese_marker_does_not_append_remaining_images(self):
         text = '本文\n【画像:first.png】\n終わり'
@@ -292,9 +329,9 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertContains(response, self.visible_article.title)
-        self.assertContains(response, self.hidden_article.title)
-        self.assertContains(response, 'Q&amp;A登録')
+        self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
+        self.assertContains(response,
+            f'<a class="btn btn-primary" href="{reverse("article_create")}">新規登録</a>', html=True)
 
     def test_article_list_shows_new_badge_only_for_recent_published_articles(self):
         self.user.is_staff = True
@@ -323,12 +360,19 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertContains(response, '新着承認済みFAQ')
         self.assertContains(response, '旧FAQ')
-        self.assertContains(response, 'New', count=1)
+        self.assertContains(response,
+            '<span class="knowledge-status text-bg-danger knowledge-new-badge">New</span>',
+            count=1, html=True)
+        self.assertEqual({item.title: item.is_new_badge for item in response.context['articles']}, {
+            self.visible_article.title: False, self.hidden_article.title: False,
+            '新着承認済みFAQ': True, '旧FAQ': False,
+        })
 
     def test_article_list_shows_new_badge_regardless_of_approval_status(self):
         self.user.is_staff = True
         self.user.save()
         self.client.force_login(self.user)
+        KnowledgeArticle.objects.all().update(published_at=timezone.now() - timedelta(days=30))
 
         KnowledgeArticle.objects.create(
             title='新着未承認FAQ',
@@ -351,7 +395,13 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertContains(response, '新着未承認FAQ')
         self.assertContains(response, '新着承認済みFAQ')
-        self.assertContains(response, 'New', count=2)
+        self.assertContains(response,
+            '<span class="knowledge-status text-bg-danger knowledge-new-badge">New</span>',
+            count=2, html=True)
+        self.assertEqual(
+            {item.title for item in response.context['articles'] if item.is_new_badge},
+            {'新着未承認FAQ', '新着承認済みFAQ'},
+        )
 
     def test_hidden_for_all_article_is_not_shown_even_to_staff(self):
         self.user.is_staff = True
@@ -367,14 +417,17 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertNotContains(response, hidden_for_all_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
+        self.assertNotIn(hidden_for_all_article.pk, [item.pk for item in response.context['articles']])
 
     def test_non_staff_cannot_view_article_create_page(self):
         self.client.force_login(self.user)
+        before = list(KnowledgeArticle.objects.values())
 
         response = self.client.get(reverse('article_create'))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(list(KnowledgeArticle.objects.values()), before)
 
     def test_staff_can_create_article(self):
         self.user.is_staff = True
@@ -383,16 +436,17 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_create'),
-            {
-                'category': 'ネットワーク/VPN',
-                'question': 'VPN に接続できない場合は？',
-                'answer': '認証情報と接続先を確認します。',
-                'source_published_at': '2026-05-01',
-            },
+            knowledge_form_data(
+                'ネットワーク/VPN', title='VPN接続トラブル',
+                question='VPN に接続できない場合は？', answer='認証情報と接続先を確認します。',
+                source_published_at='2026-05-01',
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
-        article = KnowledgeArticle.objects.get(title='VPN に接続できない場合は？')
+        article = KnowledgeArticle.objects.get(title='VPN接続トラブル')
+        self.assertEqual(article.summary, 'VPN に接続できない場合は？')
+        self.assertEqual(article.target_os, 'Windows PC 11')
         self.assertEqual(article.category, 'ネットワーク/VPN')
         self.assertEqual(article.body, '認証情報と接続先を確認します。')
         self.assertEqual(str(article.source_published_at), '2026-05-01')
@@ -417,13 +471,11 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_create'),
-            {
-                'category': 'PC/画面',
-                'question': '画面が表示されない場合は？',
-                'answer': 'ケーブルを確認します。',
-                'question_images': question_image,
-                'answer_images': answer_image,
-            },
+            knowledge_form_data(
+                'PC/画面', title='画面が表示されない場合は？',
+                question='画面が表示されない場合は？', answer='ケーブルを確認します。',
+                question_images=question_image, answer_images=answer_image,
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
@@ -436,9 +488,8 @@ class KnowledgeArticleListTests(TestCase):
             ).exists()
         )
         self.assertTrue(
-            ArticleAttachment.objects.filter(
+            KnowledgeArticleImageAttachment.objects.filter(
                 article=article,
-                placement=ArticleAttachment.PLACEMENT_ANSWER,
                 display_name='answer.png',
             ).exists()
         )
@@ -457,10 +508,12 @@ class KnowledgeArticleListTests(TestCase):
 
     def test_non_staff_cannot_view_article_edit_page(self):
         self.client.force_login(self.user)
+        before = KnowledgeArticle.objects.values().get(pk=self.visible_article.pk)
 
         response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(KnowledgeArticle.objects.values().get(pk=self.visible_article.pk), before)
 
     def test_staff_can_update_article(self):
         self.user.is_staff = True
@@ -469,17 +522,17 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_edit', args=[self.visible_article.id]),
-            {
-                'category': 'PC/電源',
-                'question': '電源が入らない場合は？',
-                'answer': 'ケーブルとランプを確認します。',
-            },
+            knowledge_form_data(
+                'PC/電源', title='電源トラブル', question='電源が入らない場合は？',
+                answer='ケーブルとランプを確認します。',
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
         self.visible_article.refresh_from_db()
         self.assertEqual(self.visible_article.category, 'PC/電源')
-        self.assertEqual(self.visible_article.title, '電源が入らない場合は？')
+        self.assertEqual(self.visible_article.title, '電源トラブル')
+        self.assertEqual(self.visible_article.summary, '電源が入らない場合は？')
         self.assertEqual(self.visible_article.body, 'ケーブルとランプを確認します。')
 
     def test_staff_can_delete_article_from_edit_page_with_confirmation_button(self):
@@ -498,11 +551,13 @@ class KnowledgeArticleListTests(TestCase):
 
     def test_non_staff_cannot_delete_article(self):
         self.client.force_login(self.user)
+        before = KnowledgeArticle.objects.values().get(pk=self.visible_article.pk)
 
         response = self.client.post(reverse('article_delete', args=[self.visible_article.id]))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
         self.assertTrue(KnowledgeArticle.objects.filter(id=self.visible_article.id).exists())
+        self.assertEqual(KnowledgeArticle.objects.values().get(pk=self.visible_article.pk), before)
 
     def test_article_list_hides_expired_article(self):
         self.client.force_login(self.user)
@@ -515,7 +570,8 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertNotContains(response, expired_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
+        self.assertNotIn(expired_article.pk, [item.pk for item in response.context['articles']])
 
     def test_article_expires_on_is_saved_and_shown_in_edit(self):
         self.user.is_staff = True
@@ -524,12 +580,10 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_create'),
-            {
-                'category': 'ネットワーク/VPN',
-                'question': '掲載期限保持FAQ',
-                'answer': '本文',
-                'expires_on': '2026-12-01',
-            },
+            knowledge_form_data(
+                'ネットワーク/VPN', title='掲載期限保持FAQ', question='掲載期限保持FAQ',
+                answer='本文', expires_on='2026-12-01',
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
@@ -539,7 +593,7 @@ class KnowledgeArticleListTests(TestCase):
         edit_response = self.client.get(reverse('article_edit', args=[article.id]))
         self.assertContains(edit_response, 'value="2026-12-01"', html=False)
 
-    def test_article_list_shows_expires_on(self):
+    def test_article_list_preserves_expiry_but_shows_published_date(self):
         self.client.force_login(self.user)
         article = KnowledgeArticle.objects.create(
             title='期限表示FAQ',
@@ -551,7 +605,10 @@ class KnowledgeArticleListTests(TestCase):
         response = self.client.get(reverse('article_list'))
 
         self.assertContains(response, article.title)
-        self.assertContains(response, '掲載期限')
+        listed = next(item for item in response.context['articles'] if item.pk == article.pk)
+        self.assertEqual(listed.expires_on, article.expires_on)
+        self.assertContains(response, '掲載日 ' + timezone.localtime(article.published_at).strftime('%Y/%m/%d'))
+        self.assertNotContains(response, '掲載期限')
 
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_staff_can_add_answer_image_when_updating_article(self):
@@ -566,19 +623,17 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_edit', args=[self.visible_article.id]),
-            {
-                'category': self.visible_article.category,
-                'question': self.visible_article.title,
-                'answer': self.visible_article.body,
-                'answer_images': answer_image,
-            },
+            knowledge_form_data(
+                self.visible_article.category, title=self.visible_article.title,
+                question=self.visible_article.title, answer=self.visible_article.body,
+                answer_images=answer_image,
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
         self.assertTrue(
-            ArticleAttachment.objects.filter(
+            KnowledgeArticleImageAttachment.objects.filter(
                 article=self.visible_article,
-                placement=ArticleAttachment.PLACEMENT_ANSWER,
                 display_name='updated-answer.png',
             ).exists()
         )
@@ -587,14 +642,13 @@ class KnowledgeArticleListTests(TestCase):
     def test_staff_can_delete_article_image_with_confirmation_button(self):
         self.user.is_staff = True
         self.user.save()
-        attachment = ArticleAttachment.objects.create(
+        attachment = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
             file=SimpleUploadedFile(
                 'delete-me.png',
                 b'answer-image',
                 content_type='image/png',
             ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='delete-me.png',
         )
         self.client.force_login(self.user)
@@ -603,39 +657,35 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(edit_response, '削除')
         self.assertContains(edit_response, "confirm('この画像を削除しますか？')")
 
-        response = self.client.post(reverse('attachment_delete', args=[attachment.id]))
+        self.assertContains(edit_response, reverse('article_image_delete', args=[attachment.pk]))
+        response = self.client.post(reverse('article_image_delete', args=[attachment.id]))
 
         self.assertRedirects(response, reverse('article_edit', args=[self.visible_article.id]))
-        self.assertFalse(ArticleAttachment.objects.filter(id=attachment.id).exists())
+        self.assertFalse(KnowledgeArticleImageAttachment.objects.filter(id=attachment.id).exists())
 
     def test_non_staff_cannot_delete_article_image(self):
-        attachment = ArticleAttachment.objects.create(
+        attachment = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
-            file=SimpleUploadedFile(
-                'delete-me.png',
-                b'answer-image',
-                content_type='image/png',
-            ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
+            file='knowledge_attachments/delete-me.png',
             display_name='delete-me.png',
         )
+        before = KnowledgeArticleImageAttachment.objects.values().get(pk=attachment.pk)
         self.client.force_login(self.user)
 
-        response = self.client.post(reverse('attachment_delete', args=[attachment.id]))
+        response = self.client.post(reverse('article_image_delete', args=[attachment.id]))
 
-        self.assertEqual(response.status_code, 403)
-        self.assertTrue(ArticleAttachment.objects.filter(id=attachment.id).exists())
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(KnowledgeArticleImageAttachment.objects.values().get(pk=attachment.pk), before)
 
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_article_list_renders_image_marker_inside_answer_text(self):
-        ArticleAttachment.objects.create(
+        image = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
             file=SimpleUploadedFile(
                 'inline-answer.png',
                 b'answer-image',
                 content_type='image/png',
             ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='inline-answer.png',
         )
         self.visible_article.body = 'ボタンをクリックします。\n<image>\n確認します。'
@@ -646,29 +696,28 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertContains(response, 'ボタンをクリックします。')
         self.assertContains(response, 'inline-faq-image')
+        self.assertContains(response, f'src="{image.file.url}"', count=1)
         self.assertContains(response, '確認します。')
         self.assertNotContains(response, '<p>&lt;image&gt;</p>', html=True)
 
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_article_list_renders_numbered_image_markers(self):
-        ArticleAttachment.objects.create(
+        first = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
             file=SimpleUploadedFile(
                 'first.png',
                 b'first-image',
                 content_type='image/png',
             ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='first.png',
         )
-        ArticleAttachment.objects.create(
+        second = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
             file=SimpleUploadedFile(
                 'second.png',
                 b'second-image',
                 content_type='image/png',
             ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='second.png',
         )
         self.visible_article.body = '最初の画像 <image1> 次の画像 <image2>'
@@ -677,21 +726,20 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertContains(response, 'first.png')
-        self.assertContains(response, 'second.png')
+        self.assertContains(response, f'src="{first.file.url}"', count=1)
+        self.assertContains(response, f'src="{second.file.url}"', count=1)
         self.assertContains(response, '最初の画像')
         self.assertContains(response, '次の画像')
 
     @override_settings(MEDIA_ROOT=tempfile.gettempdir())
     def test_article_list_renders_same_number_marker_multiple_times(self):
-        ArticleAttachment.objects.create(
+        image = KnowledgeArticleImageAttachment.objects.create(
             article=self.visible_article,
             file=SimpleUploadedFile(
                 'repeat.png',
                 b'repeat-image',
                 content_type='image/png',
             ),
-            placement=ArticleAttachment.PLACEMENT_ANSWER,
             display_name='repeat.png',
         )
         self.visible_article.body = '<image1>\n手順説明\n<image1>'
@@ -703,6 +751,7 @@ class KnowledgeArticleListTests(TestCase):
         html = response.content.decode('utf-8')
 
         self.assertEqual(html.count('<img class="inline-faq-image"'), 2)
+        self.assertEqual(html.count(f'src="{image.file.url}"'), 2)
 
     def test_staff_can_view_category_create_page(self):
         self.user.is_staff = True
@@ -730,10 +779,12 @@ class KnowledgeArticleListTests(TestCase):
 
     def test_non_staff_cannot_view_category_create_page(self):
         self.client.force_login(self.user)
+        before = list(FAQCategory.objects.values())
 
         response = self.client.get(reverse('category_create'))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(list(FAQCategory.objects.values()), before)
 
     def test_staff_can_create_two_level_category(self):
         self.user.is_staff = True
@@ -744,13 +795,14 @@ class KnowledgeArticleListTests(TestCase):
             reverse('category_create'),
             {
                 'parent_name': 'PC',
-                'child_name': '電源',
+                'middle_name': '電源',
+                'child_name': '',
             },
         )
 
         self.assertRedirects(response, reverse('category_create'))
         self.assertTrue(
-            FAQCategory.objects.filter(parent_name='PC', child_name='電源').exists()
+            FAQCategory.objects.filter(parent_name='PC', middle_name='電源', child_name='').exists()
         )
 
     def test_staff_can_view_category_edit_page(self):
@@ -765,7 +817,9 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, 'カテゴリ修正')
         self.assertContains(response, '電源')
         self.assertContains(response, 'キャンセル')
-        self.assertContains(response, '大カテゴリをカスタマーユーザーに表示する')
+        self.assertContains(response, '中カテゴリ')
+        self.assertNotContains(response, 'name="parent_visible_to_customer"')
+        self.assertEqual(response.context['form'].instance, category)
 
     def test_staff_can_update_category_and_article_category_names(self):
         self.user.is_staff = True
@@ -782,17 +836,19 @@ class KnowledgeArticleListTests(TestCase):
             reverse('category_edit', args=[category.id]),
             {
                 'parent_name': 'PC',
-                'child_name': '電源トラブル',
+                'middle_name': '電源トラブル',
+                'child_name': '',
             },
         )
 
-        self.assertRedirects(response, reverse('category_create'))
+        self.assertRedirects(response, reverse('category_create') + f'?focus_category={category.pk}')
         category.refresh_from_db()
         article.refresh_from_db()
-        self.assertEqual(category.child_name, '電源トラブル')
+        self.assertEqual(category.middle_name, '電源トラブル')
+        self.assertEqual(category.child_name, '')
         self.assertEqual(article.category, 'PC/電源トラブル,ネットワーク/AWS')
 
-    def test_staff_can_update_parent_customer_visibility(self):
+    def test_category_edit_does_not_change_legacy_parent_visibility(self):
         self.user.is_staff = True
         self.user.save()
         category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
@@ -803,20 +859,25 @@ class KnowledgeArticleListTests(TestCase):
             reverse('category_edit', args=[category.id]),
             {
                 'parent_name': 'PC',
-                'child_name': '電源',
+                'middle_name': '電源',
+                'child_name': '',
             },
         )
 
-        self.assertRedirects(response, reverse('category_create'))
-        self.assertFalse(FAQParentCategorySetting.objects.get(name='PC').visible_to_customer)
+        self.assertRedirects(response, reverse('category_create') + f'?focus_category={category.pk}')
+        category.refresh_from_db()
+        self.assertEqual(category.full_name, 'PC/電源')
+        self.assertTrue(FAQParentCategorySetting.objects.get(name='PC').visible_to_customer)
 
     def test_non_staff_cannot_view_category_edit_page(self):
         category = FAQCategory.objects.create(parent_name='PC', child_name='電源')
+        before = FAQCategory.objects.values().get(pk=category.pk)
         self.client.force_login(self.user)
 
         response = self.client.get(reverse('category_edit', args=[category.id]))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(FAQCategory.objects.values().get(pk=category.pk), before)
 
     def test_article_create_can_use_registered_category(self):
         self.user.is_staff = True
@@ -828,7 +889,8 @@ class KnowledgeArticleListTests(TestCase):
             reverse('article_create'),
             {
                 'registered_category': category.id,
-                'category': '',
+                'title': 'ADにログインできない場合は？',
+                'target_os_name': 'Windows PC',
                 'question': 'ADにログインできない場合は？',
                 'answer': 'アカウント状態を確認します。',
             },
@@ -866,7 +928,8 @@ class KnowledgeArticleListTests(TestCase):
             reverse('article_create'),
             {
                 'registered_category': [category1.id, category2.id],
-                'category': '',
+                'title': '複数カテゴリのFAQ',
+                'target_os_name': 'Windows PC',
                 'question': '複数カテゴリのFAQ',
                 'answer': '回答です。',
             },
@@ -891,9 +954,11 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.get(reverse('article_list'))
 
-        self.assertNotContains(response, unapproved_article.title)
+        self.assertListedTitles(response, 'articles', [self.visible_article, self.hidden_article])
+        self.assertNotIn(unapproved_article.pk, [item.pk for item in response.context['articles']])
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_approve_article_from_edit_page(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -976,17 +1041,18 @@ class KnowledgeArticleListTests(TestCase):
         response = self.client.get(reverse('article_list'))
 
         self.assertContains(response, restricted_article.title)
-        self.assertContains(response, '現在のアカウントでは、このコンテンツの閲覧が制限されております。')
+        self.assertContains(response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
         self.assertNotContains(response, restricted_article.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
-    def test_demo_user_cannot_see_article_when_visible_to_demo_is_false(self):
+    def test_demo_user_sees_question_but_not_answer_when_visible_to_demo_is_false(self):
         demo_group, _ = Group.objects.get_or_create(name='デモ')
         self.user.groups.add(demo_group)
         hidden_for_demo_article = KnowledgeArticle.objects.create(
             title='デモ非表示FAQ',
             category='PC/設定',
-            body='本文',
+            summary='デモ閲覧可能な質問',
+            body='DEMO_PRIVATE_FAQ_ANSWER',
             visible_to_customer=True,
             visible_to_demo=False,
             is_approved=True,
@@ -994,7 +1060,8 @@ class KnowledgeArticleListTests(TestCase):
         visible_for_demo_article = KnowledgeArticle.objects.create(
             title='デモ表示FAQ',
             category='PC/設定',
-            body='本文',
+            summary='別のデモ閲覧可能な質問',
+            body='DEMO_FLAG_ON_PRIVATE_ANSWER',
             visible_to_customer=True,
             visible_to_demo=True,
             is_approved=True,
@@ -1003,13 +1070,22 @@ class KnowledgeArticleListTests(TestCase):
 
         list_response = self.client.get(reverse('article_list'))
 
-        self.assertNotContains(list_response, hidden_for_demo_article.title)
-        self.assertContains(list_response, visible_for_demo_article.title)
+        self.assertListedTitles(list_response, 'articles', [
+            self.visible_article, self.hidden_article, hidden_for_demo_article, visible_for_demo_article,
+        ])
+        for item in [hidden_for_demo_article, visible_for_demo_article]:
+            self.assertContains(list_response, item.summary)
+            self.assertNotContains(list_response, item.body)
+        self.assertContains(list_response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
 
         detail_response = self.client.get(
             reverse('article_detail', args=[hidden_for_demo_article.management_code])
         )
-        self.assertEqual(detail_response.status_code, 404)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, hidden_for_demo_article.title)
+        self.assertContains(detail_response, hidden_for_demo_article.summary)
+        self.assertNotContains(detail_response, hidden_for_demo_article.body)
+        self.assertContains(detail_response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
     def test_demo_reviewer_cannot_view_restricted_article_content(self):
@@ -1031,7 +1107,8 @@ class KnowledgeArticleListTests(TestCase):
         self.assertContains(response, restricted_article.title)
         self.assertNotContains(response, restricted_article.body)
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_remand_article_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -1087,15 +1164,14 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_edit', args=[article.id]),
-            {
-                'category': article.category,
-                'question': article.title,
-                'answer': article.body,
-                'visible_to_customer': 'on',
-            },
+            knowledge_form_data(
+                article.category, title=article.title, question=article.title,
+                answer=article.body, visible_to_customer='on',
+            ),
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.context['form'].errors), {'visible_to_customer', 'visible_to_systena'})
         self.assertContains(response, '全ユーザー非表示のQ&amp;Aを再公開できるのはSystenaAdminのみです。')
         article.refresh_from_db()
         self.assertFalse(article.visible_to_customer)
@@ -1116,12 +1192,10 @@ class KnowledgeArticleListTests(TestCase):
 
         response = self.client.post(
             reverse('article_edit', args=[article.id]),
-            {
-                'category': article.category,
-                'question': article.title,
-                'answer': article.body,
-                'visible_to_customer': 'on',
-            },
+            knowledge_form_data(
+                article.category, title=article.title, question=article.title,
+                answer=article.body, visible_to_customer='on',
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
@@ -1160,10 +1234,12 @@ class UserCreateViewTests(TestCase):
 
     def test_non_staff_cannot_view_user_create_page(self):
         self.client.force_login(self.member)
+        before = list(get_user_model().objects.values())
 
         response = self.client.get(reverse('user_create'))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(list(get_user_model().objects.values()), before)
 
     def test_staff_can_view_user_list_page(self):
         self.client.force_login(self.staff)
@@ -1294,25 +1370,35 @@ class UserCreateViewTests(TestCase):
 
     def test_non_staff_cannot_view_user_list_page(self):
         self.client.force_login(self.member)
+        before = list(get_user_model().objects.values())
 
         response = self.client.get(reverse('user_list'))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
+        self.assertEqual(list(get_user_model().objects.values()), before)
 
     def test_staff_can_create_user_with_profile_and_customer_access(self):
         self.client.force_login(self.staff)
-
-        response = self.client.post(
-            reverse('user_create'),
-            {
-                'username': 'newuser',
-                'password': 'secure-password',
-                'company_name': '株式会社サンプル',
-                'role': 'user',
-                'email_addresses': 'one@example.com\ntwo@example.com',
-                'note': '初回作成',
-            },
+        data = {
+            'username': 'newuser',
+            'password': 'secure-password',
+            'company_name': '株式会社サンプル',
+            'role': 'user',
+            'user_type': UserProfile.USER_TYPE_CUSTOMER,
+            'email_addresses': 'one@example.com\ntwo@example.com',
+            'note': '初回作成',
+        }
+        before = (get_user_model().objects.count(), UserProfile.objects.count(), Customer.objects.count())
+        invalid_response = self.client.post(reverse('user_create'), data)
+        self.assertEqual(invalid_response.status_code, 200)
+        self.assertEqual(set(invalid_response.context['form'].errors), {'email_addresses'})
+        self.assertEqual(
+            (get_user_model().objects.count(), UserProfile.objects.count(), Customer.objects.count()), before,
         )
+        self.assertFalse(get_user_model().objects.filter(username='newuser').exists())
+        data['email_addresses'] = 'one@example.com'
+
+        response = self.client.post(reverse('user_create'), data)
 
         self.assertRedirects(response, reverse('user_list'))
         created_user = get_user_model().objects.get(username='newuser')
@@ -1321,8 +1407,9 @@ class UserCreateViewTests(TestCase):
         self.assertEqual(created_user.email, 'one@example.com')
         self.assertEqual(
             created_user.knowledge_profile.email_addresses,
-            'one@example.com\ntwo@example.com',
+            'one@example.com',
         )
+        self.assertEqual(created_user.knowledge_profile.user_type, UserProfile.USER_TYPE_CUSTOMER)
         self.assertEqual(created_user.knowledge_profile.note, '初回作成')
         self.assertTrue(
             Customer.objects.get(name='株式会社サンプル').users.filter(id=created_user.id).exists()
@@ -1331,22 +1418,26 @@ class UserCreateViewTests(TestCase):
     def test_admin_role_creates_staff_superuser(self):
         self.client.force_login(self.staff)
 
-        self.client.post(
+        response = self.client.post(
             reverse('user_create'),
             {
                 'username': 'newadmin',
                 'password': 'secure-password',
                 'company_name': '株式会社サンプル',
                 'role': 'admin',
+                'user_type': UserProfile.USER_TYPE_SYSTENA,
                 'email_addresses': '',
                 'note': '',
             },
         )
 
+        self.assertRedirects(response, reverse('user_list'))
         created_user = get_user_model().objects.get(username='newadmin')
         self.assertTrue(created_user.is_staff)
         self.assertTrue(created_user.is_superuser)
         self.assertTrue(UserProfile.objects.filter(user=created_user).exists())
+        self.assertEqual(created_user.knowledge_profile.user_type, UserProfile.USER_TYPE_SYSTENA)
+        self.assertEqual(created_user.knowledge_profile.company_name, 'システナ')
 
     def test_admin_account_can_reset_user_password(self):
         self.client.force_login(self.admin_account)
@@ -1410,11 +1501,13 @@ class UserCreateViewTests(TestCase):
 
     def test_non_staff_cannot_reset_user_password(self):
         self.client.force_login(self.member)
+        before = self.staff.password
 
         response = self.client.post(reverse('user_password_reset', args=[self.staff.id]))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertRedirects(response, reverse('article_list'))
         self.staff.refresh_from_db()
+        self.assertEqual(self.staff.password, before)
         self.assertTrue(self.staff.check_password('password'))
 
     def test_staff_account_cannot_reset_other_user_password(self):
@@ -1542,8 +1635,8 @@ class PasswordResetFlowTests(TestCase):
         response = self.client.get(reverse('login'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'パスワードを忘れたときは')
-        self.assertContains(response, reverse('password_reset'))
+        self.assertContains(response,
+            f'<a href="{reverse("password_reset")}">パスワードを忘れた場合</a>', html=True)
 
     def test_password_reset_page_shows_contact_guidance(self):
         response = self.client.get(reverse('password_reset'))
@@ -1709,7 +1802,7 @@ class LoginHistorySignalTests(TestCase):
         self.assertNotEqual(first_history.id, second_history.id)
 
 
-class TipsListTests(TestCase):
+class TipsListTests(KnowledgeListAssertions, TestCase):
     def setUp(self):
         User = get_user_model()
         self.user = User.objects.create_user(username='tips_member', password='password')
@@ -1722,7 +1815,7 @@ class TipsListTests(TestCase):
             body='本文',
             expires_on=timezone.localdate() - timedelta(days=1),
         )
-        TipsArticle.objects.create(
+        valid_tip = TipsArticle.objects.create(
             title='有効なTips',
             category='PC/設定',
             body='本文',
@@ -1731,11 +1824,10 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'))
 
-        self.assertNotContains(response, '期限切れTips')
-        self.assertContains(response, '有効なTips')
+        self.assertListedTitles(response, 'tips_list', [valid_tip])
 
-    def test_tip_list_shows_expires_on(self):
-        TipsArticle.objects.create(
+    def test_tip_list_preserves_expiry_but_shows_published_date(self):
+        tip = TipsArticle.objects.create(
             title='期限表示Tips',
             category='PC/設定',
             body='本文',
@@ -1744,17 +1836,19 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'))
 
-        self.assertContains(response, '期限表示Tips')
-        self.assertContains(response, '掲載期限')
+        self.assertListedTitles(response, 'tips_list', [tip])
+        self.assertEqual(response.context['tips_list'][0].expires_on, tip.expires_on)
+        self.assertContains(response, '掲載日 ' + timezone.localtime(tip.published_at).strftime('%Y/%m/%d'))
+        self.assertNotContains(response, '掲載期限')
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
-    def test_demo_user_cannot_see_tip_when_visible_to_demo_is_false(self):
+    def test_demo_user_sees_title_but_not_body_when_visible_to_demo_is_false(self):
         demo_group, _ = Group.objects.get_or_create(name='デモ')
         self.user.groups.add(demo_group)
         hidden_for_demo_tip = TipsArticle.objects.create(
             title='デモ非表示Tips',
             category='PC/設定',
-            body='本文',
+            body='DEMO_PRIVATE_TIPS_BODY',
             visible_to_customer=True,
             visible_to_demo=False,
             is_approved=True,
@@ -1762,7 +1856,7 @@ class TipsListTests(TestCase):
         visible_for_demo_tip = TipsArticle.objects.create(
             title='デモ表示Tips',
             category='PC/設定',
-            body='本文',
+            body='DEMO_FLAG_ON_PRIVATE_TIPS_BODY',
             visible_to_customer=True,
             visible_to_demo=True,
             is_approved=True,
@@ -1770,13 +1864,18 @@ class TipsListTests(TestCase):
 
         list_response = self.client.get(reverse('tip_list'))
 
-        self.assertNotContains(list_response, hidden_for_demo_tip.title)
-        self.assertContains(list_response, visible_for_demo_tip.title)
+        self.assertListedTitles(list_response, 'tips_list', [hidden_for_demo_tip, visible_for_demo_tip])
+        self.assertNotContains(list_response, hidden_for_demo_tip.body)
+        self.assertNotContains(list_response, visible_for_demo_tip.body)
+        self.assertContains(list_response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
 
         detail_response = self.client.get(
             reverse('tip_detail', args=[hidden_for_demo_tip.management_code])
         )
-        self.assertEqual(detail_response.status_code, 404)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, hidden_for_demo_tip.title)
+        self.assertNotContains(detail_response, hidden_for_demo_tip.body)
+        self.assertContains(detail_response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
 
     def test_hidden_for_all_tip_is_not_shown_even_to_staff(self):
         self.user.is_staff = True
@@ -1791,12 +1890,13 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'))
 
-        self.assertNotContains(response, '全員非表示Tips')
+        self.assertListedTitles(response, 'tips_list', [])
 
-    def test_customer_user_cannot_see_hidden_parent_category_tips(self):
+    def test_legacy_parent_visibility_does_not_hide_customer_visible_tips(self):
         customer_group, _ = Group.objects.get_or_create(name='カスタマー')
         self.user.groups.add(customer_group)
         FAQParentCategorySetting.objects.create(name='PC', visible_to_customer=False)
+        FAQCategory.objects.create(parent_name='PC', middle_name='設定')
         hidden_parent_tip = TipsArticle.objects.create(
             title='PC向けTips',
             category='PC/設定',
@@ -1806,8 +1906,8 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'))
 
-        self.assertNotContains(response, hidden_parent_tip.title)
-        self.assertNotIn('PC', [group['name'] for group in response.context['parent_categories']])
+        self.assertListedTitles(response, 'tips_list', [hidden_parent_tip])
+        self.assertIn('PC', [group['name'] for group in response.context['parent_categories']])
 
     def test_customer_user_can_toggle_tip_favorite(self):
         customer_group, _ = Group.objects.get_or_create(name='カスタマー')
@@ -1853,8 +1953,8 @@ class TipsListTests(TestCase):
 
         response = self.client.get(reverse('tip_list'), {'favorite_only': '1'})
 
-        self.assertContains(response, favorited_tip.title)
-        self.assertNotContains(response, other_tip.title)
+        self.assertListedTitles(response, 'tips_list', [favorited_tip])
+        self.assertNotIn(other_tip.pk, [item.pk for item in response.context['tips_list']])
 
     def test_systena_user_can_use_tip_favorite_filter(self):
         systena_group, _ = Group.objects.get_or_create(name='システナ')
@@ -1874,8 +1974,8 @@ class TipsListTests(TestCase):
         response = self.client.get(reverse('tip_list'), {'favorite_only': '1'})
 
         self.assertContains(response, '☆表示解除')
-        self.assertContains(response, favorited_tip.title)
-        self.assertNotContains(response, other_tip.title)
+        self.assertListedTitles(response, 'tips_list', [favorited_tip])
+        self.assertNotIn(other_tip.pk, [item.pk for item in response.context['tips_list']])
 
     def test_tip_list_shows_new_badge_only_for_recent_published_tips(self):
         self.user.is_staff = True
@@ -1903,7 +2003,13 @@ class TipsListTests(TestCase):
 
         self.assertContains(response, '新着承認済みTips')
         self.assertContains(response, '旧Tips')
-        self.assertContains(response, 'New', count=1)
+        self.assertContains(response,
+            '<span class="knowledge-status text-bg-danger knowledge-new-badge">New</span>',
+            count=1, html=True)
+        self.assertEqual(
+            {item.title: item.is_new_badge for item in response.context['tips_list']},
+            {'新着承認済みTips': True, '旧Tips': False},
+        )
 
     def test_tip_list_shows_new_badge_regardless_of_approval_status(self):
         self.user.is_staff = True
@@ -1931,9 +2037,16 @@ class TipsListTests(TestCase):
 
         self.assertContains(response, '新着未承認Tips')
         self.assertContains(response, '新着承認済みTips')
-        self.assertContains(response, 'New', count=2)
+        self.assertContains(response,
+            '<span class="knowledge-status text-bg-danger knowledge-new-badge">New</span>',
+            count=2, html=True)
+        self.assertEqual(
+            {item.title for item in response.context['tips_list'] if item.is_new_badge},
+            {'新着未承認Tips', '新着承認済みTips'},
+        )
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_remand_tip_with_reason_from_list(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -1974,7 +2087,8 @@ class TipsListTests(TestCase):
         self.assertFalse(tip.is_approved)
         self.assertEqual(tip.remand_reason, '表現を見直してください。')
 
-    @override_settings(FAQ_APPROVAL_ENABLED=True)
+    @override_settings(FAQ_APPROVAL_ENABLED=True,
+                       GOOGLE_CHAT_GAS_WEB_APP_URL='https://script.google.com/macros/s/TEST_DEPLOYMENT_ID/exec')
     def test_reviewer_can_approve_tip_and_default_is_standard_restricted(self):
         reviewer_group, _ = Group.objects.get_or_create(name='レビュアー')
         reviewer = get_user_model().objects.create_user(
@@ -2053,7 +2167,7 @@ class TipsListTests(TestCase):
         response = self.client.get(reverse('tip_list'))
 
         self.assertContains(response, restricted_tip.title)
-        self.assertContains(response, '現在のアカウントでは、このコンテンツの閲覧が制限されております。')
+        self.assertContains(response, 'この記事の閲覧は制限されています。テナサポStandardのご契約をご検討ください。')
         self.assertNotContains(response, restricted_tip.body)
 
     @override_settings(FAQ_APPROVAL_ENABLED=True)
@@ -2085,14 +2199,10 @@ class TipsFormTests(TestCase):
     def test_staff_can_create_tip_with_source_published_at(self):
         response = self.client.post(
             reverse('tip_create'),
-            {
-                'category': 'PC/設定',
-                'title': '公開日付きTips',
-                'target_os': 'Windows 11',
-                'body': '本文',
-                'source_published_at': '2026-05-10',
-                'expires_on': '2026-12-10',
-            },
+            knowledge_form_data(
+                'PC/設定', title='公開日付きTips', body='本文',
+                source_published_at='2026-05-10', expires_on='2026-12-10',
+            ),
         )
 
         self.assertRedirects(response, reverse('tip_list'))
@@ -2111,14 +2221,10 @@ class TipsFormTests(TestCase):
 
         response = self.client.post(
             reverse('tip_edit', args=[tip.id]),
-            {
-                'category': 'PC/設定',
-                'title': '更新対象Tips',
-                'target_os': 'Windows 11',
-                'body': '更新本文',
-                'source_published_at': '2026-05-12',
-                'expires_on': '2026-12-20',
-            },
+            knowledge_form_data(
+                'PC/設定', title='更新対象Tips', body='更新本文',
+                source_published_at='2026-05-12', expires_on='2026-12-20',
+            ),
         )
 
         self.assertRedirects(response, reverse('tip_list'))
@@ -2143,26 +2249,24 @@ class TipsFormTests(TestCase):
 
         response = self.client.post(
             reverse('tip_edit', args=[tip.id]),
-            {
-                'category': tip.category,
-                'title': tip.title,
-                'target_os': 'Windows 11',
-                'body': tip.body,
-                'visible_to_customer': 'on',
-            },
+            knowledge_form_data(
+                tip.category, title=tip.title, body=tip.body, visible_to_customer='on',
+            ),
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '全ユーザー非表示のTipsを再公開できるのはSystenaAdminのみです。')
+        self.assertEqual(set(response.context['form'].errors), {'visible_to_customer', 'visible_to_systena'})
         tip.refresh_from_db()
         self.assertFalse(tip.visible_to_customer)
         self.assertFalse(tip.visible_to_systena)
 
     def test_staff_can_create_tip_with_multiple_target_os_entries(self):
+        category = FAQCategory.objects.create(parent_name='PC', middle_name='設定')
         response = self.client.post(
             reverse('tip_create'),
             {
-                'category': 'PC/設定',
+                'registered_category': [category.pk],
                 'title': '複数OS Tips',
                 'target_os_name': 'Windows PC',
                 'target_os_version': '10',
@@ -2184,7 +2288,7 @@ class TipsFormTests(TestCase):
         self.assertEqual(tip.target_os, 'Windows PC 10 以降, VMware 7.0')
 
 
-class CategoryEditLinkTests(TestCase):
+class CategoryEditLinkTests(KnowledgeListAssertions, TestCase):
     def setUp(self):
         self.staff = get_user_model().objects.create_user(
             username='category_link_staff', password='password', is_staff=True,
@@ -2290,8 +2394,9 @@ class CategoryEditLinkTests(TestCase):
             selected = model.objects.create(title='中カテゴリ直接選択対象', body='本文', category=leaf.full_name)
             other = model.objects.create(title='小カテゴリ対象', body='本文', category=leaf.full_name + '/電源')
             page = self.client.get(reverse(url), {'category': leaf.full_name})
-            self.assertContains(page, selected.title)
-            self.assertNotContains(page, other.title)
+            key = 'articles' if model is KnowledgeArticle else 'tips_list'
+            self.assertListedTitles(page, key, [selected])
+            self.assertNotIn(other.pk, [item.pk for item in page.context[key]])
 
 
 class CategoryDeleteTests(TestCase):
@@ -2531,17 +2636,15 @@ class ExpirationDefaultTests(TestCase):
 
         response = self.client.post(
             reverse('article_create'),
-            {
-                'category': 'ネットワーク/VPN',
-                'question': 'デフォルト期限FAQ',
-                'answer': '本文',
-                'expires_on': '',
-            },
+            knowledge_form_data(
+                'ネットワーク/VPN', title='デフォルト期限FAQ', question='デフォルト期限FAQ',
+                answer='本文', expires_on='',
+            ),
         )
 
         self.assertRedirects(response, reverse('article_list'))
         article = KnowledgeArticle.objects.get(title='デフォルト期限FAQ')
-        self.assertIsNotNone(article.expires_on)
+        self.assertEqual(article.expires_on, default_expires_on())
 
 
 class UnpublishExpiredArticlesCommandTests(TestCase):

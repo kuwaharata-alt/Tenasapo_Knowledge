@@ -9,6 +9,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      production_ready:
+        description: '本番DB・メディア保全と移行手順を確認済み（mainのみ配備）'
+        required: true
+        type: boolean
+        default: false
 
 concurrency:
   group: nexus-release-${{ github.ref }}
@@ -83,7 +89,7 @@ jobs:
           retention-days: 7
 
       - name: Deploy to Azure Web App
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.production_ready == true
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'nexus-app'
