@@ -1,15 +1,19 @@
 import io
 import logging
 import os
+import re
+from calendar import monthrange
+from datetime import date
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from django.db.models import Q
 
 from PIL import Image, ImageDraw, ImageFont
 
-from tenasapo_knowledge.models import KnowledgeArticle, TipsArticle
+from tenasapo_knowledge.models import KnowledgeArticle, TipsArticle, PostingQuota
+from tenasapo_knowledge.posting_quotas import quota_progress
 from tenasapo_knowledge.utils import resolve_user_display_name, resolve_saved_or_user_display_name
 from tenasapo_knowledge.notifications import (
     send_google_chat_message,
@@ -21,9 +25,12 @@ logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = '当月のFAQおよびTipsのメンバー投稿状況を図（棒グラフ画像）とテキストでGoogle Chatへ通知します。'
+    help = '当月のQ&AおよびTipsのメンバー投稿状況を図（棒グラフ画像）とテキストでGoogle Chatへ通知します。'
 
     def add_arguments(self, parser):
+        parser.add_argument('--month', help='対象月 YYYY-MM。省略時は従来どおり当月。')
+        parser.add_argument('--raise-on-error', action='store_true', help='予約配信用: エラーを伝播し、送信失敗時の自動フォールバックを禁止。')
+        parser.add_argument('--notice-label', default='', help='予約通知日時の表示ラベル。')
         parser.add_argument(
             '--dry-run',
             action='store_true',
@@ -136,7 +143,7 @@ class Command(BaseCommand):
 
         # FAQ凡例
         draw.rounded_rectangle([legend_center_x - legend_w_half, legend_y + 3, legend_center_x - legend_w_half + 14, legend_y + 11], radius=2, fill='#E87524')
-        draw.text((legend_center_x - legend_w_half + 20, legend_y), "FAQ", fill='#6B7280', font=font_val)
+        draw.text((legend_center_x - legend_w_half + 20, legend_y), "Q&A", fill='#6B7280', font=font_val)
 
         # Tips凡例
         draw.rounded_rectangle([legend_center_x + 15, legend_y + 3, legend_center_x + 29, legend_y + 11], radius=2, fill='#4988E8')
@@ -225,6 +232,22 @@ class Command(BaseCommand):
         include_hidden = options.get('include_hidden', False)
         today = timezone.localdate()
         current_month_start = today.replace(day=1)
+        strict = options.get('raise_on_error', False)
+        raw_month = options.get('month')
+        if raw_month:
+            if not re.fullmatch(r'[0-9]{4}-[0-9]{2}', raw_month):
+                raise CommandError('対象月はYYYY-MMで指定してください。')
+            try:
+                current_month_start = date.fromisoformat(raw_month + '-01')
+            except ValueError:
+                raise CommandError('対象月は有効なYYYY-MMで指定してください。') from None
+        month_end = current_month_start.replace(day=monthrange(current_month_start.year, current_month_start.month)[1])
+        count_end = min(today, month_end)
+        quota = PostingQuota.objects.filter(effective_month=current_month_start).first() if strict else None
+        targets = None if quota is None else {
+            'faq': quota.faq_count, 'tips': quota.tips_count, 'alpha': quota.alpha_count,
+            'total': quota.faq_count + quota.tips_count + quota.alpha_count,
+        }
 
         User = get_user_model()
         CONTRIBUTOR_GROUP_NAME = getattr(
@@ -263,13 +286,13 @@ class Command(BaseCommand):
         faq_qs = KnowledgeArticle.objects.filter(
             Q(visible_to_customer=True) | Q(visible_to_systena=True),
             created_at__date__gte=current_month_start,
-            created_at__date__lte=today,
+            created_at__date__lte=count_end,
         ).select_related('created_by')
 
         tips_qs = TipsArticle.objects.filter(
             Q(visible_to_customer=True) | Q(visible_to_systena=True),
             created_at__date__gte=current_month_start,
-            created_at__date__lte=today,
+            created_at__date__lte=count_end,
         ).select_related('created_by')
 
         # 投稿数のカウント
@@ -290,12 +313,15 @@ class Command(BaseCommand):
         # 表形式の組み立て (Google Chat が対応しているMarkdown表、または等幅ブロックを使った綺麗な表組み)
         target_faq = 1
         target_tips = 1
+        if strict:
+            target_faq = quota.faq_count if quota else '未設定'
+            target_tips = quota.tips_count if quota else '未設定'
         members_data = []
 
         # Google Chat の等幅ブロックフォント(RobotoMono)で日本語全角文字と半角スペースが「2:1」の理想比率で完璧にインデント一致するハイブリッド等幅テーブルを構築
         table_lines = [
             "```",
-            " 状況 |      メンバー名      |  FAQ  | Tips  ",
+            " 状況 |      メンバー名      |  Q&A  | Tips  ",
             "------+----------------------+-------+-------"
         ]
 
@@ -307,7 +333,11 @@ class Command(BaseCommand):
             members_data.append(data)
 
             # 完了判定
-            is_completed = (faq >= target_faq and tips >= target_tips)
+            if strict:
+                progress = quota_progress(faq, tips, targets)
+                is_completed = bool(progress and progress['achieved'])
+            else:
+                is_completed = (faq >= target_faq and tips >= target_tips)
             status_text = "  ✅  " if is_completed else "  ❌  "
 
             # 全角混じりのメンバー名を、等幅フォント環境でも極力崩さないためのマルチバイト対応幅寄せ
@@ -330,11 +360,22 @@ class Command(BaseCommand):
 
         post_date_str = today.strftime('%Y/%m/%d')
         current_month_str = f"{today.month}月"
+        if raw_month:
+            current_month_str = f'{current_month_start.year}年{current_month_start.month}月'
 
         intro_text = (
             f"{post_date_str}時点の投稿状況です。\n"
-            f"Tips1件、FAQ1件登録が完了していない人は、期限までに投稿してください。"
+            f"Tips1件、Q&A1件登録が完了していない人は、期限までに投稿してください。"
         )
+        if raw_month:
+            intro_text = (f'対象月: {current_month_start:%Y-%m}\n'
+                          f'集計期間: {current_month_start:%Y/%m/%d}〜{count_end:%Y/%m/%d}（本日まで）\n'
+                          f'{post_date_str}時点の投稿状況です。')
+        if strict:
+            intro_text += ('\n投稿目標: 未設定（対象月のPostingQuotaがありません）' if quota is None else
+                           f'\n1人あたりの投稿目標: Q&A {quota.faq_count}件、Tips {quota.tips_count}件、＋α {quota.alpha_count}件')
+        if options.get('notice_label'):
+            intro_text += '\n' + options['notice_label']
 
         message_body = (
             f"{intro_text}\n\n"
@@ -344,10 +385,12 @@ class Command(BaseCommand):
 
         # 画像描画
         image_bytes = None
-        if not text_only and members_data:
+        if not text_only and (members_data or strict):
             try:
                 image_bytes = self.generate_member_chart_image(members_data, today)
             except Exception as e:
+                if strict:
+                    raise CommandError('投稿状況画像の生成に失敗しました。') from None
                 self.stdout.write(self.style.WARNING(f"画像の生成中にエラーが発生したため、テキストモードにフォールバックします: {e}"))
                 text_only = True
 
@@ -376,6 +419,8 @@ class Command(BaseCommand):
                         self.style.SUCCESS(f"Google Chat 通知の送信に成功しました (テキストのみ)。ステータス: {status_code}")
                     )
                 except GoogleChatNotificationError as exc:
+                    if strict:
+                        raise CommandError('Google Chat通知の送信結果を確認できません。') from None
                     self.stdout.write(
                         self.style.ERROR(f"Google Chat 通知の送信中にエラーが発生しました: {exc}")
                     )
@@ -394,6 +439,8 @@ class Command(BaseCommand):
                         self.style.SUCCESS(f"Google Chat 通知の送信に成功しました ({via_info})。ステータス: {status_code}")
                     )
                 except GoogleChatNotificationError as card_exc:
+                    if strict:
+                        raise CommandError('Google Chat画像通知の送信結果を確認できません。') from None
                     self.stdout.write(
                         self.style.WARNING(
                             f"図付きでの送信に失敗したため、テキストのみでの送信へ自動フォールバックします。理由: {card_exc}"
@@ -406,6 +453,8 @@ class Command(BaseCommand):
                             self.style.SUCCESS(f"Google Chat 通知の送信に成功しました (テキストフォールバック)。ステータス: {status_code}")
                         )
                     except GoogleChatNotificationError as exc:
+                        if strict:
+                            raise CommandError('Google Chat通知の送信結果を確認できません。') from None
                         self.stdout.write(
                             self.style.ERROR(f"フォールバック先テキスト通知の送信中にエラーが発生しました: {exc}")
                         )

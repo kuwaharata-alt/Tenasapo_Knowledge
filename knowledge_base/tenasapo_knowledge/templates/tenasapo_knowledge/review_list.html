@@ -2,9 +2,130 @@
 {% load article_extras %}
 
 {% block title %}レビュー一覧 | Nexus{% endblock %}
+{% block body_class %}review-list-page{% endblock %}
+
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
+        <div class="me-md-auto">
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-clipboard-check"></i></span>レビュー一覧
+            </h1>
+            <p class="page-title-sub">記事の内容を確認し、承認・差戻しを行います。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
 
 {% block content %}
 <style>
+    .review-list-page .app-main { overflow: hidden; }
+    .review-list-page .app-content { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .review-list-page .app-content > :not(.review-results-card) { flex-shrink: 0; }
+    .review-results-card { flex: 1 1 0; min-height: 0; overflow: hidden; }
+    .review-results { flex: 1 1 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .review-results thead { position: sticky; top: 0; z-index: 2; }
+    .review-results:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -2px; }
+    .review-filter-toggle { box-shadow: none; }
+    #reviewFilterPanel .modal-body { padding: 1.25rem; }
+    #reviewFilterPanel .form-label { font-size: .85rem; font-weight: 500; margin-bottom: .5rem; }
+    #reviewFilterPanel :is(.btn, .form-select, .form-control) {
+        min-height: 2.5rem;
+        font-size: .875rem;
+        line-height: 1.4;
+        border-radius: .45rem;
+    }
+    #reviewFilterPanel .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: .5rem .85rem;
+        box-shadow: none;
+    }
+    #reviewFilterPanel .review-type-buttons .btn { min-width: 4.5rem; }
+    #reviewFilterPanel .review-status-options .btn { min-width: 5.5rem; }
+    #reviewFilterPanel .review-status-count { font-size: .75rem; min-width: 1.4rem; padding: .1rem .35rem; }
+    .review-type-buttons { display: inline-flex; gap: .15rem; padding: .2rem; border: 1px solid var(--tk-border); border-radius: 2rem; background: #fff8f1; max-width: 100%; }
+    #reviewFilterPanel .review-type-buttons .btn { border-radius: 2rem; border-color: transparent; }
+    #reviewFilterPanel .review-type-buttons .btn-check:not(:checked) + .btn { background: transparent; }
+    #reviewFilterPanel .review-type-buttons .btn-check:checked + .btn { border-color: currentColor; }
+    #reviewFilterPanel .review-type-buttons .btn-check:checked + .btn-outline-danger { background: #fee2e2; color: #b91c1c; }
+    #reviewFilterPanel .review-type-buttons .btn-check:checked + .review-type-tips { background: #dbeafe; color: #0056a3; }
+    #reviewFilterPanel .btn-check:checked + .btn-outline-secondary { background: var(--tk-primary-soft); color: var(--tk-primary-dark); border-color: var(--tk-primary-dark); }
+    .review-type-buttons .btn { box-shadow: none; }
+    .review-type-tips { --bs-btn-color: #0077cc; --bs-btn-border-color: #0077cc; --bs-btn-hover-bg: #0077cc; --bs-btn-hover-border-color: #0077cc; --bs-btn-hover-color: #fff; --bs-btn-active-bg: #0077cc; --bs-btn-active-border-color: #0077cc; --bs-btn-active-color: #fff; }
+    .review-status-options { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .review-status-options .btn { box-shadow: none; }
+    #reviewFilterPanel .review-status-options .btn:hover { background: #fff8f1; }
+    .review-status-options .is-empty { color: #858b92; border-color: #e7e9ec; }
+    .review-title-toggle:focus-visible, .review-sort-links a:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 3px; }
+    .review-status-count { padding: .1rem .5rem; border-radius: 1rem; background: rgba(0,0,0,.05); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .review-list-table > :not(caption) > * > * { padding: 1rem; }
+    .review-expandable-row { cursor: pointer; }
+    .review-title-text { display: block; font-weight: 600; }
+    .review-row-actions { display: grid; grid-template-columns: minmax(0, 1fr) 2rem; align-items: center; gap: .5rem; width: 100%; }
+    .review-main-actions { display: flex; justify-content: center; align-items: center; gap: .5rem; }
+    .review-title-toggle { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; color: var(--tk-muted); border: 0; background: transparent; flex-shrink: 0; justify-self: end; }
+    .review-title-text { min-width: 0; overflow-wrap: anywhere; }
+    .review-toggle-icon { flex-shrink: 0; }
+    .review-title-toggle:hover { color: var(--tk-primary-dark); }
+    .review-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem 1rem; margin-top: .5rem; font-size: .78rem; font-weight: 400; color: var(--tk-muted); }
+    .review-kind { color: #fff; }
+    .review-kind-faq { background: var(--bs-danger); }
+    .review-kind-tips { background: #0077cc; }
+    .review-approved-action {
+        --bs-btn-color: var(--tk-muted);
+        --bs-btn-border-color: #dee2e6;
+        --bs-btn-hover-color: var(--tk-text);
+        --bs-btn-hover-bg: #f3f4f6;
+        --bs-btn-hover-border-color: #ced4da;
+        --bs-btn-active-color: var(--tk-text);
+        --bs-btn-active-bg: #e9ecef;
+        --bs-btn-active-border-color: #ced4da;
+        box-shadow: none;
+    }
+    .review-sort-links a { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .65rem; border: 1px solid var(--tk-border); border-radius: .4rem; background: var(--tk-surface); color: var(--tk-muted); font-size: .8rem; text-decoration: none; }
+    .review-sort-links a:hover { background: #f3f4f6; color: var(--tk-text); }
+    .review-sort-links a[aria-current="true"] { color: var(--tk-primary-dark); border-color: var(--tk-primary); background: var(--tk-primary-soft); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+    .review-sort-idle-icon { opacity: .6; }
+    .review-status-registered { background: #fef3c7; color: #78350f; }
+    .review-status-text-registered { color: #78350f; }
+    .review-status-text-corrected { color: #166534; }
+    .review-status-text-remanded { color: #991b1b; }
+    .review-status-text-approved { color: #1e40af; }
+    .review-status-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 4.5rem;
+        height: 1.75rem;
+        padding: .25rem .5rem;
+        border: 0;
+        border-radius: .375rem;
+        font-size: .75rem;
+        font-weight: 600;
+        line-height: 1;
+        white-space: nowrap;
+        box-sizing: border-box;
+    }
+    .review-status-approved { background: #dbeafe; color: #1e40af; }
+    .review-status-corrected { background: #dcfce7; color: #166534; }
+    .review-status-remanded { background: #fee2e2; color: #991b1b; }
+    .review-code-details > summary { cursor: pointer; color: var(--tk-muted); font-size: .85rem; }
+    #reviewModal .modal-dialog { max-width: 1400px; }
+    #reviewModal .modal-title { overflow-wrap: anywhere; }
+    .review-workspace { display: grid; grid-template-columns: minmax(0, 65fr) minmax(0, 35fr); gap: 1.5rem; align-items: start; }
+    .review-popup-detail { flex-basis: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .review-preview-panel { min-width: 0; }
+    .review-settings { min-width: 0; padding: 1.25rem; border: 1px solid var(--tk-border); border-radius: .75rem; background: #faf9f7; }
+    #reviewModal .modal-footer { flex-shrink: 0; background: var(--tk-surface); gap: .5rem; }
+    .review-workspace:not(:has(.review-settings)) { grid-template-columns: minmax(0, 1fr); }
+    @media (max-width: 991.98px) { .review-workspace { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 575.98px) {
+        .review-list-table > :not(caption) > * > * { padding: .75rem; }
+        .review-main-actions { flex-direction: column; }
+    }
     .page-title-panel {
         box-shadow: none !important;
     }
@@ -46,42 +167,42 @@
         100% { background-color: transparent; }
     }
 </style>
-<div class="page-title-panel mb-4">
-    <div class="d-flex flex-column flex-md-row align-items-md-center gap-3">
-        <div class="me-md-auto">
-            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-clipboard-check"></i></span>レビュー一覧
-            </h1>
-        </div>
-        <div class="d-flex gap-2">
-            <a class="btn {% if not review_type %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}">すべて</a>
-            <a class="btn {% if review_type == 'faq' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}?type=faq">FAQ</a>
-            <a class="btn {% if review_type == 'tips' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'review_list' %}?type=tips">Tips</a>
-        </div>
-    </div>
-</div>
 
-<!-- フィルターとソート区間 -->
-<div class="card mb-4">
-    <div class="card-body">
-        <h5 class="card-title mb-3">フィルター・ソート</h5>
-        <form method="get" class="row g-3">
-            <!-- 非表示フィールド（type）を保持 -->
-            {% if review_type %}<input type="hidden" name="type" value="{{ review_type }}">{% endif %}
+<div class="modal fade" id="reviewFilterPanel" tabindex="-1" aria-labelledby="reviewFilterLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <form method="get" class="modal-content" id="reviewFilterForm">
+                        <div class="modal-header">
+                                <h5 class="modal-title" id="reviewFilterLabel">フィルタ</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row g-3 align-items-end">
             <input type="hidden" name="sort" value="{{ sort_by }}">
             <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
             
-            <div class="col-md-3">
-                <label for="statusFilter" class="form-label">承認状態</label>
-                <select class="form-select" id="statusFilter" name="status">
-                    <option value="">すべて</option>
-                    <option value="registered" {% if status_filter == 'registered' %}selected{% endif %}>登録</option>
-                    <option value="remanded" {% if status_filter == 'remanded' %}selected{% endif %}>差戻し</option>
-                    <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>承認済</option>
-                </select>
-            </div>
+            <fieldset class="col-12 mb-0">
+                <legend class="form-label float-none w-auto">状態</legend>
+                <div class="review-status-options">
+                    {% for tab in review_status_tabs %}
+                        <input class="btn-check" type="radio" name="status" id="reviewStatus{{ forloop.counter }}" value="{{ tab.value }}"{% if tab.active %} checked{% endif %}>
+                        <label class="btn btn-outline-secondary btn-sm{% if not tab.count and not tab.active %} is-empty{% endif %}" for="reviewStatus{{ forloop.counter }}"><span class="review-status-text-{{ tab.value|default:'all' }}">{{ tab.label }}</span> <span class="review-status-count">{{ tab.count }}<span class="visually-hidden">件</span></span></label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+
+            <fieldset class="col-12 mb-0">
+                <legend class="form-label float-none w-auto">種別</legend>
+                <div class="review-type-buttons">
+                    <input class="btn-check" type="radio" name="type" id="reviewTypeAll" value=""{% if not review_type %} checked{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="reviewTypeAll">すべて</label>
+                    <input class="btn-check" type="radio" name="type" id="reviewTypeFaq" value="faq"{% if review_type == 'faq' %} checked{% endif %}>
+                    <label class="btn btn-outline-danger btn-sm" for="reviewTypeFaq">Q&amp;A</label>
+                    <input class="btn-check" type="radio" name="type" id="reviewTypeTips" value="tips"{% if review_type == 'tips' %} checked{% endif %}>
+                    <label class="btn review-type-tips btn-sm" for="reviewTypeTips">Tips</label>
+                </div>
+            </fieldset>
             
-            <div class="col-md-3">
+            <div class="col-12 col-md-6">
                 <label for="creatorFilter" class="form-label">作成者</label>
                 <select class="form-select" id="creatorFilter" name="creator_id">
                     <option value="">すべて</option>
@@ -91,124 +212,98 @@
                 </select>
             </div>
             
-            <div class="col-md-2">
-                <label for="dateFrom" class="form-label">開始日</label>
-                <input type="date" class="form-control" id="dateFrom" name="date_from" value="{{ date_from }}">
+            <div class="col-12 col-md-6">
+                <label for="reviewCreatedMonth" class="form-label">作成日</label>
+                <input type="month" class="form-control" id="reviewCreatedMonth" name="created_month" value="{{ created_month }}">
             </div>
-
-            <div class="col-md-2">
-                <label for="dateTo" class="form-label">終了日</label>
-                <input type="date" class="form-control" id="dateTo" name="date_to" value="{{ date_to }}">
+              </div>
             </div>
-
-            <div class="col-md-2 d-flex align-items-end">
-                <div class="d-flex flex-nowrap gap-2 w-100">
-                    <button type="submit" class="btn btn-primary text-nowrap flex-fill">フィルター</button>
-                    <a href="{% url 'review_list' %}{% if review_type %}?type={{ review_type }}{% endif %}" class="btn btn-secondary text-nowrap flex-fill">リセット</a>
-                </div>
+            <div class="modal-footer">
+                <a href="{% url 'review_list' %}" class="btn btn-outline-secondary me-auto">リセット</a>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">閉じる</button>
+                <button type="submit" class="btn btn-primary">絞り込み</button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="card">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="review-sort-links d-flex flex-wrap gap-3" aria-label="並び替え">
+        <a href="{{ sort_management_code_url }}"{% if sort_by == 'management_code' %} aria-current="true"{% endif %}>管理番号{% if sort_by == 'management_code' %}<i class="bi {% if sort_dir == 'asc' %}bi-arrow-up{% else %}bi-arrow-down{% endif %}" aria-hidden="true"></i><span class="visually-hidden">{% if sort_dir == 'asc' %}昇順{% else %}降順{% endif %}</span>{% else %}<i class="bi bi-arrow-down-up review-sort-idle-icon" aria-hidden="true"></i>{% endif %}</a>
+        <a href="{{ sort_title_url }}"{% if sort_by == 'title' %} aria-current="true"{% endif %}>タイトル{% if sort_by == 'title' %}<i class="bi {% if sort_dir == 'asc' %}bi-arrow-up{% else %}bi-arrow-down{% endif %}" aria-hidden="true"></i><span class="visually-hidden">{% if sort_dir == 'asc' %}昇順{% else %}降順{% endif %}</span>{% else %}<i class="bi bi-arrow-down-up review-sort-idle-icon" aria-hidden="true"></i>{% endif %}</a>
+        <a href="{{ sort_created_at_url }}"{% if sort_by == 'created_at' %} aria-current="true"{% endif %}>作成日{% if sort_by == 'created_at' %}<i class="bi {% if sort_dir == 'asc' %}bi-arrow-up{% else %}bi-arrow-down{% endif %}" aria-hidden="true"></i><span class="visually-hidden">{% if sort_dir == 'asc' %}昇順{% else %}降順{% endif %}</span>{% else %}<i class="bi bi-arrow-down-up review-sort-idle-icon" aria-hidden="true"></i>{% endif %}</a>
+    </div>
+    <div class="d-flex align-items-center gap-3 ms-auto">
+        <button class="btn btn-outline-secondary btn-sm review-filter-toggle flex-shrink-0" type="button" data-bs-toggle="modal" data-bs-target="#reviewFilterPanel" aria-haspopup="dialog" aria-controls="reviewFilterPanel">
+            <i class="bi bi-funnel" aria-hidden="true"></i> フィルタ{% if review_type or creator_filter or created_month or status_filter or date_from or date_to %}<span class="badge bg-secondary ms-2">適用中</span>{% endif %}
+        </button>
+        <div class="small text-muted text-nowrap">表示件数 <strong class="text-body">{{ review_result_count }}</strong> 件</div>
+    </div>
+</div>
+<div class="card review-results-card">
+    <div class="table-responsive review-results" role="region" aria-label="レビュー一覧" tabindex="0">
+        <table class="table table-hover align-middle mb-0 review-list-table">
             <thead class="table-light">
                 <tr>
-                    <th style="width: 5rem;">種別</th>
-                    <th style="width: 10rem;" class="text-nowrap">
-                        <a href="{{ sort_management_code_url }}" class="link-dark text-decoration-none">
-                            管理番号
-                            {% if sort_by == 'management_code' %}
-                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th>
-                        <a href="{{ sort_title_url }}" class="link-dark text-decoration-none">
-                            タイトル
-                            {% if sort_by == 'title' %}
-                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th style="width: 9rem;" class="text-nowrap">作成者</th>
-                    <th style="width: 8rem;" class="text-nowrap">
-                        <a href="{{ sort_created_at_url }}" class="link-dark text-decoration-none">
-                            作成日
-                            {% if sort_by == 'created_at' %}
-                                <i class="bi {% if sort_dir == 'asc' %}bi-caret-up-fill{% else %}bi-caret-down-fill{% endif %}"></i>
-                            {% endif %}
-                        </a>
-                    </th>
-                    <th style="width: 8rem;" class="text-nowrap">承認状態</th>
-                    <th style="width: 7rem;"></th>
+                    <th scope="col" class="text-center">レビュー対象</th>
+                    <th scope="col" style="width: 7rem;" class="text-center text-nowrap">状態</th>
+                    <th scope="col" style="width: 15rem;" class="text-center">操作</th>
                 </tr>
             </thead>
             <tbody>
                 {% for item in review_items %}
-                    <tr id="review-row-{{ item.type }}-{{ item.id }}">
+                    <tr id="review-row-{{ item.type }}-{{ item.id }}" class="review-expandable-row">
                         <td>
-                            {% if item.type == 'faq' %}
-                                <span class="badge text-bg-primary">FAQ</span>
-                            {% else %}
-                                <span class="badge text-bg-info text-white">Tips</span>
-                            {% endif %}
+                            <span class="review-title-text">{{ item.title }}</span>
+                            <div class="review-item-meta">
+                                <span class="badge review-kind {% if item.type == 'faq' %}review-kind-faq{% else %}review-kind-tips{% endif %}">{% if item.type == 'faq' %}Q&amp;A{% else %}Tips{% endif %}</span>
+                                <span>{{ item.management_code|default:"-" }}</span>
+                                <span>作成者 {{ item.creator_display_name|default:"-" }}</span>
+                                <span>作成日 {{ item.created_at|date:"Y/m/d" }}</span>
+                            </div>
                         </td>
-                        <td class="small text-muted text-nowrap">{{ item.management_code|default:"-" }}</td>
-                        <td>
-                            <button
-                                class="btn btn-link p-0 text-start text-decoration-none review-title-toggle shadow-none"
-                                type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target="#inline-review-{{ item.type }}-{{ item.id }}"
-                                aria-expanded="false"
-                                aria-controls="inline-review-{{ item.type }}-{{ item.id }}"
-                            >
-                                <span>{{ item.title }}</span>
-                                <i class="bi bi-chevron-down ms-1 review-toggle-icon" aria-hidden="true"></i>
-                            </button>
-                        </td>
-                        <td class="small text-muted">{{ item.creator_display_name|default:"-" }}</td>
-                        <td class="small text-muted">{{ item.created_at|date:"Y/m/d" }}</td>
-                        <td>
+                        <td class="text-center">
                             {% if item.approval_status == 'approved' %}
                                 <button
-                                    class="btn badge text-bg-success border-0 review-summary-open-btn"
+                                    class="btn badge review-status-badge review-status-approved border-0 review-summary-open-btn"
                                     type="button"
                                     data-title="{{ item.title|escape }}"
                                     data-approval-status="{{ item.approval_status }}"
                                     data-ai-review="{{ item.ai_review|escape }}"
+                                    data-reviewer-comment="{{ item.reviewer_comment|escape }}"
                                     data-remand-reason="{{ item.remand_reason|escape }}"
                                 >承認済</button>
                             {% elif item.approval_status == 'remanded' %}
                                 {% if item.remand_reason %}
                                     <button
-                                        class="btn badge text-bg-warning border-0 review-summary-open-btn"
+                                        class="btn badge review-status-badge review-status-remanded border-0 review-summary-open-btn"
                                         type="button"
                                         data-title="{{ item.title|escape }}"
                                         data-approval-status="{{ item.approval_status }}"
                                         data-ai-review="{{ item.ai_review|escape }}"
+                                        data-reviewer-comment="{{ item.reviewer_comment|escape }}"
                                         data-remand-reason="{{ item.remand_reason|escape }}"
                                     >差戻し</button>
                                 {% else %}
-                                    <span class="badge text-bg-warning">差戻し</span>
+                                    <span class="badge review-status-badge review-status-remanded">差戻し</span>
                                 {% endif %}
+                            {% elif item.approval_status == 'corrected' %}
+                                <span class="badge review-status-badge review-status-corrected">修正済</span>
                             {% else %}
-                                <span class="badge text-bg-secondary">登録</span>
+                                <span class="badge review-status-badge review-status-registered">登録</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <div class="d-flex gap-2">
+                        <td class="text-center">
+                                                        <div class="review-row-actions">
+                                                            <div class="review-main-actions">
                                 {% if use_edit_button_in_review_list %}
                                     <a
-                                        class="btn btn-outline-primary btn-sm"
+                                        class="btn btn-outline-secondary btn-sm text-nowrap"
                                         href="{% url item.edit_url_name item.id %}?next={{ return_to|urlencode }}"
                                     >編集</a>
                                 {% endif %}
                                 <button
-                                    class="btn btn-outline-primary btn-sm review-open-btn"
+                                    class="btn {% if item.approval_status == 'approved' %}btn-outline-secondary review-approved-action{% else %}btn-primary{% endif %} btn-sm review-open-btn text-nowrap"
                                     type="button"
                                     data-bs-toggle="modal"
                                     data-bs-target="#reviewModal"
@@ -220,13 +315,21 @@
                                     data-standard-only="{% if item.standard_contract_only %}1{% else %}0{% endif %}"
                                     data-visible-to-customer="{% if item.visible_to_customer %}1{% else %}0{% endif %}"
                                     data-ai-review="{{ item.ai_review|escape }}"
+                                    data-reviewer-comment="{{ item.reviewer_comment|escape }}"
                                     data-remand-reason="{{ item.remand_reason|escape }}"
-                                >レビュー</button>
+                                >{% if item.approval_status == 'approved' %}確認{% else %}レビュー{% endif %}</button>
+                                                            </div>
+                                <button class="btn review-title-toggle shadow-none" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#inline-review-{{ item.type }}-{{ item.id }}"
+                                    aria-expanded="false" aria-controls="inline-review-{{ item.type }}-{{ item.id }}"
+                                    aria-label="{{ item.title }}の本文を展開・折りたたみ" title="本文を展開・折りたたみ">
+                                    <i class="bi bi-chevron-down review-toggle-icon" aria-hidden="true"></i>
+                                </button>
                             </div>
                         </td>
                     </tr>
                     <tr>
-                        <td colspan="7" class="py-0 border-0">
+                        <td colspan="3" class="py-0 border-0">
                             <div class="collapse" id="inline-review-{{ item.type }}-{{ item.id }}">
                                 <div class="p-3 border-top bg-light">
                                     <div class="review-inline-body" data-review-source-id="review-content-{{ item.type }}-{{ item.id }}">
@@ -238,7 +341,7 @@
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">レビュー対象データがありません。</td>
+                        <td colspan="3" class="text-center text-muted py-5"><i class="bi bi-clipboard-check d-block fs-3 mb-2" aria-hidden="true"></i>条件に一致するレビュー対象がありません。</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -250,9 +353,9 @@
     <div id="review-content-{{ item.type }}-{{ item.id }}" class="d-none">
         <div class="d-flex flex-wrap gap-2 mb-3">
             {% if item.type == 'faq' %}
-                <span class="badge text-bg-primary">FAQ</span>
+                <span class="badge review-kind review-kind-faq">Q&amp;A</span>
             {% else %}
-                <span class="badge text-bg-info text-white">Tips</span>
+                <span class="badge review-kind review-kind-tips">Tips</span>
             {% endif %}
             <span class="badge faq-meta-badge">作成者 {{ item.creator_display_name|default:"-" }}</span>
             <span class="badge faq-meta-badge">作成日 {{ item.created_at|date:"Y/m/d H:i" }}</span>
@@ -276,16 +379,21 @@
             <div class="faq-body-indent">{{ item.body|render_inline_images:item.inline_images }}</div>
         {% endif %}
 
-        <div class="border-top pt-3 mt-3">
+        <details class="border-top pt-3 mt-3 review-code-details">
+            <summary>HTMLコードを表示</summary>
             <div class="d-flex justify-content-between align-items-center mb-2">
                 <div class="fw-semibold small text-muted">HTMLコード</div>
                 <button type="button" class="btn btn-outline-secondary btn-sm copy-html-code-btn">コピー</button>
             </div>
             <pre class="small bg-light border rounded p-3 mb-0 review-html-code-block"><code>{{ item.preview_html_code|escape }}</code></pre>
-        </div>
+        </details>
 
-        {% if item.ai_review or item.remand_reason %}
+        {% if item.ai_review or item.remand_reason or item.reviewer_comment %}
             <div class="border-top pt-3 mt-3 d-flex flex-wrap gap-2">
+            {% if item.reviewer_comment %}
+                <button type="button" class="btn btn-outline-secondary btn-sm review-text-popup-btn"
+                data-popup-title="承認者コメント" data-popup-content="{{ item.reviewer_comment|escape }}">承認者コメント</button>
+            {% endif %}
                 {% if item.ai_review %}
                     <button
                         type="button"
@@ -315,16 +423,21 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="閉じる"></button>
             </div>
             <div class="modal-body">
-                <div id="reviewPreviewBody" class="mb-3 text-muted">レビュー対象を選択してください。</div>
+              <div class="review-workspace">
+                <section class="review-preview-panel" aria-label="記事本文">
+                    <h6 class="fw-semibold mb-3">記事本文</h6>
+                    <div id="reviewPreviewBody">レビュー対象を選択してください。</div>
+                </section>
                 {% if can_approve_review %}
-                    <div class="border-top pt-3 d-flex flex-column gap-3">
-                        <div class="d-flex flex-wrap gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="reviewStandardOnly" checked>
-                                <label class="form-check-label" for="reviewStandardOnly">Demo制限</label>
+                    <aside class="review-settings d-flex flex-column gap-3" aria-label="レビュー確認項目">
+                        <h6 class="fw-semibold mb-0">確認・公開設定</h6>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="reviewStandardOnly">
+                                <label class="form-check-label" for="reviewStandardOnly">デモアカウントへ公開する</label>
                             </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="reviewVisibleToCustomer" checked>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="reviewVisibleToCustomer" checked>
                                 <label class="form-check-label" for="reviewVisibleToCustomer">顧客へ公開する</label>
                             </div>
                         </div>
@@ -332,9 +445,9 @@
                             <label class="form-label" for="reviewAiReview">AIレビュー</label>
                             <textarea class="form-control" id="reviewAiReview" rows="3" placeholder="AIレビューを入力"></textarea>
                         </div>
-                        <div class="d-flex flex-wrap gap-2 align-items-stretch">
-                            <button class="btn btn-success px-4 text-nowrap" type="button" id="reviewApproveBtn">承認</button>
-                            <button class="btn btn-warning px-4 text-nowrap" type="button" id="reviewRemandBtn">差戻し</button>
+                        <div>
+                            <label class="form-label" for="reviewReviewerComment">承認者コメント</label>
+                            <textarea class="form-control" id="reviewReviewerComment" rows="3" placeholder="承認者コメントを入力（任意）"></textarea>
                         </div>
                         <div id="reviewRemandReasonBlock" class="d-none">
                             <label class="form-label" for="reviewRemandComment">差戻し理由</label>
@@ -343,7 +456,15 @@
                                 <button class="btn btn-warning text-nowrap" type="button" id="reviewRemandSubmitBtn">差戻し確定</button>
                             </div>
                         </div>
-                    </div>
+                    </aside>
+                {% endif %}
+              </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary me-auto" type="button" data-bs-dismiss="modal">閉じる</button>
+                {% if can_approve_review %}
+                    <button class="btn btn-outline-warning px-4 text-nowrap" type="button" id="reviewRemandBtn">差戻し</button>
+                    <button class="btn btn-success px-4 text-nowrap" type="button" id="reviewApproveBtn">承認</button>
                 {% endif %}
             </div>
         </div>
@@ -381,6 +502,8 @@
                     <div id="reviewSummaryRemandText" class="border rounded p-2" style="white-space: pre-wrap; font-size: 0.8rem; line-height: 1.4;">（未入力）</div>
                 </div>
                 <div>
+                    <div class="fw-semibold small text-muted mb-1">承認者コメント</div>
+                    <div id="reviewSummaryReviewerComment" class="border rounded p-3 mb-3" style="white-space: pre-wrap; overflow-wrap: anywhere;">（未入力）</div>
                     <div class="fw-semibold small text-muted mb-1">AIコメント</div>
                     <div id="reviewSummaryAiText" class="border rounded p-3 bg-light" style="white-space: pre-wrap; line-height: 1.45; font-size: 0.8rem; max-height: 18rem; overflow-y: auto; word-break: break-word;">（未入力）</div>
                 </div>
@@ -395,11 +518,13 @@
         <input type="hidden" name="standard_contract_only" id="reviewStandardOnlyValue" value="0">
         <input type="hidden" name="visible_to_customer" id="reviewVisibleToCustomerValue" value="1">
         <input type="hidden" name="ai_review" id="reviewAiReviewValue" value="">
+        <input type="hidden" name="reviewer_comment" id="reviewReviewerCommentValue" value="">
         <input type="hidden" name="next" id="reviewApproveNext" value="{{ return_to }}">
     </form>
     <form id="reviewRemandForm" method="post" class="d-none">
         {% csrf_token %}
         <input type="hidden" name="ai_review" id="reviewAiReviewForRemand" value="">
+        <input type="hidden" name="reviewer_comment" id="reviewReviewerCommentForRemand" value="">
         <input type="hidden" name="remand_reason" id="reviewRemandReason" value="">
         <input type="hidden" name="next" id="reviewRemandNext" value="{{ return_to }}">
     </form>
@@ -423,6 +548,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const reviewSummaryAiText = document.getElementById('reviewSummaryAiText');
     const remandReasonBlock = document.getElementById('reviewRemandReasonBlock');
     const aiReviewInput = document.getElementById('reviewAiReview');
+    const reviewerCommentInput = document.getElementById('reviewReviewerComment');
     const remandReasonInput = document.getElementById('reviewRemandComment');
 
     const queryFocusKey = new URLSearchParams(window.location.search).get('focus');
@@ -479,10 +605,27 @@ document.addEventListener('DOMContentLoaded', function() {
         reviewTextModal.show();
     }
 
-    document.querySelectorAll('.review-text-popup-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            openTextModal(this.dataset.popupTitle || '詳細', this.dataset.popupContent || '内容はありません。');
-        });
+    // Preview HTML is cloned after load: delegate instead of binding hidden source buttons.
+    document.addEventListener('click', function(event) {
+        const button = event.target.closest('.review-text-popup-btn');
+        if (!button) return;
+        if (button.closest('#reviewModal')) {
+            // Avoid stacked Bootstrap modals and keep the current review inputs intact.
+            let detail = button.nextElementSibling;
+            if (!detail || !detail.classList.contains('review-popup-detail')) {
+                detail = document.createElement('div');
+                detail.className = 'review-popup-detail border rounded p-3 bg-light';
+                detail.setAttribute('role', 'region');
+                detail.setAttribute('aria-label', button.dataset.popupTitle || '詳細');
+                detail.textContent = button.dataset.popupContent || '内容はありません。';
+                detail.hidden = true;
+                button.after(detail);
+            }
+            detail.hidden = !detail.hidden;
+            button.setAttribute('aria-expanded', String(!detail.hidden));
+        } else {
+            openTextModal(button.dataset.popupTitle || '詳細', button.dataset.popupContent || '内容はありません。');
+        }
     });
 
     document.querySelectorAll('.review-summary-open-btn').forEach(button => {
@@ -504,6 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (reviewSummaryAiText) {
                 reviewSummaryAiText.textContent = aiReview;
             }
+            document.getElementById('reviewSummaryReviewerComment').textContent = this.dataset.reviewerComment || '（未入力）';
             reviewSummaryModal.show();
         });
     });
@@ -542,6 +686,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             const reviewId = this.dataset.reviewId;
             const source = reviewId ? document.getElementById(reviewId) : null;
+            document.getElementById('reviewModalLabel').textContent = this.dataset.title || 'レビュー';
             previewBody.innerHTML = source ? source.innerHTML : '<div class="text-muted">プレビューを表示できません。</div>';
             currentApproveUrl = this.dataset.approveUrl || '';
             currentRemandUrl = this.dataset.remandUrl || '';
@@ -550,7 +695,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const standardOnlyCheckbox = document.getElementById('reviewStandardOnly');
             const visibleToCustomerCheckbox = document.getElementById('reviewVisibleToCustomer');
             if (standardOnlyCheckbox) {
-                standardOnlyCheckbox.checked = (this.dataset.standardOnly || '0') === '1';
+                standardOnlyCheckbox.checked = false;
             }
             if (visibleToCustomerCheckbox) {
                 visibleToCustomerCheckbox.checked = (this.dataset.visibleToCustomer || '1') === '1';
@@ -558,12 +703,26 @@ document.addEventListener('DOMContentLoaded', function() {
             if (aiReviewInput) {
                 aiReviewInput.value = this.dataset.aiReview || '';
             }
+            if (reviewerCommentInput) {
+                reviewerCommentInput.value = this.dataset.reviewerComment || '';
+            }
             if (remandReasonInput) {
                 remandReasonInput.value = this.dataset.remandReason || '';
             }
             if (remandReasonBlock) {
                 remandReasonBlock.classList.add('d-none');
             }
+        });
+    });
+
+    document.querySelectorAll('.review-expandable-row').forEach(row => {
+        row.addEventListener('click', function(event) {
+            if (event.defaultPrevented || event.button !== 0 ||
+                event.target.closest('a, button, input, select, textarea, label, summary, [role="button"], [contenteditable]') ||
+                window.getSelection()?.toString()) {
+                return;
+            }
+            row.querySelector('.review-title-toggle')?.click();
         });
     });
 
@@ -624,9 +783,10 @@ document.addEventListener('DOMContentLoaded', function() {
             const aiReviewValue = document.getElementById('reviewAiReviewValue');
             const approveNext = document.getElementById('reviewApproveNext');
             approveForm.action = currentApproveUrl;
-            standardOnlyValue.value = standardOnlyCheckbox.checked ? '1' : '0';
+            standardOnlyValue.value = standardOnlyCheckbox.checked ? '0' : '1';
             visibleToCustomerValue.value = visibleToCustomerCheckbox.checked ? '1' : '0';
             aiReviewValue.value = aiReviewInput ? (aiReviewInput.value || '').trim() : '';
+            document.getElementById('reviewReviewerCommentValue').value = reviewerCommentInput ? reviewerCommentInput.value.trim() : '';
             if (approveNext) {
                 approveNext.value = buildNextUrlWithFocus(approveNext.defaultValue || approveNext.value, currentFocusKey);
             }
@@ -672,6 +832,7 @@ document.addEventListener('DOMContentLoaded', function() {
             remandForm.action = currentRemandUrl;
             remandReason.value = reason;
             aiReviewValue.value = aiReviewInput ? (aiReviewInput.value || '').trim() : '';
+            document.getElementById('reviewReviewerCommentForRemand').value = reviewerCommentInput ? reviewerCommentInput.value.trim() : '';
             if (remandNext) {
                 remandNext.value = buildNextUrlWithFocus(remandNext.defaultValue || remandNext.value, currentFocusKey);
             }

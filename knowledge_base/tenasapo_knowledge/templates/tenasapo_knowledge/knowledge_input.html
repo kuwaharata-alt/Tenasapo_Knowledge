@@ -1,19 +1,22 @@
 {% extends "base.html" %}
 
-{% block title %}Knowledge登録 | Nexus{% endblock %}
+{% block title %}ナレッジ登録 | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-        <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>Knowledge登録
+        <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>ナレッジ登録
     </h1>
+    <p class="page-title-sub">登録するナレッジの種類を選択できます。</p>
 </div>
+{% endblock %}
 
+{% block content %}
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
         <a href="{% url 'article_create' %}" class="btn btn-danger w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 FAQ登録</strong>
-            <small class="mt-2">FAQを新規登録</small>
+            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 Q&amp;A登録</strong>
+            <small class="mt-2">Q&amp;Aを新規登録</small>
         </a>
     </div>
     <div class="col-12 col-md-4">

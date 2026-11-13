@@ -2,17 +2,48 @@
 
 {% block title %}{{ form_title|default:"QR登録" }} | Nexus{% endblock %}
 
-{% block content %}
+{% block extra_css %}
+<style>
+    #usageFrequencyStars .btn {
+        box-shadow: none !important;
+        text-shadow: none;
+        transform: none;
+    }
+</style>
+{% endblock %}
+
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title|default:"QR登録" }}
                 {% if feature and feature.management_code %}<span class="badge bg-secondary" style="font-size:0.75rem;">{{ feature.management_code }}</span>{% endif %}
             </h1>
+            <p class="page-title-sub">ショートカットやコマンド、操作内容を入力・確認できます。</p>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <form class="card shadow-sm" method="post" enctype="multipart/form-data">
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-result" class="is-current" aria-current="location">{{ form.display_text.label }}</a>
+                <a href="#form-section-shortcut">{{ form.shortcut_key.label }}</a>
+                <a href="#form-section-category">カテゴリ</a>
+                <a href="#form-section-frequency">使用頻度</a>
+                <a href="#form-section-note">{{ form.note.label }}</a>
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data" data-knowledge-completion="convenience">
             <div class="card-body p-4">
                 {% csrf_token %}
                 {% if form.non_field_errors %}
@@ -20,11 +51,23 @@
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12 d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                        <div class="form-section-label mb-0">カテゴリ <span class="text-danger">*</span></div>
-                        <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-result" data-form-section tabindex="-1" for="{{ form.display_text.id_for_label }}">{{ form.display_text.label }} <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">操作の内容や実行結果を分かりやすく入力してください。</div>
+                        <textarea class="form-control{% if form.display_text.errors %} is-invalid{% endif %}" name="{{ form.display_text.html_name }}" id="{{ form.display_text.id_for_label }}" rows="4" required>{{ form.display_text.value|default_if_none:'' }}</textarea>
+                        {% for error in form.display_text.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-shortcut" data-form-section tabindex="-1" for="{{ form.shortcut_key.id_for_label }}">{{ form.shortcut_key.label }} <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">実行するショートカットキーやコマンドを入力してください。</div>
+                        <input class="form-control{% if form.shortcut_key.errors %} is-invalid{% endif %}" type="text" name="{{ form.shortcut_key.html_name }}" id="{{ form.shortcut_key.id_for_label }}" value="{{ form.shortcut_key.value|default_if_none:'' }}" required>
+                        {% for error in form.shortcut_key.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-12">
+                        <div class="form-section-label mb-0" id="form-section-category" data-form-section data-completion-required tabindex="-1">カテゴリ <span class="text-danger">*</span></div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text mb-2">大カテゴリから順に、登録するクイックリファレンスに該当するカテゴリを選択してください。</div>
                         <div class="category-sidebar category-browser{% if form.reference_type.errors or form.category.errors %} is-invalid{% endif %}" id="qrCategoryBrowser">
                             <div class="category-browser-header">カテゴリブラウザ</div>
                             <div class="category-browser-grid">
@@ -54,40 +97,28 @@
                         <input type="hidden" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}" value="{{ form.reference_type.value|default_if_none:'' }}">
                         <input type="hidden" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}">
                         <input type="hidden" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}">
+                        <div class="form-text mt-2 mb-2">カテゴリがない場合は下記ボタンから追加してください。</div>
+                        <a class="btn btn-outline-primary btn-sm" href="{{ category_create_url }}">カテゴリ登録</a>
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.usage_frequency.id_for_label }}">{{ form.usage_frequency.label }} <span class="text-danger">*</span></label>
+                        <label class="form-label form-section-label" id="form-section-frequency" data-form-section data-completion-required tabindex="-1" for="{{ form.usage_frequency.id_for_label }}">{{ form.usage_frequency.label }} <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">星が多いほど使用頻度が高くなります。利用する頻度の目安を選択してください。</div>
                         <input type="hidden" name="{{ form.usage_frequency.html_name }}" id="{{ form.usage_frequency.id_for_label }}" value="{{ form.usage_frequency.value|default:'3' }}">
                         <div class="d-flex align-items-center gap-2" id="usageFrequencyStars" role="radiogroup" aria-label="使用頻度">
-                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="1" aria-label="1">☆</button>
-                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="2" aria-label="2">☆</button>
-                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="3" aria-label="3">☆</button>
-                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="4" aria-label="4">☆</button>
-                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none" data-rating-value="5" aria-label="5">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none shadow-none" data-rating-value="1" aria-label="1">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none shadow-none" data-rating-value="2" aria-label="2">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none shadow-none" data-rating-value="3" aria-label="3">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none shadow-none" data-rating-value="4" aria-label="4">☆</button>
+                            <button type="button" class="btn btn-link p-0 fs-3 text-decoration-none shadow-none" data-rating-value="5" aria-label="5">☆</button>
                         </div>
-                        <div class="form-text">☆が多いほど使用頻度が高い評価です。</div>
                         {% for error in form.usage_frequency.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.shortcut_key.id_for_label }}">{{ form.shortcut_key.label }} <span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.shortcut_key.errors %} is-invalid{% endif %}" type="text" name="{{ form.shortcut_key.html_name }}" id="{{ form.shortcut_key.id_for_label }}" value="{{ form.shortcut_key.value|default_if_none:'' }}" required>
-                        {% for error in form.shortcut_key.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.display_text.id_for_label }}">{{ form.display_text.label }} <span class="text-danger">*</span></label>
-                        <textarea class="form-control{% if form.display_text.errors %} is-invalid{% endif %}" name="{{ form.display_text.html_name }}" id="{{ form.display_text.id_for_label }}" rows="4" required>{{ form.display_text.value|default_if_none:'' }}</textarea>
-                        {% for error in form.display_text.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+                        <label class="form-label form-section-label" id="form-section-note" data-form-section tabindex="-1" for="{{ form.note.id_for_label }}">{{ form.note.label }}</label>
+                        <div class="form-text mb-2">操作時の注意点や補足があれば入力してください。</div>
                         <textarea class="form-control{% if form.note.errors %} is-invalid{% endif %}" name="{{ form.note.html_name }}" id="{{ form.note.id_for_label }}" rows="3">{{ form.note.value|default_if_none:'' }}</textarea>
                         {% for error in form.note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12">
-                        <label class="form-label form-section-label" for="{{ form.image.id_for_label }}">{{ form.image.label }}</label>
-                        <input class="form-control{% if form.image.errors %} is-invalid{% endif %}" type="file" name="{{ form.image.html_name }}" id="{{ form.image.id_for_label }}" accept="image/*">
-                        {% for error in form.image.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                 </div>
             </div>

@@ -294,7 +294,7 @@ class KnowledgeArticleListTests(TestCase):
 
         self.assertContains(response, self.visible_article.title)
         self.assertContains(response, self.hidden_article.title)
-        self.assertContains(response, 'FAQ登録')
+        self.assertContains(response, 'Q&amp;A登録')
 
     def test_article_list_shows_new_badge_only_for_recent_published_articles(self):
         self.user.is_staff = True
@@ -451,7 +451,7 @@ class KnowledgeArticleListTests(TestCase):
         response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'FAQ編集')
+        self.assertContains(response, 'Q&amp;A編集')
         self.assertContains(response, self.visible_article.title)
         self.assertContains(response, self.visible_article.body)
 
@@ -488,8 +488,8 @@ class KnowledgeArticleListTests(TestCase):
         self.client.force_login(self.user)
 
         edit_response = self.client.get(reverse('article_edit', args=[self.visible_article.id]))
-        self.assertContains(edit_response, 'FAQ削除')
-        self.assertContains(edit_response, "confirm('このFAQを削除しますか？')")
+        self.assertContains(edit_response, 'Q&amp;A削除')
+        self.assertContains(edit_response, "confirm('このQ&amp;Aを削除しますか？')")
 
         response = self.client.post(reverse('article_delete', args=[self.visible_article.id]))
 
@@ -1096,7 +1096,7 @@ class KnowledgeArticleListTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '全ユーザー非表示のFAQを再公開できるのはSystenaAdminのみです。')
+        self.assertContains(response, '全ユーザー非表示のQ&amp;Aを再公開できるのはSystenaAdminのみです。')
         article.refresh_from_db()
         self.assertFalse(article.visible_to_customer)
         self.assertFalse(article.visible_to_systena)

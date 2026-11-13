@@ -1,0 +1,374 @@
+<style>
+.knowledge-block-editor { display: grid; gap: 1rem; margin-block: .5rem 1rem; }
+.knowledge-block-card { border: 1px solid #e8d9cb; border-radius: .65rem; background: #fff; overflow: hidden; }
+.knowledge-block-header { background: #fff3e5; border-bottom: 1px solid #efdbc5; padding: .8rem 1rem; }
+.knowledge-block-heading { width: 100%; box-sizing: border-box; border: 1px solid #c9b8a6; border-radius: .3rem; padding: .5rem; }
+.knowledge-block-body { padding: 1rem; }
+.knowledge-block-body textarea { width: 100%; min-height: 200px; resize: vertical; box-sizing: border-box; }
+.knowledge-block-card:not(.knowledge-editor-ready) .knowledge-block-body textarea { display: block !important; visibility: visible !important; }
+.knowledge-block-card:not(.knowledge-editor-ready) .tox-tinymce { display: none !important; }
+.knowledge-block-error { color: #b42318; margin: 0; }
+.knowledge-block-editor label { display: block; font-weight: 600; margin-bottom: .35rem; }
+.knowledge-block-actions { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 1rem .8rem; }
+.knowledge-block-editor > button, .knowledge-block-actions > button { border: 1px solid #bca58b; border-radius: .35rem; padding: .4rem .8rem; background: #fffaf4; color: #633d19; cursor: pointer; }
+.knowledge-block-actions > button:disabled { opacity: .45; cursor: default; }
+.knowledge-block-editor :focus-visible { outline: 3px solid #ad621b; outline-offset: 2px; }
+.knowledge-block-editor .knowledge-block-hint { display: block; color: #655b50; font-size: .85rem; margin-bottom: .4rem; }
+.knowledge-block-editor p, .knowledge-block-editor h3 { text-indent: 0; }
+</style>
+<script>
+(() => {
+    'use strict';
+    if (window.KnowledgeBlockEditors) return;
+    const records = new Map(), owners = new Map();
+    let serial = 0;
+    const headingText = value => String(value).replace(/[\s\u200b\ufeff]/g, '');
+    const escape = value => {
+        const node = document.createElement('div');
+        node.textContent = String(value);
+        return node.innerHTML;
+    };
+    const isHtml = value => /<\/?[a-z][^>]*>/i.test(value);
+    const editableHtml = value => isHtml(value) ? value : '<p>' + escape(value)
+        .replace(/\r\n?/g, '\n').replace(/\n/g, '<br>')
+        .replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>')
+        .replace(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>')
+        .replace(/\[u\]([\s\S]*?)\[\/u\]/gi, '<u>$1</u>')
+        .replace(/\[s\]([\s\S]*?)\[\/s\]/gi, '<s>$1</s>')
+        .replace(/\[size=(8|10|12|14|16|18|20)\]([\s\S]*?)\[\/size\]/gi, '<span style="font-size:$1pt">$2</span>')
+        .replace(/\[color=(#[0-9a-f]{3}|#[0-9a-f]{6}|[a-z]{3,20})\]([\s\S]*?)\[\/color\]/gi, '<span style="color:$1">$2</span>') + '</p>';
+    const fragment = html => {
+        const template = document.createElement('template');
+        template.innerHTML = html;
+        return template.content;
+    };
+    // Keep source slices rather than reserializing DOM: untouched markup is byte-for-byte stable.
+    function slices(html) {
+        const tags = /<!--[\s\S]*?-->|<![^>]*>|<\/?[a-z][a-z0-9:-]*(?:\s+(?:[^'">]|"[^"]*"|'[^']*')*)?\s*\/?>/gi;
+        const voids = /^(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i;
+        let depth = 0, start = 0, match, raw = null;
+        const result = [];
+        while ((match = tags.exec(html))) {
+            const token = match[0], name = /^<\/?([a-z0-9:-]+)/i.exec(token)?.[1]?.toLowerCase();
+            if (raw && token.toLowerCase() !== '</' + raw + '>') continue;
+            if (!name) continue;
+            const close = token.startsWith('</');
+            if (!depth && match.index > start) result.push(html.slice(start, match.index));
+            if (!depth) start = match.index;
+            if (close) { depth = Math.max(0, depth - 1); raw = null; }
+            else if (!voids.test(name) && !token.endsWith('/>')) {
+                depth++;
+                if (/^(script|style|textarea|title)$/.test(name)) raw = name;
+            }
+            if (!depth) { result.push(html.slice(start, tags.lastIndex)); start = tags.lastIndex; }
+        }
+        if (start < html.length) result.push(html.slice(start));
+        return result;
+    }
+    function parse(html) {
+        const parts = slices(html), parsed = [];
+        let found = false;
+        for (const raw of parts) {
+            const node = fragment(raw).firstChild;
+            if (node?.nodeType === 1 && node.tagName === 'DIV' &&
+                    node.getAttribute('class') === 'knowledge-content-section') {
+                const inside = raw.replace(/^<div\b(?:[^'">]|"[^"]*"|'[^']*')*>/i, '').replace(/<\/div>\s*$/i, '');
+                const children = slices(inside).filter(part => part.trim());
+                let heading = '', body = null, valid = true;
+                children.forEach((part, index) => {
+                    const child = fragment(part).firstChild;
+                    if (index === 0 && child?.nodeType === 1 && child.tagName === 'H3') heading = child.textContent;
+                    else if (body === null && child?.nodeType === 1 && child.tagName === 'DIV' &&
+                            child.getAttribute('class') === 'knowledge-section-body') {
+                        body = part.replace(/^<div\b(?:[^'">]|"[^"]*"|'[^']*')*>/i, '').replace(/<\/div>\s*$/i, '');
+                    } else valid = false;
+                });
+                if (valid && body !== null) {
+                    parsed.push({raw, heading, body, wrapped: true}); found = true; continue;
+                }
+            }
+            if (parsed.length && !parsed.at(-1).wrapped) {
+                parsed.at(-1).raw += raw; parsed.at(-1).body += raw;
+            } else parsed.push({raw, heading: '', body: raw, wrapped: false});
+        }
+        return found ? parsed : [{raw: html, heading: '', body: html, wrapped: false}];
+    }
+    function meaningful(html) {
+        const dom = fragment(html);
+        dom.querySelectorAll('script,style').forEach(node => node.remove());
+        return Boolean(dom.textContent.replace(/[\s\u200b\ufeff]/g, '') || dom.querySelector('img,video,audio,iframe,object,embed,hr,table'));
+    }
+    // Textarea fallback edits HTML source, never executes it. Sanitize only edited content.
+    function safeFallback(html) {
+        const dom = fragment(html);
+        dom.querySelectorAll('script,style,iframe,object,embed,link,meta,base,form,input,button,textarea,svg,math').forEach(n => n.remove());
+        dom.querySelectorAll('*').forEach(node => Array.from(node.attributes).forEach(attr => {
+            if (/^on/i.test(attr.name) || /^(srcdoc|style)$/i.test(attr.name) ||
+                (/^(href|src|xlink:href)$/i.test(attr.name) && !/^(https?:|mailto:|tel:|\/|#|[^:\s]+(?:\/|$))/i.test(attr.value.trim()))) node.removeAttribute(attr.name);
+        }));
+        const container = document.createElement('div'); container.append(dom);
+        return container.innerHTML;
+    }
+    const state = (record, focused) => record.source.dispatchEvent(new CustomEvent('knowledge-editor-state', {
+        bubbles: true, detail: {id: record.source.id, focused}
+    }));
+    function html(record) {
+        if (!record.changed) return record.original;
+        return record.blocks.map(block => {
+            if (!block.headingChanged && !block.bodyChanged && block.raw !== null) return block.raw;
+            return "<div class='knowledge-content-section'>" + (block.heading.value ? '<h3>' + escape(block.heading.value) + '</h3>' : '') +
+                "<div class='knowledge-section-body'>" + (block.bodyChanged || block.wrapped ? block.body : editableHtml(block.body)) + '</div></div>';
+        }).join('');
+    }
+    function sync(record) {
+        if (!record) return '';
+        record.blocks.forEach(block => block.read?.());
+        const value = html(record);
+        if (record.source.value !== value) {
+            record.source.value = value;
+            record.source.dispatchEvent(new Event('input', {bubbles: true}));
+        }
+        return value;
+    }
+    function changed(record) {
+        record.changed = true;
+        if (record.error) record.error.hidden = true;
+        sync(record); state(record, record.root.contains(document.activeElement));
+    }
+    function buttons(record) {
+        record.blocks.forEach((block, index) => {
+            block.up.disabled = index === 0; block.down.disabled = index === record.blocks.length - 1;
+            block.remove.disabled = record.blocks.length === 1;
+            block.card.setAttribute('aria-label', 'セクション ' + (index + 1));
+        });
+    }
+    function focusBlock(record, block) {
+        record.active = block;
+        if (block.editor) block.editor.focus(); else block.input.focus();
+    }
+    function add(record, data = {raw: null, heading: '', body: '', wrapped: true}) {
+        const uid = 'knowledge-block-' + (++serial);
+        const card = document.createElement('section'); card.className = 'knowledge-block-card';
+        card.innerHTML = '<div class="knowledge-block-header"><label for="' + uid + '-heading">見出し <span aria-hidden="true">*</span></label>' +
+            '<input class="knowledge-block-heading" id="' + uid + '-heading" placeholder="概要・手順など" type="text" aria-required="true"></div>' +
+            '<div class="knowledge-block-body"><label for="' + uid + '">本文</label>' +
+            '<small class="knowledge-block-hint" id="' + uid + '-hint">書式エディターが利用できない場合はHTML形式で編集できます。</small>' +
+            '<textarea id="' + uid + '" aria-describedby="' + uid + '-hint"></textarea></div>' +
+            '<div class="knowledge-block-actions"><button type="button" data-action="up" aria-label="このセクションを上へ移動">上へ</button>' +
+            '<button type="button" data-action="down" aria-label="このセクションを下へ移動">下へ</button>' +
+            '<button type="button" data-action="remove" aria-label="このセクションを削除">削除</button></div>';
+        const block = {...data, card, heading: card.querySelector('input'), input: card.querySelector('textarea'), editor: null,
+            headingChanged: false, bodyChanged: false, bookmark: null, ready: false, expired: false};
+        // A suggested heading makes subsequent legacy edits valid, but never
+        // marks the original HTML/plaintext/BBCode as edited or rewrites it.
+        block.heading.value = !data.wrapped && data.body
+            ? ({question: '質問', answer: '回答', body: '内容'}[record.source.name] || '内容') : data.heading;
+        block.input.value = editableHtml(data.body);
+        ['up', 'down', 'remove'].forEach(action => { block[action] = card.querySelector('[data-action="' + action + '"]'); });
+        owners.set(block.input.id, record.source.id);
+        record.blocks.push(block); record.list.append(card); buttons(record);
+        card.addEventListener('focusin', () => { record.active = block; state(record, true); });
+        card.addEventListener('focusout', () => setTimeout(() => state(record, record.root.contains(document.activeElement) || Boolean(block.editor?.hasFocus?.())), 0));
+        block.heading.addEventListener('input', () => {
+            block.heading.removeAttribute('aria-invalid');
+            block.headingChanged = true; changed(record);
+        });
+        block.input.addEventListener('input', () => {
+            block.body = safeFallback(block.input.value); block.bodyChanged = true; changed(record);
+        });
+        ['paste', 'drop'].forEach(name => block.input.addEventListener(name, event => receiveImages(record, block, event, name)));
+        for (const direction of ['up', 'down']) block[direction].addEventListener('click', () => {
+            const index = record.blocks.indexOf(block), next = index + (direction === 'up' ? -1 : 1);
+            if (next < 0 || next >= record.blocks.length) return;
+            [record.blocks[index], record.blocks[next]] = [record.blocks[next], record.blocks[index]];
+            // Moving an iframe can reload its document. Remove/recreate TinyMCE around the move.
+            record.blocks.forEach(item => stopEditor(item));
+            record.blocks.forEach(item => record.list.append(item.card));
+            record.blocks.forEach(item => startEditor(record, item));
+            buttons(record); changed(record); block[direction].focus();
+        });
+        block.remove.addEventListener('click', () => {
+            if (record.blocks.length === 1) return;
+            if ((block.heading.value.trim() || meaningful(block.body)) && !window.confirm('このセクションを削除しますか？')) return;
+            stopEditor(block); owners.delete(block.input.id);
+            record.blocks.splice(record.blocks.indexOf(block), 1); card.remove();
+            if (record.active === block) record.active = record.blocks.at(-1);
+            buttons(record); changed(record); focusBlock(record, record.active || record.blocks[0]);
+        });
+        startEditor(record, block);
+        return block;
+    }
+    function stopEditor(block) {
+        // Flush dirty content even when TinyMCE has not emitted change yet.
+        block.read?.();
+        block.expired = true; clearTimeout(block.timer);
+        try { block.pending?.remove(); } catch (_) { /* Native textarea remains usable. */ }
+        block.pending = null; block.editor = null; block.ready = false;
+        block.read = null;
+        block.card.classList.remove('knowledge-editor-ready');
+        block.input.hidden = false; block.input.style.display = ''; block.input.value = block.bodyChanged ? block.body : editableHtml(block.body);
+    }
+    function receiveImages(record, block, event, kind) {
+        if (!record.images) return false;
+        const transfer = event.dataTransfer || event.clipboardData || event.originalEvent?.dataTransfer || event.originalEvent?.clipboardData;
+        if (!transfer) return false;
+        const files = kind === 'paste'
+            ? Array.from(transfer.items || []).filter(item => item.kind === 'file').map(item => item.getAsFile()).filter(Boolean)
+            : Array.from(transfer.files || []);
+        const images = files.filter(file => file.type?.startsWith('image/'));
+        if (!images.length) return false;
+        event.preventDefault();
+        record.active = block;
+        const now = Date.now();
+        const renamed = images.map((file, index) => {
+            const extension = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg').replace(/[^a-z0-9]/gi, '') || 'png';
+            return new File([file], (kind === 'paste' ? 'clipboard_' : 'drop_') + now + '_' + (++serial) + '_' + index + '.' + extension, {type: file.type});
+        });
+        record.images(renamed);
+        return true;
+    }
+    function startEditor(record, block) {
+        if (!window.tinymce?.init || block.pending || block.ready) return;
+        block.expired = false;
+        const generation = block.generation = (block.generation || 0) + 1;
+        const stale = () => block.expired || block.generation !== generation || !block.card.isConnected;
+        const fallback = () => { if (!stale()) stopEditor(block); };
+        const read = (editor, event) => {
+            if (stale() || !block.ready || (!/^(input|undo|redo)$/i.test(event?.type || '') && !editor.isDirty())) return;
+            block.body = editor.getContent(); block.bodyChanged = true; block.input.value = block.body;
+            editor.setDirty(false); changed(record);
+        };
+        block.timer = setTimeout(fallback, 5000);
+        try {
+            const promise = window.tinymce.init({
+                target: block.input, plugins: 'lists', toolbar: 'undo redo | bold italic | bullist numlist',
+                license_key: 'gpl', indent: false, indent_use_margin: false,
+                height: 200, min_height: 160, resize: true, menubar: false, statusbar: false,
+                branding: false, promotion: false, browser_spellcheck: true,
+                valid_elements: 'p[style|class],br,strong/b,em/i,u,s,strike,del,sub,sup,' +
+                    'ul[style|class],ol[start|type|style|class],li[style|class],a[href|title|target|rel],' +
+                    'img[src|alt|title|width|height|class|style],h1[style|class],h2[style|class],h3[style|class],' +
+                    'h4[style|class],h5[style|class],h6[style|class],div[style|class],span[style|class],' +
+                    'blockquote[style|class],pre,code,hr,table,thead,tbody,tfoot,tr,th[colspan|rowspan],td[colspan|rowspan]',
+                content_style: 'body{font-family: sans-serif;margin:12px;font-size:10pt;line-height:1.5;} p,h1,h2,h3,h4,h5,h6,div,blockquote{text-indent:0!important;margin-left:0!important;margin-right:0!important;} p,div{padding-left:0!important;} ul,ol{padding-left:1.6em;margin-left:0;text-indent:0;} li{text-indent:0;}',
+                setup(editor) {
+                    if (stale()) { setTimeout(() => editor.remove(), 0); return; }
+                    block.pending = editor;
+                    editor.on('init', () => {
+                        if (stale()) { editor.remove(); return; }
+                        clearTimeout(block.timer);
+                        // Typing in the native textarea while initialization is pending wins.
+                        editor.setContent(block.bodyChanged ? block.body : editableHtml(block.body)); editor.setDirty(false);
+                        block.editor = editor; block.ready = true;
+                        block.read = () => read(editor);
+                        block.card.classList.add('knowledge-editor-ready');
+                        block.input.hidden = true;
+                    });
+                    editor.on('input change Undo Redo', event => read(editor, event));
+                    editor.on('init input change SetContent Undo Redo focus blur', () => state(record, Boolean(editor.hasFocus?.())));
+                    editor.on('paste', event => receiveImages(record, block, event, 'paste'));
+                    editor.on('drop', event => receiveImages(record, block, event, 'drop'));
+                    editor.on('focus', () => { record.active = block; state(record, true); });
+                    editor.on('blur', () => {
+                        try { block.bookmark = editor.selection.getBookmark(2, true); } catch (_) { block.bookmark = null; }
+                        state(record, false);
+                    });
+                    editor.on('keyup mouseup NodeChange', () => {
+                        if (!block.ready) return;
+                        try { block.bookmark = editor.selection.getBookmark(2, true); } catch (_) { /* Selection may be absent. */ }
+                    });
+                }
+            });
+            Promise.resolve(promise).then(editors => {
+                if (stale()) (editors || []).forEach(editor => { try { editor.remove(); } catch (_) {} });
+            }, fallback);
+        } catch (_) { fallback(); }
+    }
+    function initialize(source) {
+        if (!source.id || records.has(source.id)) return;
+        const root = document.createElement('div'); root.className = 'knowledge-block-editor';
+        root.dataset.knowledgeEditor = source.id;
+        const list = document.createElement('div'); list.style.display = 'contents'; root.append(list);
+        const addButton = document.createElement('button'); addButton.type = 'button'; addButton.textContent = 'セクションを追加'; root.append(addButton);
+        source.after(root);
+        const record = {source, root, list, blocks: [], active: null, changed: false, original: source.value};
+        records.set(source.id, record);
+        try {
+            parse(source.value).forEach(data => add(record, data));
+            addButton.addEventListener('click', () => { const block = add(record); changed(record); block.heading.focus(); });
+            // Retain original id/name for server submission and external consumers.
+            source.hidden = true;
+            source.dataset.knowledgeBlockEditor = 'true';
+            // Native required validation cannot focus a hidden source. Integration uses hasContent().
+            source.required = false;
+        } catch (_) {
+            record.blocks.forEach(block => { stopEditor(block); owners.delete(block.input.id); });
+            records.delete(source.id); root.remove();
+        }
+    }
+    window.KnowledgeBlockEditors = Object.freeze({
+        getHtml(id) { return records.has(id) ? sync(records.get(id)) : document.getElementById(id)?.value || ''; },
+        sync(id) { return records.has(id) ? sync(records.get(id)) : document.getElementById(id)?.value || ''; },
+        syncForm(form) { records.forEach(record => { if (record.source.form === form) sync(record); }); },
+        configureImages(id, callback) { const record = records.get(id); if (record) record.images = callback; },
+        upgrade() { records.forEach(record => record.blocks.forEach(block => { if (!block.expired) startEditor(record, block); })); },
+        validate(form) {
+            for (const record of records.values()) {
+                if (record.source.form !== form) continue;
+                sync(record);
+                const missingHeading = record.blocks.find(block => !headingText(block.heading.value));
+                const hasBody = window.KnowledgeBlockEditors.hasContent(record.source.id);
+                if (!missingHeading && hasBody) continue;
+                if (!record.error) {
+                    record.error = document.createElement('p'); record.error.className = 'knowledge-block-error';
+                    record.error.setAttribute('role', 'alert');
+                    record.root.append(record.error);
+                }
+                record.error.textContent = missingHeading ? '見出しを入力してください。' : '本文を入力してください。見出しのみでは登録できません。';
+                record.error.hidden = false;
+                record.error.id ||= record.source.id + '-block-error';
+                if (missingHeading) {
+                    missingHeading.heading.setAttribute('aria-invalid', 'true');
+                    missingHeading.heading.setAttribute('aria-describedby', record.error.id);
+                    state(record, true);
+                    missingHeading.heading.focus();
+                    return false;
+                }
+                record.blocks[0].input.setAttribute('aria-describedby', record.blocks[0].input.id + '-hint ' + record.error.id);
+                state(record, true);
+                focusBlock(record, record.blocks[0]);
+                return false;
+            }
+            return true;
+        },
+        hasContent(id) {
+            const record = records.get(id);
+            if (record) sync(record);
+            return record ? record.blocks.some(block => meaningful(block.body)) : meaningful(document.getElementById(id)?.value || '');
+        },
+        insertMarker(id, marker) {
+            const record = records.get(id); if (!record) return false;
+            const block = record.active || record.blocks.at(-1);
+            if (block.editor) {
+                block.editor.focus();
+                if (block.bookmark) { try { block.editor.selection.moveToBookmark(block.bookmark); } catch (_) {} }
+                block.editor.insertContent(escape(marker));
+                block.body = block.editor.getContent(); block.editor.setDirty(false);
+            } else {
+                const input = block.input, start = input.selectionStart ?? input.value.length, end = input.selectionEnd ?? start;
+                const position = record.active ? start : input.value.length;
+                input.setRangeText(escape(marker), position, record.active ? end : position, 'end');
+                block.body = safeFallback(input.value); input.focus();
+            }
+            block.bodyChanged = true; block.input.value = block.body; changed(record); return true;
+        },
+        focus(id) { const record = records.get(id); if (!record) return false; focusBlock(record, record.active || record.blocks[0]); return true; },
+        ownerId(editorOrId) { return owners.get(typeof editorOrId === 'string' ? editorOrId : editorOrId?.id) || null; }
+    });
+    // Register immediately, before inline form submit handlers. triggerSave only touches nameless internals.
+    document.addEventListener('submit', event => window.KnowledgeBlockEditors.syncForm(event.target), true);
+    const init = () => document.querySelectorAll('textarea[data-wysiwyg="true"]').forEach(initialize);
+    init();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once: true});
+})();
+</script>

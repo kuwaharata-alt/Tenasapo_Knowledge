@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_demo %}デモアカウント発行{% else %}契約アカウント発行{% endif %} | Nexus{% endblock %}
+
+{% block page_header %}
+<div class="row justify-content-center">
+    <div class="col-12">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-person-fill-gear"></i></span>{% if is_demo %}デモアカウント発行{% else %}契約アカウント発行{% endif %}
+            </h1>
+            <p class="page-title-sub">{% if is_demo %}会社名を入力して、有効期限30日のデモアカウントを発行できます。{% else %}ユーザーの基本情報や所属、連絡先を入力して契約アカウントを発行できます。{% endif %}</p>
+            <p class="small text-muted mt-2 mb-0">管理者アカウントのみ利用できます。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+{% include 'includes/user_issue_preview_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-account" class="is-current" aria-current="location">アカウント情報</a>
+                <a href="#form-section-permissions">アカウント権限</a>
+                {% if not is_demo %}<a href="#form-section-other">その他</a>{% endif %}
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" data-knowledge-completion="user-issue">
+            <div class="card-body p-4">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ return_to }}">
+                {% if form.non_field_errors %}
+                    <div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>
+                {% endif %}
+                <div class="row g-4">
+                    <div class="col-12">
+                        <h2 class="h5 mb-2" id="form-section-account" data-form-section tabindex="-1">アカウント情報</h2>
+                        <p class="text-muted small mb-3">{% if is_demo %}デモアカウントを利用する会社名を入力してください。{% else %}ログインや連絡先に使用する基本情報を入力してください。{% endif %}</p>
+                        <div class="row g-3 p-3">
+                            <div class="col-12">
+                                <label class="form-label d-block" for="issue-preview-type">ユーザー区分<span class="text-muted">（固定）</span></label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3" style="min-height: 38px;">
+                                    <span class="small text-secondary">カスタマー</span>
+                                    <input class="form-check-input ms-0 bg-light" type="checkbox" role="switch" id="issue-preview-type" disabled>
+                                    <span class="small fw-bold text-primary">システナ</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label d-block" for="issue-preview-uid">管理番号<span class="text-muted">（プレビュー）</span></label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-uid" value="{{ issue_preview.uid }}" aria-describedby="issue-preview-uid-help" disabled>
+                                <div class="form-text" id="issue-preview-uid-help">{% if issue_preview.at_capacity %}発行上限に達しています。{% else %}次の管理番号のプレビューです（予約されません）。番号は発行時に確定し、同時発行により変わる場合があります。{% endif %}</div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label d-block" for="issue-preview-login">ログインID<span class="text-muted">（プレビュー）</span></label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-login" value="{{ issue_preview.login }}"{% if not is_demo %} aria-describedby="issue-preview-email-help"{% endif %} disabled>
+                                {% if not is_demo %}<div class="form-text" id="issue-preview-email-help" aria-live="polite">{% if issue_preview.login %}入力したメールアドレスからのプレビューです。発行時に確定します。{% else %}メールアドレスを入力すると、ログインIDと初期パスワードのプレビューが表示されます。{% endif %}</div>{% endif %}
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label d-block" for="issue-preview-password">初期パスワード<span class="text-muted">（プレビュー・表示中）</span></label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-password" value="{{ issue_preview.password }}" aria-describedby="issue-preview-password-help" disabled>
+                                <div class="form-text" id="issue-preview-password-help">{% if is_demo %}ログインIDと同じ値です。発行時に確定します。{% else %}メールアドレスの@前（前後の空白を除去）のプレビューです。{% endif %}</div>
+                            </div>
+                            {% if is_demo %}
+                            <div class="col-12 col-md-4">
+                                <label class="form-label d-block" for="issue-preview-display-name">ユーザー名<span class="text-muted">（固定）</span></label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-display-name" value="Demoアカウント" disabled>
+                            </div>
+                            {% endif %}
+                            {% for field in account_fields %}
+                            <div class="col-12{% if field.name == 'display_name' %} col-md-4{% endif %}">
+                                <label class="form-label d-block" for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %}<span class="text-danger">*</span>{% else %}<span class="text-muted">（任意）</span>{% endif %}</label>
+                                {{ field }}
+                                {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                                {% for error in field.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <h2 class="h5 mb-2" id="form-section-permissions" data-form-section tabindex="-1">アカウント権限</h2>
+                        <p class="text-muted small mb-3">発行時に適用される固定設定です。変更できません。</p>
+                        <div class="row g-3 p-3">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label d-block" for="issue-preview-role">管理者権限</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    <input class="form-check-input ms-0 bg-light" type="checkbox" role="switch" id="issue-preview-role" disabled>
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label d-block" for="issue-preview-analysis">アナライズ対象</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    <input class="form-check-input ms-0 bg-light" type="checkbox" role="switch" id="issue-preview-analysis" disabled>
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label d-block" for="issue-preview-demo">デモアカウント</label>
+                                <div class="form-check form-switch bg-light border rounded d-inline-flex align-items-center justify-content-between gap-3 py-2 px-3 w-100" style="min-height: 38px;">
+                                    <span class="small text-secondary">OFF</span>
+                                    <input class="form-check-input ms-0 bg-light" type="checkbox" role="switch" id="issue-preview-demo"{% if is_demo %} checked{% endif %} disabled>
+                                    <span class="small fw-bold text-primary">ON</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label d-block" for="issue-preview-groups">所属役割</label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-groups" value="{% if is_demo %}デモ{% else %}設定なし{% endif %}" disabled>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label d-block" for="issue-preview-expiry">デモ有効期限</label>
+                                <input class="form-control bg-light" type="text" id="issue-preview-expiry" value="{% if is_demo %}発行から30日{% else %}適用なし{% endif %}" disabled>
+                            </div>
+                        </div>
+                    </div>
+                    {% if not is_demo %}
+                    <div class="col-12">
+                        <h2 class="h5 mb-2" id="form-section-other" data-form-section tabindex="-1">その他</h2>
+                        <p class="text-muted small mb-3">補足事項を入力してください。</p>
+                        <div class="row g-3 p-3">
+                            <div class="col-12">
+                                <label class="form-label d-block" for="{{ form.note.id_for_label }}">備考<span class="text-muted">（任意）</span></label>
+                                {{ form.note }}
+                                {% for error in form.note.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
+                <a class="btn btn-outline-secondary" href="{{ return_to }}">戻る</a>
+                <button class="btn btn-primary" type="submit">発行</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -2,7 +2,22 @@
 
 {% block title %}{{ form_title }} | Nexus{% endblock %}
 
+{% block page_header %}
+<div class="row justify-content-center">
+    <div class="col-12">
+        <div class="page-title-panel mb-4">
+            <h1 class="page-title-main d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-tags-fill"></i></span>{{ form_title }}
+            </h1>
+            <p class="page-title-sub">ナレッジの分類に使うカテゴリの階層や名称を入力・確認できます。</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
 {% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
 <style>
     .category-browser .category-editing-target,
     .category-browser [data-sub1].active {
@@ -21,22 +36,26 @@
         white-space: nowrap;
     }
 </style>
-<div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
-        <div class="page-title-panel mb-4">
-            <h1 class="page-title-main d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-tags-fill"></i></span>{{ form_title }}
-            </h1>
-        </div>
-
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-parent" class="is-current" aria-current="location">大カテゴリ</a>
+                <a href="#form-section-middle">中カテゴリ</a>
+                <a href="#form-section-child">小カテゴリ</a>
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
         <div class="d-flex gap-2 mb-3">
-            <a class="btn {% if category_type_tab == 'faq' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'category_create' %}?tab=faq{% if return_to %}&next={{ return_to|urlencode }}{% endif %}">FAQ / Tipsカテゴリ</a>
+            <a class="btn {% if category_type_tab == 'faq' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'category_create' %}?tab=faq{% if return_to %}&next={{ return_to|urlencode }}{% endif %}">Q&amp;A / Tipsカテゴリ</a>
             {% if can_use_qr_tab %}
                 <a class="btn {% if category_type_tab == 'qr' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'category_create' %}?tab=qr{% if return_to %}&next={{ return_to|urlencode }}{% endif %}">QRカテゴリ</a>
             {% endif %}
         </div>
 
-        <form class="card shadow-sm" method="post">
+        <form class="card shadow-sm" method="post" data-knowledge-completion="category">
             <div class="card-body p-4">
                 {% csrf_token %}
                 <input type="hidden" name="tab" value="{{ category_type_tab|default:'faq' }}">
@@ -49,58 +68,72 @@
 
                 <div class="row g-3">
                     {% if category_type_tab == 'qr' %}
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.reference_type.id_for_label }}">大カテゴリ</label>
-                        <select class="form-select{% if form.reference_type.errors %} is-invalid{% endif %}" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}">
-                            {% for value, label in form.fields.reference_type.choices %}
-                                <option value="{{ value }}"{% if form.reference_type.value == value %} selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">既存候補から選択してください。</div>
-                        {% for error in form.reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    <div class="col-12">
+                        <div class="form-section-label mb-2" id="form-section-parent" data-form-section data-completion-required tabindex="-1">大カテゴリ</div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.reference_type.id_for_label }}">大カテゴリ</label>
+                                <select class="form-select{% if form.reference_type.errors %} is-invalid{% endif %}" name="{{ form.reference_type.html_name }}" id="{{ form.reference_type.id_for_label }}">
+                                    {% for value, label in form.fields.reference_type.choices %}
+                                        <option value="{{ value }}"{% if form.reference_type.value == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">既存候補から選択してください。</div>
+                                {% for error in form.reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.new_reference_type.id_for_label }}">大カテゴリ（新規作成）</label>
+                                <input class="form-control{% if form.new_reference_type.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_reference_type.html_name }}" id="{{ form.new_reference_type.id_for_label }}" value="{{ form.new_reference_type.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名"{% if form.fields.new_reference_type.widget.input_type == 'hidden' %} data-completion-disallowed="true"{% endif %}>
+                                {% if form.new_reference_type.help_text %}<div class="form-text">{{ form.new_reference_type.help_text }}</div>{% endif %}
+                                {% for error in form.new_reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.new_reference_type.id_for_label }}">大カテゴリ（新規作成）</label>
-                        <input class="form-control{% if form.new_reference_type.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_reference_type.html_name }}" id="{{ form.new_reference_type.id_for_label }}" value="{{ form.new_reference_type.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名">
-                        {% if form.new_reference_type.help_text %}<div class="form-text">{{ form.new_reference_type.help_text }}</div>{% endif %}
-                        {% for error in form.new_reference_type.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.category.id_for_label }}">中カテゴリ</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-middle" data-form-section tabindex="-1" for="{{ form.category.id_for_label }}">中カテゴリ <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">大カテゴリ内での分類名を入力してください。</div>
                         <input class="form-control{% if form.category.errors %} is-invalid{% endif %}" type="text" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" value="{{ form.category.value|default_if_none:'' }}" required>
                         {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.middle_category.id_for_label }}">小カテゴリ（任意）</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-child" data-form-section tabindex="-1" for="{{ form.middle_category.id_for_label }}">小カテゴリ（任意）</label>
+                        <div class="form-text mb-2">さらに細かく分類する場合に入力してください。</div>
                         <input class="form-control{% if form.middle_category.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_category.html_name }}" id="{{ form.middle_category.id_for_label }}" value="{{ form.middle_category.value|default_if_none:'' }}">
                         {% for error in form.middle_category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     {% else %}
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.parent_name.id_for_label }}">大カテゴリ</label>
-                        <select class="form-select{% if form.parent_name.errors %} is-invalid{% endif %}" name="{{ form.parent_name.html_name }}" id="{{ form.parent_name.id_for_label }}">
-                            {% for value, label in form.fields.parent_name.choices %}
-                                <option value="{{ value }}"{% if form.parent_name.value == value %} selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">既存候補から選択してください。</div>
-                        {% for error in form.parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    <div class="col-12">
+                        <div class="form-section-label mb-2" id="form-section-parent" data-form-section data-completion-required tabindex="-1">大カテゴリ</div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.parent_name.id_for_label }}">大カテゴリ</label>
+                                <select class="form-select{% if form.parent_name.errors %} is-invalid{% endif %}" name="{{ form.parent_name.html_name }}" id="{{ form.parent_name.id_for_label }}">
+                                    {% for value, label in form.fields.parent_name.choices %}
+                                        <option value="{{ value }}"{% if form.parent_name.value == value %} selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-text">既存候補から選択してください。</div>
+                                {% for error in form.parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            {% if form.fields.new_parent_name.widget.input_type != 'hidden' %}
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.new_parent_name.id_for_label }}">大カテゴリ（新規作成）</label>
+                                <input class="form-control{% if form.new_parent_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_parent_name.html_name }}" id="{{ form.new_parent_name.id_for_label }}" value="{{ form.new_parent_name.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名">
+                                {% if form.new_parent_name.help_text %}<div class="form-text">{{ form.new_parent_name.help_text }}</div>{% endif %}
+                                {% for error in form.new_parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
                     </div>
-                    {% if form.fields.new_parent_name.widget.input_type != 'hidden' %}
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.new_parent_name.id_for_label }}">大カテゴリ（新規作成）</label>
-                        <input class="form-control{% if form.new_parent_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.new_parent_name.html_name }}" id="{{ form.new_parent_name.id_for_label }}" value="{{ form.new_parent_name.value|default_if_none:'' }}" placeholder="新しい大カテゴリ名">
-                        {% if form.new_parent_name.help_text %}<div class="form-text">{{ form.new_parent_name.help_text }}</div>{% endif %}
-                        {% for error in form.new_parent_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-                    {% endif %}
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.middle_name.id_for_label }}">中カテゴリ <span class="text-danger">*</span></label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-middle" data-form-section tabindex="-1" for="{{ form.middle_name.id_for_label }}">中カテゴリ <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">大カテゴリ内での分類名を入力してください。</div>
                         <input class="form-control{% if form.middle_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.middle_name.html_name }}" id="{{ form.middle_name.id_for_label }}" value="{{ form.middle_name.value|default_if_none:'' }}" placeholder="認証" required>
                         {% for error in form.middle_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.child_name.id_for_label }}">小カテゴリ（任意）</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-child" data-form-section tabindex="-1" for="{{ form.child_name.id_for_label }}">小カテゴリ（任意）</label>
+                        <div class="form-text mb-2">さらに細かく分類する場合に入力してください。</div>
                         <input class="form-control{% if form.child_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.child_name.html_name }}" id="{{ form.child_name.id_for_label }}" value="{{ form.child_name.value|default_if_none:'' }}" placeholder="電源">
                         {% for error in form.child_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>

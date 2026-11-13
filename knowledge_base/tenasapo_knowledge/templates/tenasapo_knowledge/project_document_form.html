@@ -1,16 +1,40 @@
 {% extends "base.html" %}
 {% block title %}{{ form_title }} | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-upload"></i></span>{{ form_title }}
             </h1>
+            <p class="page-title-sub">ドキュメントの基本情報や保管するファイルを入力・確認できます。</p>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <form class="card shadow-sm" method="post" enctype="multipart/form-data" novalidate id="documentForm">
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="ドキュメント入力項目">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-title" class="is-current" aria-current="location">ドキュメントタイトル</a>
+                <a href="#form-section-product">製品名</a>
+                <a href="#form-section-category">カテゴリ</a>
+                <a href="#form-section-type">分類</a>
+                <a href="#form-section-files">ファイル</a>
+                <a href="#form-section-template">テンプレ</a>
+                <a href="#form-section-project">案件番号・顧客名</a>
+                {% if is_update %}<a href="#form-section-revision">更新内容</a>{% endif %}
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" enctype="multipart/form-data" novalidate id="documentForm" data-knowledge-completion="document">
             <div class="card-body p-4">
                 {% csrf_token %}
 
@@ -19,63 +43,68 @@
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.project_number.id_for_label }}">{{ form.project_number.label }} <span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.project_number.errors %} is-invalid{% endif %}" type="text" name="{{ form.project_number.html_name }}" id="{{ form.project_number.id_for_label }}" value="{{ form.project_number.value|default_if_none:'' }}" required>
-                        {% for error in form.project_number.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.customer_name.id_for_label }}">{{ form.customer_name.label }} <span class="text-danger">*</span></label>
-                        <input class="form-control{% if form.customer_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.customer_name.html_name }}" id="{{ form.customer_name.id_for_label }}" value="{{ form.customer_name.value|default_if_none:'' }}" required>
-                        {% for error in form.customer_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.product_name.id_for_label }}">{{ form.product_name.label }}</label>
-                        <input class="form-control{% if form.product_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_name.html_name }}" id="{{ form.product_name.id_for_label }}" value="{{ form.product_name.value|default_if_none:'' }}">
-                        {% for error in form.product_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.product_version.id_for_label }}">{{ form.product_version.label }}</label>
-                        <input class="form-control{% if form.product_version.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_version.html_name }}" id="{{ form.product_version.id_for_label }}" value="{{ form.product_version.value|default_if_none:'' }}">
-                        {% for error in form.product_version.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.title.id_for_label }}">{{ form.title.label }} <span class="text-danger">*</span></label>
+                        <label class="form-label form-section-label" id="form-section-title" data-form-section tabindex="-1" for="{{ form.title.id_for_label }}">ドキュメントタイトル <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">ドキュメントの内容がひと目で分かるタイトルを入力してください。</div>
                         <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" required>
                         {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
 
-                    <!-- 3連動カテゴリプルダウン -->
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="id_parent_category">大カテゴリ <span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.parent_category.errors %} is-invalid{% endif %}" name="parent_category" id="id_parent_category" required>
-                            <option value="">選択してください</option>
-                        </select>
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-product" data-form-section tabindex="-1">製品名</div>
+                        <div class="form-text mb-2">対象となる製品名とバージョンを入力してください。</div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.product_name.id_for_label }}">{{ form.product_name.label }}</label>
+                                <input class="form-control{% if form.product_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_name.html_name }}" id="{{ form.product_name.id_for_label }}" value="{{ form.product_name.value|default_if_none:'' }}">
+                                {% for error in form.product_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.product_version.id_for_label }}">{{ form.product_version.label }}</label>
+                                <input class="form-control{% if form.product_version.errors %} is-invalid{% endif %}" type="text" name="{{ form.product_version.html_name }}" id="{{ form.product_version.id_for_label }}" value="{{ form.product_version.value|default_if_none:'' }}">
+                                {% for error in form.product_version.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 単一選択カテゴリブラウザ -->
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-category" data-form-section data-completion-required tabindex="-1">カテゴリ <span class="text-danger">*</span></div>
+                        <div class="form-text mb-2">中カテゴリまで選択してください。小カテゴリは必要に応じて選択できます。</div>
+                        <input type="hidden" name="parent_category" id="id_parent_category" value="{{ form.parent_category.value|default_if_none:'' }}">
+                        <input type="hidden" name="middle_category" id="id_middle_category" value="{{ form.middle_category.value|default_if_none:'' }}">
+                        <input type="hidden" name="child_category" id="id_child_category" value="{{ form.child_category.value|default_if_none:'' }}">
+                        <input type="hidden" name="category_selection_id" id="id_category_selection_id" value="{{ form.category_selection_id.value|default_if_none:'' }}">
+                        <div class="category-sidebar category-browser{% if form.parent_category.errors or form.middle_category.errors or form.child_category.errors or form.category_selection_id.errors %} is-invalid{% endif %}" id="documentCategoryBrowser">
+                            <div class="category-browser-header">カテゴリブラウザ</div>
+                            <div class="category-browser-grid">
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">大カテゴリ</div>
+                                    <div class="list-group list-group-flush" id="documentCategoryParentPane"></div>
+                                </div>
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">中カテゴリ</div>
+                                    <div class="category-browser-list" id="documentCategoryMiddlePane">
+                                        <div class="category-browser-empty">大カテゴリを選択してください。</div>
+                                    </div>
+                                </div>
+                                <div class="category-browser-pane">
+                                    <div class="category-browser-pane-title">小カテゴリ</div>
+                                    <div class="category-browser-list" id="documentCategoryChildPane">
+                                        <div class="category-browser-empty">中カテゴリを選択してください。</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         {% for error in form.parent_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="id_middle_category">中カテゴリ</label>
-                        <select class="form-select{% if form.middle_category.errors %} is-invalid{% endif %}" name="middle_category" id="id_middle_category">
-                            <option value="">（なし）</option>
-                        </select>
                         {% for error in form.middle_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 col-md-4">
-                        <label class="form-label" for="id_child_category">小カテゴリ <span class="text-danger">*</span></label>
-                        <select class="form-select{% if form.child_category.errors %} is-invalid{% endif %}" name="child_category" id="id_child_category" required>
-                            <option value="">選択してください</option>
-                        </select>
                         {% for error in form.child_category.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                        {% for error in form.category_selection_id.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
                     </div>
 
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.document_type.id_for_label }}">{{ form.document_type.label }} <span class="text-danger">*</span></label>
+                        <label class="form-label form-section-label" id="form-section-type" data-form-section tabindex="-1" for="{{ form.document_type.id_for_label }}">分類 <span class="text-danger">*</span></label>
+                        <div class="form-text mb-2">ドキュメントの用途に合った分類を選択してください。</div>
                         <select class="form-select{% if form.document_type.errors %} is-invalid{% endif %}" name="{{ form.document_type.html_name }}" id="{{ form.document_type.id_for_label }}" required>
                             {% for value, label in form.document_type.field.choices %}
                                 <option value="{{ value }}" {% if form.document_type.value == value %}selected{% endif %}>{{ label }}</option>
@@ -85,46 +114,71 @@
                     </div>
 
                     <!-- 2箇所アップロードエリア -->
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.file_office.id_for_label }}">{{ form.file_office.label }}</label>
-                        {% if is_update and document.file_office %}
-                            <div class="small text-success mb-2">
-                                既存ファイル: <a href="{{ document.download_office_url }}?download=1" target="_blank" class="fw-semibold"><i class="bi bi-file-earmark-word"></i> Office版をダウンロード</a>
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-files" data-form-section data-completion-required tabindex="-1">ファイル</div>
+                        <div class="form-text mb-2">Office版・PDF版のどちらか一方以上を登録してください。更新時は選択しなければ既存ファイルを維持します。</div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6 d-flex flex-column">
+                                <label class="form-label" for="{{ form.file_office.id_for_label }}">{{ form.file_office.label }}</label>
+                                {% if is_update and document.file_office %}
+                                    <div class="small text-success mb-2">
+                                        既存ファイル: <a href="{{ document.download_office_url }}?download=1" target="_blank" class="fw-semibold" data-completion-existing-file><i class="bi bi-file-earmark-word"></i> ダウンロード（Office版）</a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text mb-2 flex-grow-1">{{ form.file_office.help_text }}</div>
+                                <input class="form-control{% if form.file_office.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_office.html_name }}" id="{{ form.file_office.id_for_label }}" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                                {% for error in form.file_office.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             </div>
-                        {% endif %}
-                        {% if form.file_office.help_text %}<div class="form-text mb-2">{{ form.file_office.help_text }}</div>{% endif %}
-                        <input class="form-control{% if form.file_office.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_office.html_name }}" id="{{ form.file_office.id_for_label }}" accept=".doc,.docx,.xls,.xlsx,.ppt,.pptx">
-                        {% for error in form.file_office.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+
+                            <div class="col-12 col-md-6 d-flex flex-column">
+                                <label class="form-label" for="{{ form.file_pdf.id_for_label }}">{{ form.file_pdf.label }}</label>
+                                {% if is_update and document.file_pdf %}
+                                    <div class="small text-success mb-2">
+                                        既存ファイル: <a href="{{ document.download_pdf_url }}?download=1" target="_blank" class="fw-semibold" data-completion-existing-file><i class="bi bi-file-earmark-pdf"></i> ダウンロード（PDF版）</a>
+                                    </div>
+                                {% endif %}
+                                <div class="form-text mb-2 flex-grow-1">{{ form.file_pdf.help_text }}</div>
+                                <input class="form-control{% if form.file_pdf.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_pdf.html_name }}" id="{{ form.file_pdf.id_for_label }}" accept=".pdf">
+                                {% for error in form.file_pdf.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.file_pdf.id_for_label }}">{{ form.file_pdf.label }}</label>
-                        {% if is_update and document.file_pdf %}
-                            <div class="small text-success mb-2">
-                                既存ファイル: <a href="{{ document.download_pdf_url }}?download=1" target="_blank" class="fw-semibold"><i class="bi bi-file-earmark-pdf"></i> PDF版をダウンロード</a>
-                            </div>
-                        {% endif %}
-                        {% if form.file_pdf.help_text %}<div class="form-text mb-2">{{ form.file_pdf.help_text }}</div>{% endif %}
-                        <input class="form-control{% if form.file_pdf.errors %} is-invalid{% endif %}" type="file" name="{{ form.file_pdf.html_name }}" id="{{ form.file_pdf.id_for_label }}" accept=".pdf">
-                        {% for error in form.file_pdf.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
-                    </div>
-
-                    <div class="col-12 py-2">
-                        <div class="form-check form-switch card p-3 shadow-none border bg-light-subtle">
-                            <input class="form-check-input ms-0 me-2" type="checkbox" name="{{ form.is_template.html_name }}" id="{{ form.is_template.id_for_label }}" {% if form.is_template.value %}checked{% endif %}>
-                            <label class="form-check-label fw-bold text-dark cursor-pointer ms-1" for="{{ form.is_template.id_for_label }}">
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-template" data-form-section tabindex="-1">テンプレ</div>
+                        <div class="form-text mb-2">ひな形として利用するドキュメントの場合は、テンプレート設定を有効にしてください。</div>
+                        <div class="form-check form-switch d-flex align-items-center gap-2 ps-0">
+                            <input class="form-check-input m-0 flex-shrink-0{% if form.is_template.errors %} is-invalid{% endif %}" type="checkbox" role="switch" name="{{ form.is_template.html_name }}" id="{{ form.is_template.id_for_label }}" {% if form.is_template.value %}checked{% endif %}>
+                            <label class="form-check-label fw-bold text-dark cursor-pointer" for="{{ form.is_template.id_for_label }}">
                                 {{ form.is_template.label }}
                             </label>
-                            <div class="form-text text-muted ms-1 mt-1 small">
-                                {{ form.is_template.help_text }}
+                        </div>
+                        {% for error in form.is_template.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+                    </div>
+
+                    <div class="col-12">
+                        <div class="form-section-label" id="form-section-project" data-form-section tabindex="-1">案件番号・顧客名</div>
+                        <div class="form-text mb-2">テンプレートとして登録しない場合は、案件番号・顧客名の両方を入力してください。テンプレートの場合は任意です。</div>
+                        <div class="form-text text-danger mb-2">アップロードするドキュメントに顧客環境のスクリーンショットが含まれる場合は、案件番号・顧客名を必ず入力してください。</div>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.project_number.id_for_label }}">{{ form.project_number.label }} <span class="text-danger" data-project-required {% if not form.project_number.field.required %}hidden{% endif %}>*</span></label>
+                                <input class="form-control{% if form.project_number.errors %} is-invalid{% endif %}" type="text" name="{{ form.project_number.html_name }}" id="{{ form.project_number.id_for_label }}" value="{{ form.project_number.value|default_if_none:'' }}" {% if form.project_number.field.required %}required{% endif %}>
+                                {% for error in form.project_number.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="{{ form.customer_name.id_for_label }}">{{ form.customer_name.label }} <span class="text-danger" data-project-required {% if not form.customer_name.field.required %}hidden{% endif %}>*</span></label>
+                                <input class="form-control{% if form.customer_name.errors %} is-invalid{% endif %}" type="text" name="{{ form.customer_name.html_name }}" id="{{ form.customer_name.id_for_label }}" value="{{ form.customer_name.value|default_if_none:'' }}" {% if form.customer_name.field.required %}required{% endif %}>
+                                {% for error in form.customer_name.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                             </div>
                         </div>
                     </div>
 
                     <!-- 更新履歴（更新時のみ） -->
                     {% if is_update %}
-                        <div class="col-12 border-top pt-3 mt-3">
-                            <label class="form-label fw-bold text-primary" for="{{ form.revision_note.id_for_label }}">{{ form.revision_note.label }} <span class="text-danger">*</span></label>
+                        <div class="col-12">
+                            <label class="form-label form-section-label fw-bold text-primary" id="form-section-revision" data-form-section tabindex="-1" for="{{ form.revision_note.id_for_label }}">更新内容 <span class="text-danger">*</span></label>
+                            <div class="form-text mb-2">今回変更した内容を入力してください。更新履歴として保存されます。</div>
                             <textarea class="form-control{% if form.revision_note.errors %} is-invalid{% endif %}" name="{{ form.revision_note.html_name }}" id="{{ form.revision_note.id_for_label }}" rows="3" placeholder="今回の更新内容（例: 製品バージョンの更新、PDF資料の差し替えなど）を入力してください。" required>{{ form.revision_note.value|default_if_none:'' }}</textarea>
                             {% for error in form.revision_note.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                         </div>
@@ -156,115 +210,157 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const parentSelect = document.getElementById('id_parent_category');
-    const middleSelect = document.getElementById('id_middle_category');
-    const childSelect = document.getElementById('id_child_category');
-
-    // JSONデータのパース
-    const categoryBrowserData = JSON.parse('{{ category_browser_json|escapejs }}');
-
-    // 初期値の格納（バリデーション失敗時などで送信直後の値を復元するため）
-    const initialParent = "{{ form.parent_category.value|default_if_none:''|escapejs }}";
-    const initialMiddle = "{{ form.middle_category.value|default_if_none:''|escapejs }}";
-    const initialChild = "{{ form.child_category.value|default_if_none:''|escapejs }}";
-
-    // 大カテゴリの構築
-    categoryBrowserData.forEach(parent => {
-        const opt = document.createElement('option');
-        opt.value = parent.name;
-        opt.textContent = parent.name;
-        parentSelect.appendChild(opt);
-    });
-
-    // 復元処理
-    if (initialParent) {
-        parentSelect.value = initialParent;
-        updateMiddleCategories(initialParent);
-        if (initialMiddle) {
-            middleSelect.value = initialMiddle;
-        }
-        updateChildCategories(initialParent, middleSelect.value);
-        if (initialChild) {
-            childSelect.value = initialChild;
-        }
-    }
-
-    // イベントリスナー
-    parentSelect.addEventListener('change', function() {
-        const val = this.value;
-        updateMiddleCategories(val);
-        updateChildCategories(val, middleSelect.value);
-    });
-
-    middleSelect.addEventListener('change', function() {
-        updateChildCategories(parentSelect.value, this.value);
-    });
-
-    // 中カテゴリ更新処理
-    function updateMiddleCategories(parentName) {
-        // クリア
-        middleSelect.innerHTML = '<option value="">（なし）</option>';
-
-        if (!parentName) {
-            return;
-        }
-
-        const parentNode = categoryBrowserData.find(e => e.name === parentName);
-        if (!parentNode) {
-            return;
-        }
-
-        parentNode.middles.forEach(middle => {
-            const opt = document.createElement('option');
-            opt.value = middle.name;
-            opt.textContent = middle.name;
-            middleSelect.appendChild(opt);
+    const templateSwitch = document.getElementById('id_is_template');
+    const updateProjectRequired = () => {
+        const required = !templateSwitch.checked;
+        ['id_project_number', 'id_customer_name'].forEach(id => {
+            document.getElementById(id).required = required;
         });
+        document.querySelectorAll('[data-project-required]').forEach(marker => {
+            marker.hidden = !required;
+        });
+    };
+    templateSwitch.addEventListener('change', updateProjectRequired);
+    updateProjectRequired();
+
+    const categoryBrowserData = JSON.parse('{{ category_browser_json|escapejs }}');
+    const categoryRecords = JSON.parse('{{ document_category_records_json|default:"[]"|escapejs }}');
+    const parentInput = document.getElementById('id_parent_category');
+    const middleInput = document.getElementById('id_middle_category');
+    const childInput = document.getElementById('id_child_category');
+    const selectionInput = document.getElementById('id_category_selection_id');
+    const browser = document.getElementById('documentCategoryBrowser');
+    const parentPane = document.getElementById('documentCategoryParentPane');
+    const middlePane = document.getElementById('documentCategoryMiddlePane');
+    const childPane = document.getElementById('documentCategoryChildPane');
+    const recordsById = new Map(categoryRecords.map(record => [String(record.id), record]));
+    let selectedId = selectionInput.value;
+
+    // 復元は表示のみ。投稿エラー時の原値や選択IDを上書きしない。
+    if (!selectedId) {
+        let initialRecord = categoryRecords.find(record =>
+            record.parent_name === parentInput.value
+            && record.middle_name === middleInput.value
+            && record.child_name === childInput.value);
+        if (!initialRecord && !middleInput.value && childInput.value) {
+            initialRecord = categoryRecords.find(record =>
+                record.parent_name === parentInput.value
+                && record.middle_name === childInput.value
+                && record.child_name === '');
+        }
+        if (initialRecord) selectedId = String(initialRecord.id);
     }
 
-    // 小カテゴリ更新処理
-    function updateChildCategories(parentName, middleName) {
-        // クリア
-        childSelect.innerHTML = '<option value="">選択してください</option>';
-
-        if (!parentName) {
-            return;
+    let activeParent = null;
+    let activeMiddle = null;
+    for (const parent of categoryBrowserData) {
+        if ((parent.direct_children || []).some(item => String(item.id) === selectedId)) {
+            activeParent = parent;
+            break;
         }
-
-        const parentNode = categoryBrowserData.find(e => e.name === parentName);
-        if (!parentNode) {
-            return;
+        const middle = (parent.middles || []).find(item =>
+            (item.children || []).some(child => String(child.id) === selectedId));
+        if (middle) {
+            activeParent = parent;
+            activeMiddle = middle;
+            break;
         }
+    }
 
-        if (middleName) {
-            const middleNode = parentNode.middles.find(e => e.name === middleName);
-            if (middleNode) {
-                // 重複排除用
-                const seen = new Set();
-                middleNode.children.forEach(child => {
-                    if (!seen.has(child.name)) {
-                        const opt = document.createElement('option');
-                        opt.value = child.name;
-                        opt.textContent = child.name;
-                        childSelect.appendChild(opt);
-                        seen.add(child.name);
-                    }
-                });
-            }
-        } else {
-            // 直接の小カテゴリ (direct_children) を設定
-            const seen = new Set();
-            parentNode.direct_children.forEach(child => {
-                if (!seen.has(child.name)) {
-                    const opt = document.createElement('option');
-                    opt.value = child.name;
-                    opt.textContent = child.name;
-                    childSelect.appendChild(opt);
-                    seen.add(child.name);
-                }
+    function showEmpty(pane, message) {
+        pane.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'category-browser-empty';
+        empty.textContent = message;
+        pane.appendChild(empty);
+    }
+
+    function categorySwitch(category) {
+        const categoryId = String(category.id);
+        const label = document.createElement('label');
+        label.className = 'category-checkbox form-check form-switch d-flex align-items-center gap-2 mb-2 ps-0';
+        const input = document.createElement('input');
+        input.className = 'form-check-input ms-0 mt-0 flex-shrink-0';
+        input.type = 'checkbox';
+        input.setAttribute('role', 'switch');
+        input.dataset.categoryId = categoryId;
+        input.checked = selectedId === categoryId;
+        input.disabled = !recordsById.has(categoryId);
+        const name = document.createElement('span');
+        name.textContent = category.name;
+        label.append(input, name);
+        input.addEventListener('change', function() {
+            const record = recordsById.get(categoryId);
+            selectedId = input.checked ? categoryId : '';
+            parentInput.value = input.checked ? record.parent_name : '';
+            middleInput.value = input.checked ? record.middle_name : '';
+            childInput.value = input.checked ? record.child_name : '';
+            selectionInput.value = selectedId;
+            browser.querySelectorAll('[data-category-id]').forEach(toggle => {
+                toggle.checked = toggle.dataset.categoryId === selectedId;
             });
-        }
+        });
+        return label;
     }
+
+    function renderChildren() {
+        if (!activeMiddle) {
+            showEmpty(childPane, '中カテゴリを選択してください。');
+            return;
+        }
+        const children = activeMiddle.children || [];
+        if (!children.length) {
+            showEmpty(childPane, '小カテゴリはありません。');
+            return;
+        }
+        childPane.replaceChildren();
+        children.forEach(child => childPane.appendChild(categorySwitch(child)));
+    }
+
+    function renderMiddle() {
+        parentPane.querySelectorAll('button').forEach(button => {
+            button.classList.toggle('active', !!activeParent && button.dataset.parentName === activeParent.name);
+        });
+        if (!activeParent) {
+            showEmpty(middlePane, '大カテゴリを選択してください。');
+            renderChildren();
+            return;
+        }
+        middlePane.replaceChildren();
+        (activeParent.middles || []).forEach(middle => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'category-browser-link w-100 text-start border-0 bg-transparent';
+            button.classList.toggle('active', middle === activeMiddle);
+            button.textContent = middle.name + ((middle.children || []).length ? ' ＞' : '');
+            button.addEventListener('click', function() {
+                activeMiddle = middle;
+                renderMiddle();
+            });
+            middlePane.appendChild(button);
+        });
+        (activeParent.direct_children || []).forEach(category => {
+            middlePane.appendChild(categorySwitch(category));
+        });
+        if (!middlePane.childElementCount) showEmpty(middlePane, '中カテゴリはありません。');
+        renderChildren();
+    }
+
+    categoryBrowserData.forEach(parent => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'list-group-item list-group-item-action category-sidebar-link';
+        button.dataset.parentName = parent.name;
+        button.textContent = parent.name;
+        button.addEventListener('click', function() {
+            activeParent = parent;
+            activeMiddle = null;
+            renderMiddle();
+        });
+        parentPane.appendChild(button);
+    });
+    if (!categoryBrowserData.length) showEmpty(parentPane, '登録済みカテゴリがありません。');
+    renderMiddle();
 });
 </script>
 {% endblock %}

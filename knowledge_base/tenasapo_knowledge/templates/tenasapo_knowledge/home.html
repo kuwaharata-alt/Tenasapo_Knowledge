@@ -2,23 +2,32 @@
 
 {% block title %}ホーム | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
         <span class="page-title-icon"><i class="bi bi-house-fill"></i></span>ホーム
     </h1>
+    <p class="page-title-sub">ナレッジの検索や最新情報の確認ができます。</p>
 </div>
+{% endblock %}
 
+{% block content %}
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
         <a href="{% url 'article_list' %}" class="btn btn-danger w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 FAQ</strong>
+            <span class="d-flex align-items-center justify-content-between gap-3 w-100">
+                <strong class="text-decoration-underline" style="font-size: 1.1rem;">📋 Q&amp;A</strong>
+                <span class="badge rounded-pill bg-white text-danger home-faq-count" aria-label="閲覧可能なQ&amp;A {{ home_faq_count }}件">{{ home_faq_count }} 件</span>
+            </span>
             <small class="mt-2">疑問やトラブルの解消</small>
         </a>
     </div>
     <div class="col-12 col-md-4">
         <a href="{% url 'tip_list' %}" class="btn btn-info text-white w-100 py-4 d-flex flex-column align-items-start text-start">
-            <strong class="text-decoration-underline" style="font-size: 1.1rem;">💡 Tips</strong>
+            <span class="d-flex align-items-center justify-content-between gap-3 w-100">
+                <strong class="text-decoration-underline" style="font-size: 1.1rem;">💡 Tips</strong>
+                <span class="badge rounded-pill bg-white home-tips-count" style="color: #0077cc;" aria-label="閲覧可能なTips {{ home_tips_count }}件">{{ home_tips_count }} 件</span>
+            </span>
             <small class="mt-2">より便利に使いこなすためのヒント</small>
         </a>
     </div>
@@ -49,7 +58,7 @@
     <div class="col-12 col-md-6">
         <div class="card shadow-sm h-100">
             <div class="card-body">
-                <h2 class="h6 mb-3 faq-group-title">📋 FAQ 最新情報</h2>
+                <h2 class="h6 mb-3 faq-group-title">📋 Q&amp;A 最新情報</h2>
                 <ul class="list-group list-group-flush">
                     {% for article in recent_faqs %}
                     <li class="list-group-item px-0">
@@ -98,42 +107,20 @@
 <div class="alert alert-info mb-4" role="status">最新情報はありません。</div>
 {% endif %}
 
-{% if not is_customer_home %}
+{% if home_member_post_totals %}
 <div class="d-flex align-items-center gap-2 mb-3 pb-2 border-bottom">
-    <i class="bi bi-grid-1x2-fill text-muted"></i>
-    <h2 class="h5 mb-0 fw-bold">メニュー</h2>
+    <i class="bi bi-bar-chart-fill text-muted" aria-hidden="true"></i>
+    <h2 class="h5 mb-0 fw-bold" id="home-posting-status-title">投稿状況</h2>
 </div>
+{% include 'includes/home_member_posts.html' %}
+{% endif %}
 
-<div class="row g-3">
-    {% for group in menu_groups %}
-        <div class="col-12 col-md-6 col-xl-4">
-            <div class="card shadow-sm h-100">
-                <div class="card-body">
-                    <h2 class="h5 mb-3">{{ group.icon }} {{ group.name }}</h2>
-                    <ul class="list-group list-group-flush">
-                        {% for item in group.items %}
-                            <li class="list-group-item px-0">
-                                {% if item.method == 'post' %}
-                                    <form method="post" action="{% url item.url_name %}" class="mb-0">
-                                        {% csrf_token %}
-                                        <button
-                                            type="submit"
-                                            class="btn btn-link p-0 text-decoration-none align-baseline"
-                                            {% if item.confirm_message %}onclick="return confirm('{{ item.confirm_message|escapejs }}');"{% endif %}
-                                        >
-                                            {{ item.label }}
-                                        </button>
-                                    </form>
-                                {% else %}
-                                    <a href="{% url item.url_name %}">{{ item.label }}</a>
-                                {% endif %}
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </div>
-    {% endfor %}
-</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if home_member_post_totals %}
+{{ home_member_post_periods|json_script:"home-member-post-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% include 'includes/home_member_posts_assets.html' %}
 {% endif %}
 {% endblock %}

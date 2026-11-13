@@ -2,16 +2,36 @@
 
 {% block title %}更新履歴登録 | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="row justify-content-center">
-    <div class="col-12 col-lg-8">
+    <div class="col-12">
         <div class="page-title-panel mb-4">
             <h1 class="page-title-main d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-clock-history"></i></span>{{ form_title }}
             </h1>
+            <p class="page-title-sub">更新履歴のカテゴリやタイトル、更新内容を入力・確認できます。</p>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-        <form class="card shadow-sm" method="post">
+{% block content %}
+{% include 'includes/knowledge_form_navigation_assets.html' %}
+{% include 'includes/knowledge_form_completion_assets.html' %}
+<div class="row knowledge-form-layout">
+    <aside class="col-12 col-lg-3 knowledge-form-nav-column">
+        <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+            <div class="knowledge-form-nav-heading">入力項目</div>
+            <div class="knowledge-form-nav-links">
+                <a href="#form-section-metadata" class="is-current" aria-current="location">登録情報</a>
+                <a href="#form-section-category">カテゴリ</a>
+                <a href="#form-section-title">タイトル</a>
+                <a href="#form-section-content">更新内容</a>
+            </div>
+        </nav>
+    </aside>
+    <div class="col-12 col-lg-9">
+        <form class="card shadow-sm" method="post" data-knowledge-completion="generic">
             <div class="card-body p-4">
                 {% csrf_token %}
                 {% if form.non_field_errors %}
@@ -19,16 +39,22 @@
                 {% endif %}
 
                 <div class="row g-3">
-                    <div class="col-12 col-md-6">
+                    <div class="col-12">
+                        <div class="form-section-label mb-2" id="form-section-metadata" data-form-section tabindex="-1">登録情報</div>
+                        <div class="row g-3">
+                        <div class="col-12 col-md-6">
                         <label class="form-label">登録者</label>
                         <input class="form-control" type="text" value="{{ request.user.username }}" readonly>
-                    </div>
-                    <div class="col-12 col-md-6">
+                        </div>
+                        <div class="col-12 col-md-6">
                         <label class="form-label">登録日</label>
                         <input class="form-control" type="text" value="{% if is_edit %}{{ object.update_date|date:'Y/m/d H:i:s' }}{% else %}{% now 'Y/m/d H:i:s' %}{% endif %}" readonly>
+                        </div>
+                        </div>
+                        <div class="form-text">登録者と登録日は自動で設定されます（変更できません）。</div>
                     </div>
-                    <div class="col-12 col-md-6">
-                        <label class="form-label" for="{{ form.category.id_for_label }}">カテゴリ</label>
+                    <div class="col-12">
+                        <label class="form-label form-section-label" id="form-section-category" data-form-section tabindex="-1" for="{{ form.category.id_for_label }}">カテゴリ</label>
                         <select class="form-select{% if form.category.errors %} is-invalid{% endif %}" name="{{ form.category.html_name }}" id="{{ form.category.id_for_label }}" required>
                             <option value="">選択してください</option>
                             {% for value, label in form.fields.category.choices %}
@@ -38,13 +64,13 @@
                         {% for error in form.category.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.title.id_for_label }}">タイトル</label>
-                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" placeholder="任意で入力">
+                        <label class="form-label form-section-label" id="form-section-title" data-form-section tabindex="-1" for="{{ form.title.id_for_label }}">タイトル</label>
+                        <input class="form-control{% if form.title.errors %} is-invalid{% endif %}" type="text" name="{{ form.title.html_name }}" id="{{ form.title.id_for_label }}" value="{{ form.title.value|default_if_none:'' }}" placeholder="任意で入力"{% if form.title.field.max_length %} data-completion-maxlength="{{ form.title.field.max_length }}"{% endif %}>
                         {% for error in form.title.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                     <div class="col-12">
-                        <label class="form-label" for="{{ form.update_content.id_for_label }}">更新内容</label>
-                        <textarea class="form-control{% if form.update_content.errors %} is-invalid{% endif %}" name="{{ form.update_content.html_name }}" id="{{ form.update_content.id_for_label }}" rows="6" placeholder="任意で入力">{{ form.update_content.value|default_if_none:'' }}</textarea>
+                        <label class="form-label form-section-label" id="form-section-content" data-form-section tabindex="-1" for="{{ form.update_content.id_for_label }}">更新内容</label>
+                        <textarea class="form-control{% if form.update_content.errors %} is-invalid{% endif %}" name="{{ form.update_content.html_name }}" id="{{ form.update_content.id_for_label }}" rows="6" placeholder="任意で入力"{% if form.update_content.field.max_length %} data-completion-maxlength="{{ form.update_content.field.max_length }}"{% endif %}>{{ form.update_content.value|default_if_none:'' }}</textarea>
                         {% for error in form.update_content.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
                     </div>
                 </div>

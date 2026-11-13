@@ -36,6 +36,9 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'f#zjx28!23@8esjhokxzg=x(q@@%d90_x*91x%))vo
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
+# 予約の保存だけでは送信しない。定期実行の --send と両方が必要。
+GOOGLE_CHAT_SCHEDULED_SEND_ENABLED = os.getenv('GOOGLE_CHAT_SCHEDULED_SEND_ENABLED', 'False') == 'True'
+
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,172.16.21.22,testserver').split(',')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',')
 
@@ -303,7 +306,11 @@ EMAIL_FILE_PATH = os.getenv('EMAIL_FILE_PATH', os.path.join(BASE_DIR, 'sent_emai
 
 # Google Chat 通知
 # テスト環境と本番環境で異なるWebhook/URLを使用可能
-if IS_TESTING:
+if DEBUG and not IS_TESTING:
+    # 開発は専用Webhookのみ。本番GASへの転送・本番Webhookへの補完を禁止する。
+    GOOGLE_CHAT_WEBHOOK_URL = (os.getenv('GOOGLE_CHAT_DEV_WEBHOOK_URL', '') or '').strip()
+    GOOGLE_CHAT_GAS_WEB_APP_URL = ''
+elif IS_TESTING:
     # テスト環境: ダミー値を使用（環境変数で上書き可能）
     GOOGLE_CHAT_WEBHOOK_URL = os.getenv(
         'GOOGLE_CHAT_WEBHOOK_URL',

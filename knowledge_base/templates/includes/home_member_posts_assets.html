@@ -1,0 +1,99 @@
+<script>
+(() => {
+    function initialize() {
+        const root = document.getElementById('home-member-posts');
+        const source = document.getElementById('home-member-post-data');
+        if (!root || !source || root.dataset.initialized) return;
+        root.dataset.initialized = 'true';
+        const periods = JSON.parse(source.textContent);
+        const canvas = root.querySelector('canvas');
+        const wrapper = root.querySelector('[data-home-post-chart]');
+        const details = root.querySelector('[data-home-post-details]');
+        const buttons = root.querySelectorAll('[data-home-post-period]');
+        const labels = {all: '全期間', current: '当月', previous: '前月'};
+        let chart = null;
+        const totalsPlugin = {
+            id: 'homePostTotals',
+            afterDatasetsDraw(chart) {
+                const {ctx, data} = chart;
+                ctx.save();
+                ctx.fillStyle = '#374151';
+                ctx.font = '600 12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                data.labels.forEach((_, index) => {
+                    const bar = chart.getDatasetMeta(1).data[index];
+                    const total = data.datasets.reduce((sum, dataset) => sum + dataset.data[index], 0);
+                    if (bar) ctx.fillText(String(total), bar.x, bar.y - 4);
+                });
+                ctx.restore();
+            },
+        };
+        function selectPeriod(period) {
+            const data = periods[period];
+            if (!data) return;
+            buttons.forEach(button => {
+                const active = button.dataset.homePostPeriod === period;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+            root.querySelectorAll('[data-home-post-table]').forEach(table => {
+                table.hidden = table.dataset.homePostTable !== period;
+            });
+            root.querySelector('#home-post-status').textContent =
+                `${labels[period]}：合計 ${data.totals.post_count_total} 件`;
+            canvas.setAttribute('aria-label', `${labels[period]}のメンバー別Q&A・Tips投稿数（積み上げ棒グラフ）`);
+            if (typeof window.Chart !== 'function' || !data.rows.length) return;
+            const chartData = {
+                labels: data.rows.map(row => row.name),
+                datasets: [
+                    {label: 'Q&A', data: data.rows.map(row => row.faq_post_count),
+                     backgroundColor: 'rgba(232, 117, 36, 0.82)', borderRadius: 8, maxBarThickness: 42, stack: 'postStack'},
+                    {label: 'Tips', data: data.rows.map(row => row.tips_post_count),
+                     backgroundColor: 'rgba(73, 136, 232, 0.82)', borderRadius: 8, maxBarThickness: 42, stack: 'postStack'},
+                ],
+            };
+            const maximum = Math.max(0, ...data.rows.map(row => row.post_count_total));
+            const suggestedMax = maximum ? Math.ceil(maximum * 1.3) : 5;
+            try {
+                if (chart) {
+                    chart.data = chartData;
+                    chart.options.scales.y.suggestedMax = suggestedMax;
+                    chart.update();
+                } else {
+                    wrapper.hidden = false;
+                    wrapper.firstElementChild.style.minWidth = `${Math.max(280, data.rows.length * 64)}px`;
+                    chart = new window.Chart(canvas, {
+                        type: 'bar', data: chartData, plugins: [totalsPlugin],
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            layout: {padding: {top: 15}},
+                            plugins: {
+                                legend: {display: false},
+                                tooltip: {callbacks: {footer(items) {
+                                    return `合計: ${items.reduce((sum, item) => sum + item.parsed.y, 0)}`;
+                                }}},
+                            },
+                            scales: {
+                                x: {stacked: true, ticks: {autoSkip: false}},
+                                y: {stacked: true, beginAtZero: true, suggestedMax, ticks: {precision: 0}},
+                            },
+                        },
+                    });
+                    details.open = false;
+                }
+            } catch (error) {
+                if (chart) chart.destroy();
+                else window.Chart.getChart?.(canvas)?.destroy();
+                chart = null;
+                wrapper.hidden = true;
+                details.open = true;
+            }
+        }
+        buttons.forEach(button => button.addEventListener('click', () => selectPeriod(button.dataset.homePostPeriod)));
+        selectPeriod('all');
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, {once: true});
+    else initialize();
+})();
+</script>

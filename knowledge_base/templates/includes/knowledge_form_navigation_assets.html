@@ -1,0 +1,228 @@
+<style>
+    .knowledge-form-layout { align-items: flex-start; counter-reset: form-section; }
+    .knowledge-form-layout .form-switch .form-check-input {
+        cursor: pointer;
+    }
+    .knowledge-form-layout .form-switch .form-check-input:checked {
+        background-color: var(--tk-primary);
+        border-color: var(--tk-primary);
+    }
+    .knowledge-form-layout .form-switch .form-check-input:focus {
+        border-color: var(--tk-primary);
+        box-shadow: 0 0 0 0.2rem rgba(232, 117, 36, 0.2);
+    }
+    .knowledge-form-nav-column { position: sticky; top: 0; }
+    .knowledge-form-nav {
+        background: var(--tk-surface);
+        border: 1px solid var(--tk-border);
+        border-radius: 0.9rem;
+        padding: 1rem;
+        max-height: calc(100dvh - 15rem);
+        overflow: auto;
+    }
+    .knowledge-form-nav-heading {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--tk-muted);
+        margin-bottom: 0.75rem;
+    }
+    .knowledge-form-nav-links {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        position: relative;
+        counter-reset: form-nav;
+    }
+    .knowledge-form-nav-links::before {
+        content: "";
+        position: absolute;
+        left: 1.75rem;
+        top: 1.75rem;
+        bottom: 1.75rem;
+        width: 1px;
+        background: var(--tk-border);
+        pointer-events: none;
+    }
+    .knowledge-form-nav-links a {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        min-height: 3.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.4rem;
+        color: var(--tk-text);
+        text-decoration: none;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        position: relative;
+    }
+    .knowledge-form-nav-links a::before {
+        counter-increment: form-nav;
+        content: counter(form-nav, decimal-leading-zero);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        flex: 0 0 2rem;
+        border: 1px solid var(--tk-border);
+        border-radius: 50%;
+        background: var(--tk-surface);
+        color: var(--tk-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+    }
+    .knowledge-form-nav-links a:hover { background: #f3f4f6; }
+    .knowledge-form-nav-links a.is-current {
+        background: var(--tk-primary-soft);
+        color: var(--tk-primary-dark);
+        font-weight: 600;
+    }
+    .knowledge-form-nav-links a.is-current::before {
+        background: var(--tk-primary);
+        border-color: var(--tk-primary);
+        color: white;
+    }
+    .knowledge-form-nav-links a.is-current.is-partially-visible {
+        background: #fff3e8;
+        color: #a56a40;
+        font-weight: 500;
+    }
+    .knowledge-form-nav-links a.is-current.is-partially-visible::before {
+        background: #f5bb91;
+        border-color: #f5bb91;
+        color: #704020;
+    }
+    .knowledge-form-nav-links a:focus-visible { outline: 2px solid var(--tk-primary); }
+    .knowledge-form-layout form > .card-body > .row {
+        position: relative;
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 2.5rem;
+    }
+    .knowledge-form-layout form > .card-body > .row::before {
+        content: "";
+        position: absolute;
+        left: var(--form-timeline-left, 1.5rem);
+        top: var(--form-timeline-top, 1.5rem);
+        height: var(--form-timeline-height, 0px);
+        width: 1px;
+        background: var(--tk-border);
+        pointer-events: none;
+    }
+    .knowledge-form-layout [data-form-section] {
+        scroll-margin-top: 1.5rem;
+        position: relative;
+        min-height: 2rem;
+    }
+    .knowledge-form-layout form > .card-body > .row > div:has(> [data-form-section]):not(:first-child) {
+        margin-top: 2.5rem;
+    }
+    .knowledge-form-layout [data-form-section]::before {
+        counter-increment: form-section;
+        content: counter(form-section, decimal-leading-zero);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        position: absolute;
+        left: -2.5rem;
+        top: 0;
+        z-index: 1;
+        border-radius: 50%;
+        background: var(--tk-primary-soft);
+        color: var(--tk-primary-dark);
+        font-size: 0.75rem;
+        font-weight: 600;
+        vertical-align: middle;
+        font-variant-numeric: tabular-nums;
+    }
+    @media (max-width: 991.98px) {
+        .knowledge-form-nav-column { position: static; margin-bottom: 1rem; }
+        .knowledge-form-nav { max-height: none; padding: 0.75rem; }
+        .knowledge-form-nav-links { flex-direction: row; flex-wrap: wrap; }
+        .knowledge-form-nav-links::before { display: none; }
+        .knowledge-form-nav-links a { min-height: 3rem; padding: 0.4rem 0.65rem; }
+    }
+    @media (max-width: 575.98px) {
+        .knowledge-form-layout form > .card-body { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+    }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const root = document.getElementById('app-main');
+    const nav = document.querySelector('.knowledge-form-nav');
+    if (!root || !nav) return;
+    const entries = Array.from(nav.querySelectorAll('a[href^="#form-section-"]'))
+        .map(link => ({ link, section: document.getElementById(link.hash.slice(1)) }))
+        .filter(entry => entry.section);
+    const timeline = entries[0]?.section.closest('.card-body > .row');
+    const updateTimeline = () => {
+        if (!timeline || !entries.length) return;
+        const rowRect = timeline.getBoundingClientRect();
+        const first = entries[0].section.getBoundingClientRect();
+        const last = entries[entries.length - 1].section.getBoundingClientRect();
+        const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        timeline.style.setProperty('--form-timeline-left', `${first.left - rowRect.left - 1.5 * rem}px`);
+        timeline.style.setProperty('--form-timeline-top', `${first.top - rowRect.top + rem}px`);
+        timeline.style.setProperty('--form-timeline-height', `${Math.max(0, last.top - first.top)}px`);
+    };
+    let scheduled = false;
+    const updateCurrent = () => {
+        scheduled = false;
+        const rootRect = root.getBoundingClientRect();
+        const top = Math.max(rootRect.top + root.clientTop, 0);
+        const bottom = Math.min(top + root.clientHeight, window.innerHeight);
+        const starts = entries.map(entry => entry.section.getBoundingClientRect().top);
+        let currentAssigned = false;
+        entries.forEach((entry, index) => {
+            // Hidden tags/date inputs have a zero bounding rect. Measure all
+            // rendered columns up to the next section, not just its sibling.
+            const nextColumn = entries[index + 1]?.section.parentElement;
+            let end = entry.section.getBoundingClientRect().bottom;
+            for (let column = entry.section.parentElement;
+                 column && column !== nextColumn;
+                 column = column.nextElementSibling) {
+                if (column.getClientRects().length) {
+                    end = Math.max(end, column.getBoundingClientRect().bottom);
+                }
+            }
+            const active = entry.section.getClientRects().length > 0
+                && starts[index] < bottom && end > top;
+            const fullyVisible = starts[index] >= top - 1 && end <= bottom + 1;
+            entry.link.classList.toggle('is-current', active);
+            entry.link.classList.toggle('is-partially-visible', active && !fullyVisible);
+            // Keep a single current location for assistive technology while
+            // visually highlighting every section visible in the scroll pane.
+            if (active && !currentAssigned) {
+                entry.link.setAttribute('aria-current', 'location');
+                currentAssigned = true;
+            }
+            else entry.link.removeAttribute('aria-current');
+        });
+    };
+    const scheduleUpdate = () => {
+        if (!scheduled) { scheduled = true; requestAnimationFrame(updateCurrent); }
+    };
+    entries.forEach(({ link, section }) => {
+        link.addEventListener('click', event => {
+            if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            const top = root.scrollTop + section.getBoundingClientRect().top - root.getBoundingClientRect().top - 24;
+            root.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+            section.focus({ preventScroll: true });
+            scheduleUpdate();
+        });
+    });
+    root.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', () => { updateTimeline(); scheduleUpdate(); });
+    if (window.ResizeObserver) new ResizeObserver(() => {
+        updateTimeline();
+        scheduleUpdate();
+    }).observe(document.querySelector('.knowledge-form-layout'));
+    updateTimeline();
+    updateCurrent();
+});
+</script>

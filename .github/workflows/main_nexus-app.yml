@@ -4,7 +4,15 @@ on:
   push:
     branches:
       - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
+
+concurrency:
+  group: nexus-release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -13,6 +21,12 @@ jobs:
       contents: read
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+      DEBUG: 'True'
+      DB_ENGINE: django.db.backends.sqlite3
+      GOOGLE_CHAT_SCHEDULED_SEND_ENABLED: 'False'
+      GOOGLE_CHAT_WEBHOOK_URL: ''
+      GOOGLE_CHAT_GAS_WEB_APP_URL: ''
+      GOOGLE_CHAT_DEV_WEBHOOK_URL: ''
 
     steps:
       - uses: actions/checkout@v5
@@ -28,10 +42,51 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Validate application and migrations
+        working-directory: knowledge_base
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check --dry-run
+          python manage.py test tenasapo_knowledge knowledge --noinput
+          python manage.py collectstatic --noinput
+
+      - name: Prepare deployment package without local archive
+        run: |
+          mkdir -p "${{ runner.temp }}/nexus-package"
+          rsync -a \
+            --exclude='OLD/' --exclude='.git/' --exclude='.github/' \
+            --exclude='.venv/' --exclude='venv/' --exclude='env/' --exclude='ENV/' \
+            --exclude='__pycache__/' --exclude='*.pyc' --exclude='*.pyo' \
+            --exclude='.env' --exclude='.env.*' --exclude='client_secret_*.json' \
+            --exclude='*.publishsettings' --exclude='*.PublishSettings' \
+            --exclude='*.sqlite3' --exclude='*.sqlite3-*' --exclude='*.db' \
+            --exclude='/backups/' --exclude='/media/' --exclude='/sent_emails/' \
+            --exclude='/logs/' --exclude='/log/' --exclude='*.log' \
+            --exclude='/.vscode/' --exclude='/.idea/' --exclude='/.azure/' \
+            --exclude='/data.json' --exclude='/faq_categories.json' \
+            --exclude='/dist/' --exclude='/build/' --exclude='*.zip' \
+            knowledge_base/ "${{ runner.temp }}/nexus-package/"
+          test -f "${{ runner.temp }}/nexus-package/manage.py"
+          test -f "${{ runner.temp }}/nexus-package/tenasapo_knowledge/migrations/0082_chat_schedule_environment_revisions.py"
+          test -d "${{ runner.temp }}/nexus-package/staticfiles"
+          forbidden=$(find "${{ runner.temp }}/nexus-package" \
+            \( -name OLD -o -name .venv -o -name venv -o -name __pycache__ \
+            -o -name .env -o -name '.env.*' -o -name 'client_secret_*.json' \
+            -o -name '*.sqlite3' -o -name '*.sqlite3-*' -o -name '*.pyc' \) -print -quit)
+          test -z "$forbidden"
+
+      - name: Upload validated deployment package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-release-${{ github.sha }}
+          path: ${{ runner.temp }}/nexus-package
+          retention-days: 7
+
       - name: Deploy to Azure Web App
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'nexus-app'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E2235B58042543DC970E5840BE08716E }}
-          package: knowledge_base
+          package: ${{ runner.temp }}/nexus-package

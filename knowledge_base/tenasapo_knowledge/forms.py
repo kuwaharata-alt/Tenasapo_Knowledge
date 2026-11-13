@@ -1,4 +1,5 @@
 import json
+from html.parser import HTMLParser
 
 from django import forms
 from django.conf import settings
@@ -6,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .models import (
     ConvenienceCategory,
@@ -15,8 +17,32 @@ from .models import (
     ProjectDocument,
     RelatedTag,
     RevisionHistory,
+    POSTING_QUOTA_START,
     default_expires_on,
 )
+
+
+class PostingQuotaForm(forms.Form):
+    effective_month = forms.DateField(
+        label='対象月', input_formats=['%Y-%m'],
+        initial=POSTING_QUOTA_START,
+        widget=forms.DateInput(format='%Y-%m', attrs={
+            'type': 'month', 'min': '2026-06', 'class': 'form-control',
+        }),
+    )
+    faq_count = forms.IntegerField(label='1人あたり Q&A月間件数', min_value=0, max_value=2147483647,
+                                   widget=forms.NumberInput(attrs={'class': 'form-control'}))
+    tips_count = forms.IntegerField(label='1人あたり Tips月間件数', min_value=0, max_value=2147483647,
+                                    widget=forms.NumberInput(attrs={'class': 'form-control'}))
+    alpha_count = forms.IntegerField(label='1人あたり ＋α月間件数', min_value=0, max_value=2147483647,
+                                     initial=0, required=True,
+                                     widget=forms.NumberInput(attrs={'class': 'form-control'}))
+
+    def clean_effective_month(self):
+        value = self.cleaned_data['effective_month']
+        if value < POSTING_QUOTA_START:
+            raise ValidationError('2026年6月以降を指定してください。')
+        return value
 
 
 TARGET_OS_VERSION_MAP = {
@@ -529,7 +555,7 @@ class ConvenienceFeatureCreateForm(forms.ModelForm):
         initial='3',
     )
     display_text = forms.CharField(
-        label='得られる結果',
+        label='内容',
         widget=forms.Textarea(attrs={'rows': 4}),
     )
 
@@ -603,6 +629,53 @@ class RevisionHistoryForm(forms.ModelForm):
         }
 
 
+class _KnowledgeHeadingParser(HTMLParser):
+    """Inspect only editor-owned wrappers, without normalizing stored content."""
+
+    void_tags = frozenset(('area', 'base', 'br', 'col', 'embed', 'hr', 'img',
+                           'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'))
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.stack = []
+        self.sections = []
+
+    def handle_starttag(self, tag, attrs):
+        section = tag == 'div' and dict(attrs).get('class') == 'knowledge-content-section'
+        node = {'tag': tag, 'section': section, 'heading': None}
+        if section:
+            node['heading'] = []
+            self.sections.append(node)
+        elif tag == 'h3' and self.stack and self.stack[-1]['section']:
+            node['heading'] = self.stack[-1]['heading']
+        if tag not in self.void_tags:
+            self.stack.append(node)
+
+    def handle_endtag(self, tag):
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index]['tag'] == tag:
+                del self.stack[index:]
+                break
+
+    def handle_data(self, data):
+        if any(node['tag'] in ('script', 'style', 'template') for node in self.stack):
+            return
+        for node in reversed(self.stack):
+            if node['tag'] == 'h3' and node['heading'] is not None:
+                node['heading'].append(data)
+                break
+
+
+def validate_knowledge_block_headings(value):
+    parser = _KnowledgeHeadingParser()
+    parser.feed(value)
+    parser.close()
+    for section in parser.sections:
+        heading = ''.join(section['heading']).replace('\u200b', '').replace('\ufeff', '')
+        if not heading.strip():
+            raise ValidationError('各セクションの見出しを入力してください。', code='required_heading')
+
+
 class KnowledgeArticleCreateForm(forms.Form):
     registered_category = forms.ModelMultipleChoiceField(
         label='カテゴリ',
@@ -643,11 +716,13 @@ class KnowledgeArticleCreateForm(forms.Form):
     question = forms.CharField(
         label='質問',
         required=True,
+        validators=[validate_knowledge_block_headings],
         widget=forms.Textarea(attrs={'rows': 8}),
     )
     answer = forms.CharField(
         label='回答',
         required=True,
+        validators=[validate_knowledge_block_headings],
         widget=forms.Textarea(attrs={'rows': 8}),
     )
     question_images = MultipleImageField(
@@ -685,14 +760,15 @@ class KnowledgeArticleCreateForm(forms.Form):
     )
     source_published_at = forms.DateField(
         label='ソース公開日',
-        required=True,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=False,
+        initial=timezone.localdate,
+        widget=forms.HiddenInput(),
     )
     expires_on = forms.DateField(
         label='掲載期限',
         required=False,
         initial=default_expires_on,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.HiddenInput(),
     )
 
     def __init__(self, *args, **kwargs):
@@ -704,8 +780,22 @@ class KnowledgeArticleCreateForm(forms.Form):
         )
         self.fields['target_os_version'].choices = target_os_version_choices()
 
+    def clean_source_published_at(self):
+        value = self.cleaned_data.get('source_published_at')
+        if value is not None:
+            return value
+        # 編集時は未設定も含めて既存値を維持する。
+        if 'source_published_at' in self.initial:
+            return self.initial['source_published_at']
+        return timezone.localdate()
+
     def clean_expires_on(self):
-        return self.cleaned_data.get('expires_on') or default_expires_on()
+        value = self.cleaned_data.get('expires_on')
+        if value is not None:
+            return value
+        if 'expires_on' in self.initial:
+            return self.initial['expires_on']
+        return default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -774,6 +864,7 @@ class TipsCreateForm(forms.Form):
     body = forms.CharField(
         label='内容',
         required=True,
+        validators=[validate_knowledge_block_headings],
         widget=forms.Textarea(attrs={'rows': 10}),
     )
     tips_images = MultipleImageField(
@@ -805,8 +896,9 @@ class TipsCreateForm(forms.Form):
     )
     source_published_at = forms.DateField(
         label='ソース公開日',
-        required=True,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        required=False,
+        initial=timezone.localdate,
+        widget=forms.HiddenInput(),
     )
     pdf_file = forms.FileField(
         label='マニュアル',
@@ -821,7 +913,7 @@ class TipsCreateForm(forms.Form):
         label='掲載期限',
         required=False,
         initial=default_expires_on,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        widget=forms.HiddenInput(),
     )
 
     def __init__(self, *args, **kwargs):
@@ -833,8 +925,22 @@ class TipsCreateForm(forms.Form):
         )
         self.fields['target_os_version'].choices = target_os_version_choices()
 
+    def clean_source_published_at(self):
+        value = self.cleaned_data.get('source_published_at')
+        if value is not None:
+            return value
+        # 編集時は未設定も含めて既存値を維持する。
+        if 'source_published_at' in self.initial:
+            return self.initial['source_published_at']
+        return timezone.localdate()
+
     def clean_expires_on(self):
-        return self.cleaned_data.get('expires_on') or default_expires_on()
+        value = self.cleaned_data.get('expires_on')
+        if value is not None:
+            return value
+        if 'expires_on' in self.initial:
+            return self.initial['expires_on']
+        return default_expires_on()
 
     def clean(self):
         cleaned_data = super().clean()
@@ -876,14 +982,15 @@ class ProjectDocumentCreateForm(forms.Form):
         '.pdf',
     }
 
-    project_number = forms.CharField(label='案件番号', max_length=60)
-    customer_name = forms.CharField(label='顧客名', max_length=200)
+    project_number = forms.CharField(label='案件番号', max_length=60, required=False)
+    customer_name = forms.CharField(label='顧客名', max_length=200, required=False)
     product_name = forms.CharField(label='製品名', max_length=150, required=False)
     product_version = forms.CharField(label='バージョン', max_length=80, required=False)
     title = forms.CharField(label='ドキュメントタイトル', max_length=200)
     parent_category = forms.CharField(label='大カテゴリ', required=True)
     middle_category = forms.CharField(label='中カテゴリ', required=False)
-    child_category = forms.CharField(label='小カテゴリ', required=True)
+    child_category = forms.CharField(label='小カテゴリ', required=False)
+    category_selection_id = forms.IntegerField(required=False, widget=forms.HiddenInput())
     document_type = forms.ChoiceField(
         label='分類',
         choices=ProjectDocument.DOCUMENT_TYPE_CHOICES,
@@ -904,6 +1011,12 @@ class ProjectDocumentCreateForm(forms.Form):
         required=False,
         help_text='このドキュメントをテンプレートとして使用する場合はチェックを入れてください。',
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        is_template = self.fields['is_template'].to_python(self['is_template'].value())
+        for name in ('project_number', 'customer_name'):
+            self.fields[name].required = not is_template
 
     def clean_file_office(self):
         uploaded_file = self.cleaned_data.get('file_office')
@@ -935,17 +1048,33 @@ class ProjectDocumentCreateForm(forms.Form):
         if not file_office and not file_pdf:
             raise forms.ValidationError('OfficeドキュメントまたはPDFドキュメントの少なくともどちらか一方はアップロードしてください。')
 
+        return self.clean_document_category(cleaned_data)
+
+    def clean_document_category(self, cleaned_data):
         parent = (cleaned_data.get('parent_category') or '').strip()
         middle = (cleaned_data.get('middle_category') or '').strip()
         child = (cleaned_data.get('child_category') or '').strip()
+        if not parent or not (middle or child):
+            self.add_error('middle_category', '中カテゴリまで選択してください。')
+            return cleaned_data
 
-        if parent and child:
-            q = FAQCategory.objects.filter(parent_name=parent, middle_name=middle, child_name=child)
-            if not q.exists():
-                raise forms.ValidationError('選択されたカテゴリの組み合わせは存在しません。')
-            cleaned_data['category'] = q.first().full_name
+        categories = FAQCategory.objects.filter(
+            parent_name=parent, middle_name=middle, child_name=child,
+        )
+        selection_id = cleaned_data.get('category_selection_id')
+        if selection_id:
+            category = categories.filter(pk=selection_id).first()
         else:
-            cleaned_data['category'] = ''
+            category = categories.first()
+            # Compatibility with the previous two-level dropdown submission.
+            if category is None and not middle and child:
+                category = FAQCategory.objects.filter(
+                    parent_name=parent, middle_name=child, child_name='',
+                ).first()
+        if category is None:
+            self.add_error('middle_category', '選択されたカテゴリの組み合わせは存在しません。')
+        else:
+            cleaned_data['category'] = category.full_name
         return cleaned_data
 
 
@@ -975,18 +1104,57 @@ class ProjectDocumentUpdateForm(ProjectDocumentCreateForm):
         if not file_office and not file_pdf and not has_existing_office and not has_existing_pdf:
             raise forms.ValidationError('OfficeドキュメントまたはPDFドキュメントの少なくともどちらか一方はアップロードしてください。')
 
-        parent = (cleaned_data.get('parent_category') or '').strip()
-        middle = (cleaned_data.get('middle_category') or '').strip()
-        child = (cleaned_data.get('child_category') or '').strip()
+        return self.clean_document_category(cleaned_data)
 
-        if parent and child:
-            q = FAQCategory.objects.filter(parent_name=parent, middle_name=middle, child_name=child)
-            if not q.exists():
-                raise forms.ValidationError('選択されたカテゴリの組み合わせは存在しません。')
-            cleaned_data['category'] = q.first().full_name
-        else:
-            cleaned_data['category'] = ''
-        return cleaned_data
+
+class UserDemoIssueForm(forms.Form):
+    company_name = forms.CharField(
+        label='会社名', max_length=120,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        error_messages={'required': '会社名を入力してください。'},
+    )
+
+
+class UserContractIssueForm(forms.Form):
+    display_name = forms.CharField(
+        label='ユーザー名', max_length=150,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        error_messages={'required': 'ユーザー名を入力してください。'},
+    )
+    company_name = forms.CharField(
+        label='会社名', max_length=120,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+        error_messages={'required': '会社名を入力してください。'},
+    )
+    department = forms.CharField(
+        label='所属部署', max_length=255, required=False,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
+    email_addresses = forms.CharField(
+        # The entire email becomes auth.User.username (maximum 150 characters).
+        label='メールアドレス', max_length=150,
+        widget=forms.EmailInput(attrs={'class': 'form-control'}),
+        help_text='ログインに使用するメールアドレスを1件入力してください。',
+        error_messages={'required': 'メールアドレスを入力してください。'},
+    )
+    note = forms.CharField(
+        label='備考', required=False,
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
+    )
+
+    def clean_email_addresses(self):
+        email = self.cleaned_data['email_addresses'].strip()
+        try:
+            validate_email(email)
+        except ValidationError:
+            raise forms.ValidationError('メールアドレスの形式が正しくありません。')
+        if not email.split('@', 1)[0].strip():
+            raise forms.ValidationError('メールアドレスから初期パスワードを生成できませんでした。')
+        if get_user_model().objects.filter(username=email).exists():
+            raise forms.ValidationError(
+                'ログインID（メールアドレス）が既に使用されています。別のメールアドレスを指定してください。'
+            )
+        return email
 
 
 class UserCreateForm(forms.Form):
@@ -1073,14 +1241,18 @@ class UserCreateForm(forms.Form):
             return display_name
         return self.cleaned_data.get('username', '').strip()
 
-    def clean_company_name(self):
-        user_type = self.cleaned_data.get('user_type')
-        company_name = (self.cleaned_data.get('company_name') or '').strip()
+    def clean(self):
+        cleaned_data = super().clean()
+        user_type = cleaned_data.get('user_type')
+        company_name = (cleaned_data.get('company_name') or '').strip()
         if user_type == 'systena':
-            return 'システナ'
-        if not company_name:
-            raise forms.ValidationError('この項目は必須です。')
-        return company_name
+            cleaned_data['company_name'] = 'システナ'
+        elif user_type == 'customer' and 'company_name' not in self.errors:
+            if not company_name:
+                self.add_error('company_name', 'この項目は必須です。')
+            else:
+                cleaned_data['company_name'] = company_name
+        return cleaned_data
 
     def clean_email_addresses(self):
         value = (self.cleaned_data.get('email_addresses') or '').strip()
@@ -1204,24 +1376,17 @@ class UserUpdateForm(forms.Form):
 
 
 class ManualForm(forms.ModelForm):
+    description = forms.CharField(
+        label='使い方・操作手順', required=True,
+        widget=forms.Textarea(attrs={'rows': 18}),
+    )
+
     class Meta:
         model = Manual
-        fields = ('title', 'description', 'pdf_file', 'order', 'is_published')
+        fields = ('title', 'description', 'order', 'is_published')
         labels = {
             'title': 'タイトル',
-            'description': '説明',
-            'pdf_file': 'PDFファイル',
+            'description': '使い方・操作手順',
             'order': '表示順',
             'is_published': '公開',
         }
-        widgets = {
-            'description': forms.Textarea(attrs={'rows': 3}),
-        }
-
-    def clean_pdf_file(self):
-        f = self.cleaned_data.get('pdf_file')
-        if f:
-            name = getattr(f, 'name', '')
-            if not name.lower().endswith('.pdf'):
-                raise forms.ValidationError('PDFファイルを選択してください。')
-        return f

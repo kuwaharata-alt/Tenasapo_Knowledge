@@ -2,6 +2,25 @@
 {% load article_extras %}
 
 {% block title %}クイックリファレンス | Nexus{% endblock %}
+{% block body_class %}knowledge-split-page{% endblock %}
+
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+        <div>
+            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
+                <span class="page-title-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>クイックリファレンス
+            </h1>
+            <p class="page-title-sub">よく使うショートカットやコマンドを検索・確認できます。</p>
+        </div>
+        {% if can_create_convenience %}
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <a class="btn btn-primary" href="{% url 'convenience_create' %}">新規登録</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
 
 {% block content %}
 <style>
@@ -26,54 +45,12 @@
         cursor: not-allowed;
     }
 </style>
-<div class="page-title-panel mb-4">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-        <div>
-            <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
-                <span class="page-title-icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>クイックリファレンス
-            </h1>
-        </div>
-        {% if can_create_convenience %}
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <a class="btn btn-primary" href="{% url 'convenience_create' %}">QR登録</a>
-            </div>
-        {% endif %}
-    </div>
-</div>
 
-<div class="search-panel py-3 mb-4">
-    <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
-        {% if selected_big %}
-            <input type="hidden" name="big_category" value="{{ selected_big }}">
-        {% endif %}
-        {% if selected_category %}
-            <input type="hidden" name="category" value="{{ selected_category }}">
-        {% endif %}
-        {% if selected_small %}
-            <input type="hidden" name="small_category" value="{{ selected_small }}">
-        {% endif %}
-        <div class="col-12 col-md-7">
-            <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
-        </div>
-        <div class="col-12 col-md-auto d-flex align-items-center gap-2">
-            <button class="btn btn-primary" type="submit">検索</button>
-            {% if can_use_convenience_favorite %}
-                <a
-                    class="btn {% if sort_mode == 'favorite' %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                    href="?q={{ query|urlencode }}{% if selected_big %}&big_category={{ selected_big|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if selected_small %}&small_category={{ selected_small|urlencode }}{% endif %}{% if sort_mode != 'favorite' %}&sort=favorite{% endif %}"
-                >
-                    {% if sort_mode == 'favorite' %}☆頻度順に戻す{% else %}☆お気に入り順{% endif %}
-                </a>
-            {% endif %}
-        </div>
-    </form>
-</div>
-
-<div class="row g-4 align-items-start">
-    <aside class="col-12 col-lg-3 category-sidebar-col">
+<div class="row knowledge-split-row">
+    <aside class="col-12 col-lg-3 category-sidebar-col" tabindex="0" aria-label="カテゴリ一覧">
         <div class="category-sidebar">
             <div class="category-sidebar-title">カテゴリ</div>
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="カテゴリ項目">
                 <a class="list-group-item category-sidebar-link {% if not selected_big and not selected_category and not selected_small %}active{% endif %}" href="{% url 'convenience_list' %}?q={{ query|urlencode }}{% if sort_mode == 'favorite' %}&sort=favorite{% endif %}">すべて</a>
                 {% for big in sidebar_hierarchy %}
                     <a class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_big == big.value %}active{% endif %}"
@@ -119,7 +96,36 @@
         </div>
     </aside>
 
-    <section class="col-12 col-lg-9 category-content-col">
+    <section class="col-12 col-lg-9 category-content-col" tabindex="0" aria-label="クイックリファレンス一覧">
+        <div class="search-panel py-3">
+            <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+                {% if selected_big %}
+                    <input type="hidden" name="big_category" value="{{ selected_big }}">
+                {% endif %}
+                {% if selected_category %}
+                    <input type="hidden" name="category" value="{{ selected_category }}">
+                {% endif %}
+                {% if selected_small %}
+                    <input type="hidden" name="small_category" value="{{ selected_small }}">
+                {% endif %}
+                <div class="col-12 col-md-7">
+                    <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="キーワードから探す" aria-label="キーワードから探す">
+                </div>
+                <div class="col-12 col-md-auto d-flex align-items-center gap-2">
+                    <button class="btn btn-primary" type="submit">検索</button>
+                    {% if can_use_convenience_favorite %}
+                        <a
+                            class="btn btn-toolbar-secondary{% if sort_mode == 'favorite' %} is-selected{% endif %}"
+                            href="?q={{ query|urlencode }}{% if selected_big %}&big_category={{ selected_big|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}{% if selected_small %}&small_category={{ selected_small|urlencode }}{% endif %}{% if sort_mode != 'favorite' %}&sort=favorite{% endif %}"
+                        >
+                            {% if sort_mode == 'favorite' %}☆頻度順に戻す{% else %}☆お気に入り順{% endif %}
+                        </a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <div class="knowledge-results" tabindex="0" role="region" aria-label="クイックリファレンス一覧">
         {% if category_groups %}
             <div class="faq-group-list">
                 {% for group in category_groups %}
@@ -129,7 +135,6 @@
                             <table class="table table-hover align-middle mb-0 bg-white">
                                 <thead class="table-light">
                                     <tr>
-                                        <th class="text-center" style="width: 8rem;">管理番号</th>
                                         <th class="text-center" style="width: 36%;">内容</th>
                                         <th class="text-center" style="width: 24%;">ショートカットキー</th>
                                         <th class="text-center" style="width: 12%;">頻度</th>
@@ -139,8 +144,21 @@
                                 <tbody>
                                     {% for feature in group.features %}
                                         <tr>
-                                            <td class="text-center text-muted small text-nowrap">{{ feature.management_code|default:"-" }}</td>
-                                            <td style="font-size: 12pt;">{{ feature.display_text }}</td>
+                                            <td style="font-size: 12pt;">
+                                                <div class="d-flex align-items-center gap-2">
+                                                    {% if can_use_convenience_favorite %}
+                                                        <button
+                                                            class="btn btn-sm flex-shrink-0 faq-favorite-btn {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
+                                                            type="button"
+                                                            data-feature-id="{{ feature.id }}"
+                                                            data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
+                                                            aria-pressed="{% if feature.is_favorited %}true{% else %}false{% endif %}"
+                                                            aria-label="{% if feature.is_favorited %}お気に入りを解除{% else %}お気に入りに追加{% endif %}"
+                                                        ><i class="bi {% if feature.is_favorited %}bi-star-fill{% else %}bi-star{% endif %}" aria-hidden="true"></i></button>
+                                                    {% endif %}
+                                                    <span>{{ feature.display_text }}</span>
+                                                </div>
+                                            </td>
                                             <td class="text-center">
                                                 {% with shortcut_parts=feature.shortcut_key|split_plus %}
                                                     {% if shortcut_parts %}
@@ -160,15 +178,12 @@
                                                 <div class="d-inline-flex align-items-center gap-1">
                                                     {% if user.is_staff or user.is_superuser %}
                                                         {% if can_edit_convenience %}
-                                                            <a class="btn btn-outline-turquoise btn-sm rounded-2" href="{% url 'convenience_edit' feature.id %}">編集</a>
-                                                        {% endif %}
-                                                        {% if can_use_convenience_favorite %}
-                                                            <button
-                                                                class="btn btn-sm rounded-2 faq-favorite-btn {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
-                                                                type="button"
-                                                                data-feature-id="{{ feature.id }}"
-                                                                data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
-                                                            >{% if feature.is_favorited %}★{% else %}☆{% endif %}</button>
+                                                            <button class="btn btn-sm knowledge-action-toggle" type="button" popovertarget="convenienceActions{{ feature.id }}" aria-label="項目の操作" aria-expanded="false">
+                                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                            </button>
+                                                            <div id="convenienceActions{{ feature.id }}" popover="auto" class="knowledge-action-menu">
+                                                                <a class="dropdown-item" href="{% url 'convenience_edit' feature.id %}">編集</a>
+                                                            </div>
                                                         {% endif %}
                                                         <button
                                                             type="button"
@@ -177,14 +192,6 @@
                                                             aria-expanded="false"
                                                         ></button>
                                                     {% else %}
-                                                        {% if can_use_convenience_favorite %}
-                                                            <button
-                                                                class="btn btn-sm rounded-2 faq-favorite-btn {% if feature.is_favorited %}btn-warning{% else %}btn-outline-warning{% endif %} convenience-favorite-btn"
-                                                                type="button"
-                                                                data-feature-id="{{ feature.id }}"
-                                                                data-favorited="{% if feature.is_favorited %}1{% else %}0{% endif %}"
-                                                            >{% if feature.is_favorited %}★{% else %}☆{% endif %}</button>
-                                                        {% endif %}
                                                         <button
                                                             type="button"
                                                             class="btn btn-sm rounded-2 faq-toggle qr-detail-toggle collapsed"
@@ -223,6 +230,7 @@
         {% else %}
             <div class="card shadow-sm"><div class="card-body"><p class="mb-0">表示できるデータがありません。</p></div></div>
         {% endif %}
+        </div>
     </section>
 </div>
 {% endblock %}
@@ -259,7 +267,9 @@
             button.dataset.favorited = favorited ? '1' : '0';
             button.classList.toggle('btn-warning', favorited);
             button.classList.toggle('btn-outline-warning', !favorited);
-            button.textContent = favorited ? '★' : '☆';
+            button.querySelector('i').className = favorited ? 'bi bi-star-fill' : 'bi bi-star';
+            button.setAttribute('aria-pressed', String(favorited));
+            button.setAttribute('aria-label', favorited ? 'お気に入りを解除' : 'お気に入りに追加');
         });
     });
 

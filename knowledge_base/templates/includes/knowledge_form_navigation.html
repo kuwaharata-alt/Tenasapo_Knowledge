@@ -1,0 +1,19 @@
+<aside class="col-12 col-lg-3 knowledge-form-nav-column">
+    <nav class="knowledge-form-nav" aria-label="入力項目へ移動">
+        <div class="knowledge-form-nav-heading">入力項目</div>
+        <div class="knowledge-form-nav-links">
+            <a href="#form-section-title" class="is-current" aria-current="location">タイトル</a>
+            <a href="#form-section-category">カテゴリ</a>
+            <a href="#form-section-os">対象OS</a>
+            {% if kind == 'tips' %}
+                <a href="#form-section-body">内容</a>
+                <a href="#form-section-pdf">PDFファイル</a>
+            {% else %}
+                <a href="#form-section-question">質問</a>
+                <a href="#form-section-answer">回答</a>
+            {% endif %}
+            <a href="#form-section-reference">参考</a>
+            <a href="#form-section-visibility">表示対象</a>
+        </div>
+    </nav>
+</aside>

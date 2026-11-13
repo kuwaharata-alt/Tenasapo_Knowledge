@@ -1,28 +1,85 @@
 {% extends "base.html" %}
 
 {% block title %}ログイン履歴 | Nexus{% endblock %}
+{% block body_class %}login-history-page{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
         <span class="page-title-icon"><i class="bi bi-clock-history"></i></span>ログイン履歴
     </h1>
     <p class="page-title-sub">ユーザーのログイン記録を確認できます。</p>
 </div>
+{% endblock %}
 
-<form class="row gy-2 gx-2 align-items-end mb-4" method="get">
-    <div class="col-12 col-md-5">
-        <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名で検索">
-    </div>
-    <div class="col-12 col-md-auto">
-        <button class="btn btn-outline-primary" type="submit">検索</button>
-    </div>
-</form>
+{% block content %}
+<style>
+    .login-history-page .app-main { overflow: hidden; }
+    .login-history-page .app-content { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; gap: 1rem; }
+    #loginHistoryFilterPanel .form-label { font-size: .85rem; font-weight: 600; }
+    .login-history-page .lh-results-card { flex: 1 1 0; min-height: 0; min-width: 0; overflow: hidden; }
+    .login-history-page .lh-results-heading { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--tk-border); }
+    .login-history-page .lh-results { flex: 1 1 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+    .login-history-page .lh-results:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -2px; }
+    .login-history-page .lh-table { min-width: 860px; table-layout: fixed; }
+    .login-history-page .lh-table thead { position: sticky; top: 0; z-index: 1; }
+    .login-history-page .lh-table th { font-size: .8rem; color: var(--tk-muted); white-space: nowrap; }
+    .login-history-page .lh-table > :not(caption) > * > * { padding: .9rem 1.25rem; }
+    .login-history-page .lh-table td { font-size: .875rem; overflow-wrap: anywhere; }
+    .login-history-page .lh-date { display: block; font-weight: 600; white-space: nowrap; }
+    .login-history-page .lh-time { color: var(--tk-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+    .login-history-page .lh-ip { display: inline-block; padding: .2rem .45rem; border: 1px solid var(--tk-border); border-radius: .35rem; background: var(--tk-bg); font-size: .78rem; }
+    .login-history-page .lh-agent summary { cursor: pointer; color: var(--tk-primary-dark); }
+    .login-history-page .lh-agent summary:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: 3px; }
+    .login-history-page .lh-agent-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--tk-muted); font-size: .78rem; margin-bottom: .35rem; }
+    .login-history-page .lh-agent-full { margin-top: .5rem; padding: .65rem; border-radius: .4rem; background: var(--tk-bg); font-size: .78rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .login-history-page .lh-empty { padding: 3rem 1rem !important; text-align: center; }
+    .login-history-page .lh-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; border-radius: 50%; background: var(--tk-primary-soft); color: var(--tk-primary-dark); font-size: 1.3rem; margin-bottom: .75rem; }
+    .login-history-page .lh-footer { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; padding: .75rem 1.25rem; border-top: 1px solid var(--tk-border); }
+    .login-history-page .lh-footer .pagination { margin: 0; }
+    @media (max-width: 575.98px), (max-height: 650px) {
+        .login-history-page .app-main { overflow: auto; }
+        .login-history-page .app-content { height: auto; overflow: visible; }
+        .login-history-page .lh-results-card { flex: none; }
+        .login-history-page .lh-results { flex: none; max-height: 65vh; }
+        .login-history-page .lh-results-heading, .login-history-page .lh-footer { padding: .85rem; }
+    }
+</style>
 
-<div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+<div class="modal fade" id="loginHistoryFilterPanel" tabindex="-1" aria-labelledby="loginHistoryFilterLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content" method="get" action="{% url 'login_history_list' %}" role="search">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="loginHistoryFilterLabel">ログイン履歴のフィルタ</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label mb-2" for="q">ログインID・ユーザー名</label>
+                <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名を入力">
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary me-auto" href="{% url 'login_history_list' %}">クリア</a>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">閉じる</button>
+                <button class="btn btn-primary" type="submit">絞り込み</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<section class="card lh-results-card" aria-labelledby="loginHistoryResultsTitle">
+    <div class="lh-results-heading">
+        <h2 class="h6 mb-0" id="loginHistoryResultsTitle"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>ログイン記録 <span class="badge bg-light text-dark border ms-1">{{ paginator.count }}件</span></h2>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <span class="small text-muted"><i class="bi bi-sort-down me-1" aria-hidden="true"></i>ログイン日時の新しい順{% if query %}・検索結果{% endif %}</span>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#loginHistoryFilterPanel" aria-haspopup="dialog" aria-controls="loginHistoryFilterPanel">
+                <i class="bi bi-funnel me-1" aria-hidden="true"></i>フィルタ{% if query %}<span class="badge bg-secondary ms-2">適用中</span>{% endif %}
+            </button>
+        </div>
+    </div>
+    <div class="table-responsive lh-results" role="region" aria-label="ログイン履歴一覧（横スクロールできます）" tabindex="0">
+        <table class="table table-hover align-middle mb-0 lh-table">
+            <caption class="visually-hidden">ログイン日時の新しい順に、ユーザー名・ログインID・IPアドレス・User-Agentを表示します。</caption>
+            <colgroup><col style="width: 10rem;"><col style="width: 18%;"><col style="width: 18%;"><col style="width: 12rem;"><col></colgroup>
             <thead class="table-light">
                 <tr>
                     <th scope="col">ログイン日時</th>
@@ -35,39 +92,60 @@
             <tbody>
                 {% for history in login_histories %}
                     <tr>
-                        <td>{{ history.logged_in_at|date:"Y/m/d H:i:s" }}</td>
-                        <td class="fw-semibold">{{ history.username }}</td>
-                        <td>{{ history.user.username|default:"-" }}</td>
-                        <td>{{ history.ip_address|default:"-" }}</td>
-                        <td class="text-break">{{ history.user_agent|default:"-" }}</td>
+                        <td><time datetime="{{ history.logged_in_at|date:'c' }}"><span class="lh-date">{{ history.logged_in_at|date:"Y/m/d" }}</span><span class="lh-time">{{ history.logged_in_at|date:"H:i:s" }}</span></time></td>
+                        <td class="fw-semibold">{{ history.username|default:"-" }}</td>
+                        <td><span class="font-monospace">{{ history.user.username|default:"-" }}</span></td>
+                        <td><span class="lh-ip font-monospace">{{ history.ip_address|default:"-" }}</span></td>
+                        <td>
+                            {% if history.user_agent %}
+                                <span class="lh-agent-preview">{{ history.user_agent|truncatechars:100 }}</span>
+                                <details class="lh-agent">
+                                    <summary>詳細を表示<span class="visually-hidden">（{{ history.username|default:"ユーザー" }}・{{ history.logged_in_at|date:"Y/m/d H:i:s" }}のUser-Agent）</span></summary>
+                                    <div class="lh-agent-full">{{ history.user_agent }}</div>
+                                </details>
+                            {% else %}<span class="text-muted">-</span>{% endif %}
+                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td class="text-center text-secondary py-4" colspan="5">ログイン履歴がありません。</td>
+                        <td class="lh-empty" colspan="5">
+                            <span class="lh-empty-icon" aria-hidden="true"><i class="bi {% if query %}bi-search{% else %}bi-clock-history{% endif %}"></i></span>
+                            <p class="fw-semibold mb-2">{% if query %}検索条件に一致するログイン履歴がありません。{% else %}ログイン履歴がありません。{% endif %}</p>
+                            <p class="small text-muted mb-0">{% if query %}別のログインID・ユーザー名で検索してください。{% else %}ユーザーがログインすると、ここに記録が表示されます。{% endif %}</p>
+                            {% if query %}<a class="btn btn-outline-secondary btn-sm mt-3" href="{% url 'login_history_list' %}">検索条件をクリア</a>{% endif %}
+                        </td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
-
-{% if is_paginated %}
-    <nav class="mt-4" aria-label="ページネーション">
-        <ul class="pagination">
+    <div class="lh-footer">
+        <span class="small text-muted">全<strong class="text-body">{{ paginator.count }}</strong>件中 <strong class="text-body">{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong>件を表示</span>
+        {% if is_paginated %}
+        <nav aria-label="ログイン履歴のページ切り替え">
+        <ul class="pagination pagination-sm">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}">前へ</a>
+                    <a class="page-link" href="?page=1&q={{ query|urlencode }}" aria-label="最初のページ">最初</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}" rel="prev">前へ</a>
                 </li>
             {% endif %}
             <li class="page-item active" aria-current="page">
-                <span class="page-link">{{ page_obj.number }}</span>
+                <span class="page-link"><span class="visually-hidden">現在のページ </span>{{ page_obj.number }} / {{ paginator.num_pages }}</span>
             </li>
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}">次へ</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}" rel="next">次へ</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ paginator.num_pages }}&q={{ query|urlencode }}" aria-label="最後のページ">最後</a>
                 </li>
             {% endif %}
         </ul>
-    </nav>
-{% endif %}
+        </nav>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}投稿目標設定 | Nexus{% endblock %}
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main">投稿目標設定</h1>
+    <p class="page-title-sub">全メンバー共通・1人あたりのQ&amp;A／Tips／＋α月間目標</p>
+</div>
+{% endblock %}
+{% block content %}
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <p>各対象月だけに適用する月間目標です。未来の月も個別に編集できます。</p>
+    <div class="alert alert-info">
+        累積の開始は2026年6月です。記録のない月は未設定です（0件とは異なります）。
+        初期対象範囲は2026年6月〜2030年12月です。初期値の一括登録は管理者の導入作業で行い、この画面の表示だけでは登録しません。
+        <strong>同じ対象月で保存すると、その月だけを上書きします。他の月には引き継ぎません。</strong>
+        Q&amp;A・Tipsの基本件数はそれぞれ必須です。＋αは基本件数を超えたQ&amp;A／Tipsのいずれでも充足できる共通追加枠で、基本分と二重計上しません。
+    </div>
+    <h2 class="h5">月別一覧（{{ selected_year }}年）</h2>
+    <form method="get" class="row g-2 align-items-end mb-3">
+        {% for key, value in quota_filters.items %}<input type="hidden" name="{{ key }}" value="{{ value }}">{% endfor %}
+        <div class="col-auto">
+            <label for="quota-year" class="form-label">表示年</label>
+            <input id="quota-year" class="form-control" type="number" name="year" min="2026" max="9999" value="{{ selected_year }}" list="quota-years" required>
+            <datalist id="quota-years">{% for year in quota_years %}<option value="{{ year }}">{% endfor %}</datalist>
+        </div>
+        <div class="col-auto"><button type="submit" class="btn btn-outline-primary">表示</button></div>
+    </form>
+    <div class="table-responsive"><table class="table align-middle">
+        <caption>{{ selected_year }}年の月別投稿目標（1人あたり）。合計はその月の必要件数、総計は2026年6月からその月までの累計必要件数です。未設定月がある場合の総計は未確定です。</caption>
+        <thead><tr><th scope="col">対象月</th><th scope="col">Q&amp;A</th><th scope="col">Tips</th><th scope="col">＋α</th><th scope="col">合計</th><th scope="col">総計</th><th scope="col">操作</th></tr></thead>
+        <tbody>{% for row in quota_rows %}
+            <tr{% if row.is_current_month %} class="table-warning" aria-current="date"{% endif %}><th scope="row">{{ row.month|date:"Y年m月" }}{% if row.is_current_month %} <span class="badge text-bg-warning">当月</span>{% endif %}</th>
+                {% if row.quota != None %}<td>{{ row.quota.faq_count }}</td><td>{{ row.quota.tips_count }}</td><td>{{ row.quota.alpha_count }}</td><td>{{ row.total }}</td>
+                {% else %}<td colspan="4">未設定</td>{% endif %}
+                <td class="fw-bold">{% if row.cumulative_total != None %}{{ row.cumulative_total }} 件{% else %}<span class="text-muted">未確定</span>{% endif %}</td>
+                <td><a class="btn btn-sm btn-outline-primary" href="?{{ row.edit_query }}#quota-edit" aria-label="{{ row.month|date:'Y年m月' }}の投稿目標を編集">編集</a></td>
+            </tr>
+        {% endfor %}</tbody>
+    </table></div>
+    <h2 class="h5" id="quota-edit">対象月の編集</h2>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        <div class="row g-3 mb-4">
+            {% for field in form %}
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for error in field.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary">保存する</button>
+        <a href="{{ summary_return_url }}" class="btn btn-outline-secondary">アナライズに戻る</a>
+    </form>
+</div></div>
+<p class="small text-muted">同じ対象月の変更前の値は保持しません。PDF・ホーム・チャット通知・既存の行警告の基準は変更しません。</p>
+{% endblock %}

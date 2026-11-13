@@ -1,82 +1,161 @@
 {% extends "base.html" %}
 
 {% block title %}閲覧履歴 | Nexus{% endblock %}
+{% block body_class %}view-history-page{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <h1 class="page-title-main mb-1 d-flex align-items-center gap-2">
         <span class="page-title-icon"><i class="bi bi-eye-fill"></i></span>閲覧履歴
     </h1>
     <p class="page-title-sub">ユーザーのページ閲覧記録を確認できます。</p>
 </div>
+{% endblock %}
 
-<form class="row gy-2 gx-2 align-items-end mb-4" method="get">
-    <div class="col-12 col-md-3">
-        <label class="form-label" for="q">検索</label>
-        <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名で検索">
-    </div>
-    <div class="col-12 col-md-3">
-        <label class="form-label" for="page_name">ページ名</label>
-        <select class="form-select" id="page_name" name="page_name">
-            <option value="">すべて</option>
-            {% for name in page_names %}
-                <option value="{{ name }}" {% if selected_page_name == name %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="col-12 col-md-3">
-        <label class="form-label" for="parent_category">大カテゴリ</label>
-        <select class="form-select" id="parent_category" name="parent_category">
-            <option value="">すべて</option>
-            {% for name in parent_categories %}
-                <option value="{{ name }}" {% if selected_parent_category == name %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="col-12 col-md-2">
-        <label class="form-label" for="category">小カテゴリ</label>
-        <select class="form-select" id="category" name="category">
-            <option value="">すべて</option>
-            {% for name in categories %}
-                <option value="{{ name }}" {% if selected_category == name %}selected{% endif %}>{{ name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-    <div class="col-12 col-md-auto d-flex gap-2">
-        <button class="btn btn-outline-primary" type="submit">検索</button>
-        {% if query or selected_page_name or selected_parent_category or selected_category %}
-            <a class="btn btn-outline-secondary" href="{% url 'view_history_list' %}">クリア</a>
-        {% endif %}
-    </div>
-</form>
+{% block content %}
+<style>
+    .view-history-page .app-main { overflow: hidden; }
+    .view-history-page .app-content { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; gap: 1rem; }
+    .view-history-page .vh-filter .form-label { font-size: .85rem; font-weight: 600; }
+    .view-history-page .vh-results-card { flex: 1 1 0; min-height: 0; min-width: 0; overflow: hidden; }
+    .view-history-page .vh-results-heading { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; padding: 1rem 1.25rem; border-bottom: 1px solid var(--tk-border); }
+    .view-history-page .vh-notice { flex-shrink: 0; display: flex; align-items: flex-start; gap: .65rem; margin: 0; padding: .8rem 1.25rem; background: var(--tk-primary-soft); border-bottom: 1px solid var(--tk-border); color: var(--tk-primary-dark); font-size: .85rem; }
+    .view-history-page .vh-results { flex: 1 1 0; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding: 1rem 1.25rem; background: var(--tk-bg); }
+    .view-history-page .vh-results:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -2px; }
+    .view-history-page .vh-accordion { display: grid; gap: .75rem; }
+    .view-history-page .vh-user { min-width: 0; border: 1px solid var(--tk-border); border-radius: .65rem; overflow: hidden; background: var(--bs-body-bg, #fff); }
+    .view-history-page .vh-user-toggle { gap: .85rem; padding: 1rem; align-items: center; }
+    .view-history-page .vh-user-toggle::after { flex-shrink: 0; margin-left: .25rem; }
+    .view-history-page .vh-user-toggle:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -3px; }
+    .view-history-page .vh-avatar { display: inline-flex; flex: 0 0 2.5rem; width: 2.5rem; height: 2.5rem; align-items: center; justify-content: center; border-radius: .65rem; background: var(--tk-primary-soft); color: var(--tk-primary-dark); font-size: 1.15rem; }
+    .view-history-page .vh-user-info { flex: 1 1 0; min-width: 0; }
+    .view-history-page .vh-user-name { display: block; font-size: .95rem; font-weight: 600; overflow-wrap: anywhere; }
+    .view-history-page .vh-user-id { display: block; margin-top: .25rem; font-size: .78rem; color: var(--tk-muted); overflow-wrap: anywhere; }
+    .view-history-page .vh-login-count { flex-shrink: 0; padding: .4rem .6rem; font-size: .75rem; font-weight: 500; border: 1px solid var(--tk-border); border-radius: 2rem; background: var(--tk-bg); color: var(--tk-muted); }
+    .view-history-page .vh-user-body { padding: 1rem; border-top: 1px solid var(--tk-border); }
+    .view-history-page .vh-table { min-width: 540px; table-layout: fixed; }
+    .view-history-page .vh-table th { font-size: .8rem; color: var(--tk-muted); white-space: nowrap; }
+    .view-history-page .vh-table > :not(caption) > * > * { padding: .75rem; }
+    .view-history-page .vh-table td { font-size: .85rem; overflow-wrap: anywhere; }
+    .view-history-page .vh-date { display: block; font-weight: 600; white-space: nowrap; }
+    .view-history-page .vh-time { font-size: .78rem; color: var(--tk-muted); font-variant-numeric: tabular-nums; }
+    .view-history-page .vh-ip { display: inline-block; padding: .2rem .45rem; border: 1px solid var(--tk-border); border-radius: .35rem; background: var(--tk-bg); font-size: .78rem; overflow-wrap: anywhere; }
+    .view-history-page .vh-table-region:focus-visible { outline: 2px solid var(--tk-primary); outline-offset: -2px; }
+    .view-history-page .vh-empty { padding: 3rem 1rem; text-align: center; }
+    .view-history-page .vh-empty-icon { display: inline-flex; align-items: center; justify-content: center; width: 3rem; height: 3rem; border-radius: 50%; background: var(--tk-primary-soft); color: var(--tk-primary-dark); font-size: 1.3rem; margin-bottom: .75rem; }
+    .view-history-page .vh-footer { flex-shrink: 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .75rem; padding: .75rem 1.25rem; border-top: 1px solid var(--tk-border); }
+    .view-history-page .vh-footer .pagination { margin: 0; flex-wrap: wrap; }
+    @media (max-width: 575.98px), (max-height: 650px) {
+        .view-history-page .app-main { overflow: auto; }
+        .view-history-page .app-content { height: auto; overflow: visible; }
+        .view-history-page .vh-results-card { flex: none; }
+        .view-history-page .vh-results { flex: none; max-height: 65vh; }
+        .view-history-page .vh-results-heading, .view-history-page .vh-notice, .view-history-page .vh-results, .view-history-page .vh-footer { padding: .85rem; }
+        .view-history-page .vh-user-toggle { flex-wrap: wrap; gap: .65rem; padding: .85rem; }
+        .view-history-page .vh-avatar { display: none; }
+        .view-history-page .vh-user-info { flex-basis: calc(100% - 3rem); }
+        .view-history-page .vh-login-count { order: 1; }
+        .view-history-page .vh-user-body { padding: .85rem; }
+    }
+</style>
 
-{% if grouped_user_histories %}
-    <div class="accordion d-grid gap-3" id="userAccordion">
-        {% for group in grouped_user_histories %}
-            <section class="card shadow-sm accordion-item border-0">
-                <div class="card-header bg-light accordion-header" id="userHeading{{ forloop.counter }}">
+<div class="modal fade vh-filter" id="viewHistoryFilterPanel" tabindex="-1" aria-labelledby="viewHistoryFilterLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <form class="modal-content" method="get" action="{% url 'view_history_list' %}" role="search">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="viewHistoryFilterLabel">閲覧履歴のフィルタ</h2>
+                <button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="閉じる"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label" for="q">ログインID・ユーザー名</label>
+                    <input class="form-control" id="q" type="search" name="q" value="{{ query }}" placeholder="ログインID・ユーザー名を入力">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="page_name">ページ名</label>
+                    <select class="form-select" id="page_name" name="page_name">
+                        <option value="">すべて</option>
+                        {% for name in page_names %}
+                            <option value="{{ name }}" {% if selected_page_name == name %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="parent_category">大カテゴリ</label>
+                    <select class="form-select" id="parent_category" name="parent_category">
+                        <option value="">すべて</option>
+                        {% for name in parent_categories %}
+                            <option value="{{ name }}" {% if selected_parent_category == name %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label" for="category">小カテゴリ</label>
+                    <select class="form-select" id="category" name="category">
+                        <option value="">すべて</option>
+                        {% for name in categories %}
+                            <option value="{{ name }}" {% if selected_category == name %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a class="btn btn-outline-secondary me-auto" href="{% url 'view_history_list' %}">クリア</a>
+                <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">閉じる</button>
+                <button class="btn btn-primary" type="submit">絞り込み</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<section class="card vh-results-card" aria-labelledby="viewHistoryResultsTitle">
+    <div class="vh-results-heading">
+        <h2 class="h6 mb-0" id="viewHistoryResultsTitle"><i class="bi bi-people me-2" aria-hidden="true"></i>ユーザー一覧 <span class="badge bg-light text-dark border ms-1">{{ paginator.count }}ユーザー</span></h2>
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <span class="small text-muted">ユーザーを開くとログイン / ログアウト履歴を表示</span>
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#viewHistoryFilterPanel" aria-haspopup="dialog" aria-controls="viewHistoryFilterPanel">
+                <i class="bi bi-funnel me-1" aria-hidden="true"></i>フィルタ{% if query or selected_page_name or selected_parent_category or selected_category %}<span class="badge bg-secondary ms-2">適用中</span>{% endif %}
+            </button>
+        </div>
+    </div>
+    <div class="vh-notice" id="viewHistoryNotice">
+        <i class="bi bi-info-circle mt-1" aria-hidden="true"></i>
+        <div><strong class="d-block mb-1">現在、閲覧履歴は非表示です。</strong>この画面では、ユーザーごとのログイン / ログアウト履歴を確認できます。</div>
+    </div>
+    <div class="vh-results" role="region" aria-labelledby="viewHistoryResultsTitle" aria-describedby="viewHistoryNotice" tabindex="0">
+    {% if grouped_user_histories %}
+        <div class="accordion vh-accordion" id="userAccordion">
+            {% for group in grouped_user_histories %}
+            <section class="accordion-item vh-user">
+                <h3 class="accordion-header" id="userHeading{{ forloop.counter }}">
                     <button
-                        class="accordion-button collapsed fw-semibold"
+                        class="accordion-button collapsed vh-user-toggle"
                         type="button"
                         data-bs-toggle="collapse"
                         data-bs-target="#userBody{{ forloop.counter }}"
                         aria-expanded="false"
                         aria-controls="userBody{{ forloop.counter }}"
                     >
-                        {{ group.user.knowledge_profile.display_name|default:group.user.username }}（{{ group.user.username }}）
+                        <span class="vh-avatar" aria-hidden="true"><i class="bi bi-person"></i></span>
+                        <span class="vh-user-info">
+                            <span class="vh-user-name">{{ group.user.knowledge_profile.display_name|default:group.user.username }}</span>
+                            <span class="vh-user-id">ログインID：<span class="font-monospace">{{ group.user.username }}</span></span>
+                        </span>
+                        <span class="vh-login-count">ログイン {{ group.login_histories|length }}件</span>
                     </button>
-                </div>
+                </h3>
                 <div
                     id="userBody{{ forloop.counter }}"
                     class="accordion-collapse collapse"
                     aria-labelledby="userHeading{{ forloop.counter }}"
                     data-bs-parent="#userAccordion"
                 >
-                    <div class="card-body border-bottom">
-                        <h2 class="h6 mb-3">ログイン / ログアウト履歴</h2>
+                    <div class="vh-user-body">
+                        <h4 class="h6 mb-3">ログイン / ログアウト履歴</h4>
                         {% if group.login_histories %}
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover align-middle mb-0">
+                            <div class="table-responsive vh-table-region" role="region" aria-label="{{ group.user.knowledge_profile.display_name|default:group.user.username }}のログイン / ログアウト履歴（横スクロールできます）" tabindex="0">
+                                <table class="table table-hover align-middle mb-0 vh-table">
+                                    <caption class="visually-hidden">{{ group.user.knowledge_profile.display_name|default:group.user.username }}のログイン日時・ログアウト日時・IPアドレス。ログアウト日時がない記録はログアウト未記録と表示します。</caption>
                                     <thead class="table-light">
                                         <tr>
                                             <th scope="col">ログイン日時</th>
@@ -87,56 +166,65 @@
                                     <tbody>
                                         {% for history in group.login_histories %}
                                             <tr>
-                                                <td>{{ history.logged_in_at|date:"Y/m/d H:i:s" }}</td>
+                                                <td><time datetime="{{ history.logged_in_at|date:'c' }}"><span class="vh-date">{{ history.logged_in_at|date:"Y/m/d" }}</span><span class="vh-time">{{ history.logged_in_at|date:"H:i:s" }}</span></time></td>
                                                 <td>
                                                     {% if history.logged_out_at %}
-                                                        {{ history.logged_out_at|date:"Y/m/d H:i:s" }}
+                                                        <time datetime="{{ history.logged_out_at|date:'c' }}"><span class="vh-date">{{ history.logged_out_at|date:"Y/m/d" }}</span><span class="vh-time">{{ history.logged_out_at|date:"H:i:s" }}</span></time>
                                                     {% else %}
-                                                        <span class="text-secondary">ログイン中</span>
+                                                        <span class="small text-secondary">ログアウト未記録</span>
                                                     {% endif %}
                                                 </td>
-                                                <td>{{ history.ip_address|default:"-" }}</td>
+                                                <td><span class="vh-ip font-monospace">{{ history.ip_address|default:"-" }}</span></td>
                                             </tr>
                                         {% endfor %}
                                     </tbody>
                                 </table>
                             </div>
                         {% else %}
-                            <p class="text-secondary mb-0">ログイン履歴がありません。</p>
+                            <p class="small text-secondary mb-0"><i class="bi bi-clock-history me-2" aria-hidden="true"></i>ログイン履歴がありません。</p>
                         {% endif %}
-                    </div>
-
-                    <div class="card-body">
-                        <h2 class="h6 mb-3">閲覧履歴</h2>
-                        <p class="text-secondary mb-0">現在、閲覧履歴は非表示です。</p>
                     </div>
                 </div>
             </section>
-        {% endfor %}
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="vh-empty">
+            <span class="vh-empty-icon" aria-hidden="true"><i class="bi {% if query or selected_page_name or selected_parent_category or selected_category %}bi-search{% else %}bi-people{% endif %}"></i></span>
+            <p class="fw-semibold mb-2">{% if query or selected_page_name or selected_parent_category or selected_category %}条件に一致するユーザーがいません。{% else %}表示するユーザーがいません。{% endif %}</p>
+            <p class="small text-muted mb-0">{% if query or selected_page_name or selected_parent_category or selected_category %}検索内容やページ名・カテゴリの条件を変更してください。{% else %}ユーザーが表示されると、ここからログイン / ログアウト履歴を確認できます。{% endif %}</p>
+            {% if query or selected_page_name or selected_parent_category or selected_category %}<a class="btn btn-outline-secondary btn-sm mt-3" href="{% url 'view_history_list' %}">条件をクリア</a>{% endif %}
+        </div>
+    {% endif %}
     </div>
-{% else %}
-    <div class="card shadow-sm">
-        <div class="card-body text-center text-secondary py-4">閲覧履歴がありません。</div>
-    </div>
-{% endif %}
 
-{% if is_paginated %}
-    <nav class="mt-4" aria-label="ページネーション">
-        <ul class="pagination">
+    <div class="vh-footer">
+        <span class="small text-muted">全<strong class="text-body">{{ paginator.count }}</strong>ユーザー中 <strong class="text-body">{{ page_obj.start_index }}–{{ page_obj.end_index }}</strong>ユーザーを表示</span>
+        {% if is_paginated %}
+        <nav aria-label="ユーザー一覧のページ切り替え">
+        <ul class="pagination pagination-sm">
             {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query|urlencode }}{% if selected_page_name %}&page_name={{ selected_page_name|urlencode }}{% endif %}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}">前へ</a>
+                    <a class="page-link" href="?page=1&amp;q={{ query|urlencode:'' }}&amp;page_name={{ selected_page_name|urlencode:'' }}&amp;parent_category={{ selected_parent_category|urlencode:'' }}&amp;category={{ selected_category|urlencode:'' }}" aria-label="最初のページ">最初</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&amp;q={{ query|urlencode:'' }}&amp;page_name={{ selected_page_name|urlencode:'' }}&amp;parent_category={{ selected_parent_category|urlencode:'' }}&amp;category={{ selected_category|urlencode:'' }}" rel="prev">前へ</a>
                 </li>
             {% endif %}
             <li class="page-item active" aria-current="page">
-                <span class="page-link">{{ page_obj.number }}</span>
+                <span class="page-link"><span class="visually-hidden">現在のページ </span>{{ page_obj.number }} / {{ paginator.num_pages }}</span>
             </li>
             {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query|urlencode }}{% if selected_page_name %}&page_name={{ selected_page_name|urlencode }}{% endif %}{% if selected_parent_category %}&parent_category={{ selected_parent_category|urlencode }}{% endif %}{% if selected_category %}&category={{ selected_category|urlencode }}{% endif %}">次へ</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&amp;q={{ query|urlencode:'' }}&amp;page_name={{ selected_page_name|urlencode:'' }}&amp;parent_category={{ selected_parent_category|urlencode:'' }}&amp;category={{ selected_category|urlencode:'' }}" rel="next">次へ</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ paginator.num_pages }}&amp;q={{ query|urlencode:'' }}&amp;page_name={{ selected_page_name|urlencode:'' }}&amp;parent_category={{ selected_parent_category|urlencode:'' }}&amp;category={{ selected_category|urlencode:'' }}" aria-label="最後のページ">最後</a>
                 </li>
             {% endif %}
         </ul>
-    </nav>
-{% endif %}
+        </nav>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

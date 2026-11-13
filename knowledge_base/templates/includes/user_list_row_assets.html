@@ -1,0 +1,17 @@
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const list = document.getElementById('userListAccordion');
+    if (!list) return;
+    list.addEventListener('click', event => {
+        const row = event.target.closest('[data-user-detail-target]');
+        if (!row || !list.contains(row)) return;
+        // Management actions and history icons must not also expand details.
+        if (event.target.closest('a, button, input, select, textarea, label, form, [role="button"], .dropdown-menu')) return;
+        // Selecting/copying a name or timestamp must not toggle the row.
+        if (window.getSelection()?.toString()) return;
+        const detail = document.getElementById(row.dataset.userDetailTarget);
+        if (!detail || typeof bootstrap === 'undefined') return;
+        bootstrap.Collapse.getOrCreateInstance(detail, {toggle: false}).toggle();
+    });
+});
+</script>

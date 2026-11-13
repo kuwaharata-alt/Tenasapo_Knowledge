@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load tz %}
+{% block title %}Chat通知予約 | Nexus{% endblock %}
+{% block page_header %}
+<div class="page-title-panel mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div><h1 class="page-title-main"><i class="bi bi-calendar-event me-2"></i>Chat通知予約</h1>
+    <p class="page-title-sub">投稿期限と月別投稿レポートを、指定した日時にスペースへ通知します。</p></div>
+    <a class="btn btn-outline-secondary" href="{% url 'summary' %}?tab=report&amp;report_month={{ selected_month|date:'Y-m' }}">アナライズに戻る</a>
+</div>
+{% endblock %}
+{% block content %}
+{% timezone "Asia/Tokyo" %}
+<div class="alert {% if sending_enabled %}alert-info{% else %}alert-warning{% endif %}">
+    <strong>対象環境：{% if schedule_environment == 'production' %}本番{% else %}開発{% endif %}</strong> ／
+    自動送信許可：{% if sending_enabled %}有効{% else %}無効（予約の保存のみ可能）{% endif %}。
+    日時はすべて日本時間です。実際の送信には、対象環境で予約送信処理を定期実行する設定も必要です。
+    本番（Azure Linux）ではAzure側の定期ジョブ（App ServiceのWebJobsなど）を使用します。WindowsタスクはWindows開発環境用で、本番には不要です。
+</div>
+<div class="card shadow-sm mb-4"><div class="card-body p-4">
+    <h2 class="h5 mb-3">対象月を選択</h2>
+    <form method="get" class="d-flex flex-wrap align-items-end gap-2 mb-3">
+        <div><label for="schedule-month" class="form-label">投稿の対象月</label>
+        <input id="schedule-month" type="month" name="month" value="{{ selected_month|date:'Y-m' }}" class="form-control" required></div>
+        <button class="btn btn-outline-primary" type="submit">表示する</button>
+    </form>
+    <div class="d-flex flex-wrap gap-2">{% for month in configured_months %}<a class="badge text-bg-light border text-decoration-none" href="?month={{ month|date:'Y-m' }}">{{ month|date:'Y年m月' }}</a>{% endfor %}</div>
+</div></div>
+<div class="card shadow-sm mb-4"><div class="card-body p-4">
+    <h2 class="h5 mb-3">{{ selected_month|date:'Y年m月' }}の通知予約</h2>
+    <p class="text-muted small">対象月と通知日時は独立しています。翌月に前月のレポートを通知することもできます。レポートは送信時点までの投稿を、種類・タイトル・管理番号・投稿者の表形式カードで表示します（本文・添付は送信しません）。</p>
+    <form method="post">
+        {% csrf_token %}{{ form.expected_revision }}
+        {% for error in form.expected_revision.errors %}<div class="alert alert-danger">{{ error }}</div>{% endfor %}
+        {% if form.non_field_errors %}<div class="alert alert-danger" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="row g-3 mb-4">{% for field in form.visible_fields %}
+            <div class="col-12 {% if field.name != 'enabled' %}col-lg-4{% endif %}">
+                {% if field.name == 'enabled' %}<div class="form-check form-switch">{{ field }} <label class="form-check-label" for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+                {% else %}<label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% endif %}
+                {% for error in field.errors %}<div class="text-danger small" role="alert">{{ error }}</div>{% endfor %}
+            </div>
+        {% endfor %}</div>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-calendar-check me-1"></i>予約を保存する</button>
+        <span class="text-muted small ms-2">今すぐ送信はされません。</span>
+    </form>
+</div></div>
+<div class="card shadow-sm mb-4"><div class="card-body p-4">
+    <h2 class="h5">予約の変更履歴・配信状況</h2>
+    <p class="small text-muted">同じ月・同じ種類の通知は1回のみ試行します。送信済み・失敗・結果不明は予約を変更しても自動再送しません。48時間を超過した通知も送信しません。結果不明の場合はスペースを確認してください。</p>
+    <div class="table-responsive"><table class="table align-middle small">
+        <thead><tr><th>予約版・状態</th><th>投稿期限</th><th>通知日時</th><th>配信状況</th><th>保存日時・保存者</th></tr></thead>
+        <tbody>{% for schedule in schedule_history %}<tr>
+            <td>第{{ schedule.revision }}版<br><span class="badge {% if schedule.enabled %}text-bg-success{% else %}text-bg-secondary{% endif %}">{% if schedule.enabled %}有効{% else %}無効／旧版{% endif %}</span></td>
+            <td>{{ schedule.deadline|date:'Y/m/d' }}</td>
+            <td>期限：{{ schedule.deadline_notice_at|date:'Y/m/d H:i' }}<br>レポート：{{ schedule.report_notice_at|date:'Y/m/d H:i' }}</td>
+            <td>{% for delivery in schedule.deliveries.all %}<div class="mb-1"><strong>{{ delivery.get_kind_display }}</strong>：{{ delivery.get_state_display }}（{{ delivery.attempts }}回）{% if delivery.sent_at %}<br>{{ delivery.sent_at|date:'Y/m/d H:i' }}{% endif %}{% if delivery.last_error %}<br><span class="text-danger">{{ delivery.last_error }}</span>{% endif %}</div>{% empty %}未作成{% endfor %}</td>
+            <td>{{ schedule.updated_at|date:'Y/m/d H:i' }}<br>{{ schedule.updated_by.get_username|default:'—' }}</td>
+        </tr>{% empty %}<tr><td colspan="5" class="text-center text-muted py-4">この月の予約はまだありません。</td></tr>{% endfor %}</tbody>
+    </table></div>
+</div></div>
+{% endtimezone %}
+{% endblock %}

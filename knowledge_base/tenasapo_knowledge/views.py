@@ -1,5 +1,5 @@
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import json
 import logging
 import threading
@@ -23,7 +23,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.http import HttpResponse, JsonResponse, Http404, FileResponse, HttpResponseForbidden
 from django.template import Context, Template
 from django.shortcuts import get_object_or_404, redirect
@@ -50,6 +50,7 @@ from django.views.decorators.http import require_POST
 from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
 from .forms import (
+    PostingQuotaForm,
     ConvenienceCategoryCreateForm,
     ConvenienceFeatureCreateForm,
     FAQCategoryCreateForm,
@@ -70,6 +71,7 @@ from .forms import (
     UserUpdateForm,
 )
 from .models import (
+    PostingQuota,
     ConvenienceCategory,
     ConvenienceFeature,
     ConvenienceFavorite,
@@ -94,7 +96,8 @@ from .models import (
     UserProfile,
     ViewHistory,
 )
-from .utils import resolve_saved_or_user_display_name, resolve_user_display_name
+from .utils import can_view_view_history, resolve_saved_or_user_display_name, resolve_user_display_name
+from .posting_quotas import posting_targets, quota_progress, summary_filters
 
 
 ADMIN_GROUP_NAME = getattr(
@@ -635,6 +638,8 @@ def _build_review_mail_draft_redirect_url(
 
 def _open_gas_newtab_response(request, gas_url, return_path):
     """現在タブを return_path へ移動し、GAS URL を新規タブで開く HTML レスビンスを返す。"""
+    # resolve_url() may return a lazy URL when no explicit `next` is supplied.
+    return_path = str(return_path)
     gas_url_js = json.dumps(gas_url)
     return_url_js = json.dumps(return_path)
     html = (
@@ -1064,8 +1069,6 @@ def can_user_access_article(user, article):
         return True
     if is_systena:
         return article.visible_to_systena
-    if is_demo_user(user) and not article.visible_to_demo:
-        return False
     if FAQ_APPROVAL_ENABLED and not article.is_approved:
         return False
     return article.visible_to_customer
@@ -1084,8 +1087,6 @@ def can_user_access_tip(user, tip):
         return True
     if is_systena:
         return tip.visible_to_systena
-    if is_demo_user(user) and not tip.visible_to_demo:
-        return False
     if FAQ_APPROVAL_ENABLED and not tip.is_approved:
         return False
     return tip.visible_to_customer
@@ -1230,6 +1231,32 @@ def filter_queryset_by_customer_parent_settings(
         )
     ]
     return queryset.filter(id__in=visible_ids)
+
+
+def visible_knowledge_queryset(queryset, user, split_categories, parent_category_name):
+    """FAQ・Tips一覧の検索前に適用する共通の可視条件。"""
+    queryset = (
+        queryset.filter(is_published=True)
+        .filter(active_until_filter())
+        .filter(visible_to_any_account_filter())
+    )
+    is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
+    is_reviewer_group_user = is_reviewer_user(user)
+    if (
+        not (user.is_authenticated and (user.is_staff or user.is_superuser))
+        and not is_systena_user
+        and not is_reviewer_group_user
+    ):
+        queryset = queryset.filter(visible_to_customer=True)
+        if FAQ_APPROVAL_ENABLED:
+            queryset = queryset.filter(is_approved=True)
+
+    return filter_queryset_by_customer_parent_settings(
+        queryset,
+        user,
+        split_categories,
+        parent_category_name,
+    )
 
 
 def ordered_parent_category_names(parent_choices):
@@ -1382,42 +1409,36 @@ class HomeView(TemplateView):
         is_customer_home = is_customer_user(user) or is_demo_user(user)
 
         # 最新FAQ（権限に応じてフィルタ）
-        faq_qs = (
-            KnowledgeArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-        )
-        tips_qs = (
-            TipsArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
-        )
-        is_systena = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer = is_reviewer_user(user)
-        if not is_admin and not is_systena and not is_reviewer:
-            faq_qs = faq_qs.filter(visible_to_customer=True)
-            tips_qs = tips_qs.filter(visible_to_customer=True)
-            if FAQ_APPROVAL_ENABLED:
-                faq_qs = faq_qs.filter(is_approved=True)
-                tips_qs = tips_qs.filter(is_approved=True)
-        faq_qs = filter_queryset_by_customer_parent_settings(
-            faq_qs,
+        faq_qs = visible_knowledge_queryset(
+            KnowledgeArticle.objects.all(),
             user,
             ArticleListView.split_categories,
             ArticleListView.parent_category_name,
         )
-        tips_qs = filter_queryset_by_customer_parent_settings(
-            tips_qs,
+        tips_qs = visible_knowledge_queryset(
+            TipsArticle.objects.all(),
             user,
             TipsListView.split_categories,
             TipsListView.parent_category_name,
         )
+        context['home_faq_count'] = faq_qs.count()
+        context['home_tips_count'] = tips_qs.count()
         context['recent_faqs'] = faq_qs.order_by('-updated_at')[:3]
         context['recent_tips'] = tips_qs.order_by('-updated_at')[:3]
         context['is_customer_home'] = is_customer_home
 
+        if user.is_authenticated and is_admin and not get_forced_account_view_mode(user):
+            rows, totals = SummaryView.member_post_counts()
+            context['home_member_posts'] = rows
+            context['home_member_post_totals'] = totals
+            periods = {'all': {'rows': rows, 'totals': totals}}
+            for period in ('current', 'previous'):
+                period_rows, period_totals = SummaryView.member_post_counts(period)
+                periods[period] = {'rows': period_rows, 'totals': period_totals}
+            context['home_member_post_periods'] = periods
+
         knowledge_items = [
-            {'label': 'FAQ', 'url_name': 'article_list'},
+            {'label': 'Q&A', 'url_name': 'article_list'},
             {'label': 'Tips', 'url_name': 'tip_list'},
             {'label': 'クイックリファレンス', 'url_name': 'convenience_list'},
         ]
@@ -1457,9 +1478,10 @@ class HomeView(TemplateView):
                 [
                     {'label': '更新履歴', 'url_name': 'revision_history_list'},
                     {'label': 'ログイン履歴', 'url_name': 'login_history_list'},
-                    {'label': '閲覧履歴', 'url_name': 'view_history_list'},
                 ]
             )
+            if not is_customer_home and can_view_view_history(self.request, PASSWORD_MANAGER_USERNAMES):
+                menu_groups[5]['items'].append({'label': '閲覧履歴', 'url_name': 'view_history_list'})
         context['menu_groups'] = [group for group in menu_groups if group['items']]
         return context
 
@@ -1864,6 +1886,51 @@ class ConvenienceFavoriteToggleView(View):
         return JsonResponse({'ok': True, 'favorited': favorited})
 
 
+def filter_queryset_by_target_os(queryset, request):
+    """Apply OS names only after all visibility and non-OS filters.
+
+    Count each article once per parsed OS name, regardless of versions.
+    Only project IDs/OS values: do not load bodies or prefetch attachments
+    merely to build the facet. Return a queryset so ordering, annotations,
+    prefetches and any future pagination retain their existing behavior.
+    """
+    selected_target_os = (request.GET.get('target_os') or '').strip()
+    counts = {}
+    matching_ids = []
+    for pk, value in queryset.values_list('pk', 'target_os'):
+        names = {entry['name'] for entry in parse_target_os_values(value) if entry['name']}
+        for name in names:
+            counts[name] = counts.get(name, 0) + 1
+        if selected_target_os and selected_target_os in names:
+            matching_ids.append(pk)
+
+    params = request.GET.copy()
+    params.pop('page', None)
+    params.pop('target_os', None)
+    encoded = params.urlencode()
+    all_url = request.path + ('?' + encoded if encoded else '')
+    options = []
+    # Follow the same stable OS order as the article input forms.
+    for name in TARGET_OS_VERSION_MAP:
+        if name not in counts:
+            continue
+        params['target_os'] = name
+        options.append({
+            'name': name,
+            'count': counts[name],
+            'url': request.path + '?' + params.urlencode(),
+            'selected': name == selected_target_os,
+        })
+
+    if selected_target_os:
+        queryset = queryset.filter(pk__in=matching_ids)
+    return queryset, {
+        'target_os_options': options,
+        'target_os_all_url': all_url,
+        'selected_target_os': selected_target_os,
+    }
+
+
 class ArticleListView(ListView):
     model = KnowledgeArticle
     template_name = 'tenasapo_knowledge/article_list.html'
@@ -1883,39 +1950,23 @@ class ArticleListView(ListView):
         queryset = (
             KnowledgeArticle.objects.select_related('customer', 'created_by', 'approved_by')
             .prefetch_related('attachments', 'images')
-            .filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
             .annotate(good_count=Count('goods'))
             .order_by('-management_code', '-created_at')
         )
 
-        user = self.request.user
-        is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer_group_user = is_reviewer_user(user)
-        if (
-            not (user.is_authenticated and (user.is_staff or user.is_superuser))
-            and not is_systena_user
-            and not is_reviewer_group_user
-        ):
-            queryset = queryset.filter(visible_to_customer=True)
-            if is_demo_user(user):
-                queryset = queryset.filter(visible_to_demo=True)
-            if FAQ_APPROVAL_ENABLED:
-                queryset = queryset.filter(is_approved=True)
-
-        queryset = filter_queryset_by_customer_parent_settings(
+        queryset = visible_knowledge_queryset(
             queryset,
-            user,
+            self.request.user,
             self.split_categories,
             self.parent_category_name,
         )
 
         query = self.request.GET.get('q')
         if query:
-            queryset = queryset.filter(
-                Q(title__icontains=query) | Q(summary__icontains=query) | Q(body__icontains=query)
-            )
+            search_filter = Q(title__icontains=query) | Q(summary__icontains=query)
+            if not is_demo_user(self.request.user):
+                search_filter |= Q(body__icontains=query)
+            queryset = queryset.filter(search_filter)
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
@@ -1974,10 +2025,14 @@ class ArticleListView(ListView):
             if filter_expires_to:
                 queryset = queryset.filter(expires_on__lte=filter_expires_to)
 
-        return queryset.distinct()
+        queryset, self.target_os_filter_context = filter_queryset_by_target_os(
+            queryset.distinct(), self.request,
+        )
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context.update(self.target_os_filter_context)
         can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['is_demo_user'] = is_demo_user(self.request.user)
         context['can_use_good'] = is_customer_user(self.request.user)
@@ -2019,7 +2074,11 @@ class ArticleListView(ListView):
             article.is_gooded = article.id in liked_article_ids
             article.is_favorited = article.id in favorite_article_ids
             article.is_new_badge = is_recently_published(article.published_at)
-            article.can_view_content = can_view_restricted_knowledge_content(self.request.user, article)
+            article.can_view_question = True
+            article.can_view_content = (
+                not context['is_demo_user']
+                and can_view_restricted_knowledge_content(self.request.user, article)
+            )
             article.creator_display_name = resolve_saved_or_user_display_name(
                 article.created_by_name,
                 article.created_by,
@@ -2190,8 +2249,6 @@ class ArticleListView(ListView):
         user = self.request.user
         if is_customer_user(user):
             queryset = queryset.filter(visible_to_customer=True)
-            if is_demo_user(user):
-                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
             queryset = filter_queryset_by_customer_parent_settings(
@@ -2248,39 +2305,24 @@ class TipsListView(ListView):
 
     def get_queryset(self):
         queryset = (
-            TipsArticle.objects.prefetch_related('images', 'attachments').filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
+            TipsArticle.objects.prefetch_related('images', 'attachments')
             .annotate(good_count=Count('goods'))
             .order_by('-management_code', '-created_at')
         )
 
-        user = self.request.user
-        is_systena_user = in_group(user, SYSTENA_GROUP_NAME)
-        is_reviewer_group_user = is_reviewer_user(user)
-        if (
-            not (user.is_authenticated and (user.is_staff or user.is_superuser))
-            and not is_systena_user
-            and not is_reviewer_group_user
-        ):
-            queryset = queryset.filter(visible_to_customer=True)
-            if is_demo_user(user):
-                queryset = queryset.filter(visible_to_demo=True)
-            if FAQ_APPROVAL_ENABLED:
-                queryset = queryset.filter(is_approved=True)
-
-        queryset = filter_queryset_by_customer_parent_settings(
+        queryset = visible_knowledge_queryset(
             queryset,
-            user,
+            self.request.user,
             self.split_categories,
             self.parent_category_name,
         )
 
         query = self.request.GET.get('q')
         if query:
-            queryset = queryset.filter(
-                Q(title__icontains=query) | Q(body__icontains=query)
-            )
+            search_filter = Q(title__icontains=query)
+            if not is_demo_user(self.request.user):
+                search_filter |= Q(body__icontains=query)
+            queryset = queryset.filter(search_filter)
 
         parent_category = self.request.GET.get('parent_category')
         category = self.request.GET.get('category')
@@ -2342,10 +2384,14 @@ class TipsListView(ListView):
             if filter_expires_to:
                 queryset = queryset.filter(expires_on__lte=filter_expires_to)
 
-        return queryset.distinct()
+        queryset, self.target_os_filter_context = filter_queryset_by_target_os(
+            queryset.distinct(), self.request,
+        )
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context.update(self.target_os_filter_context)
         can_view_approval_meta = can_edit_article(self.request.user) or in_group(self.request.user, SYSTENA_GROUP_NAME)
         context['is_demo_user'] = is_demo_user(self.request.user)
         context['can_use_good'] = is_customer_user(self.request.user)
@@ -2388,7 +2434,10 @@ class TipsListView(ListView):
             tip.is_gooded = tip.id in liked_tip_ids
             tip.is_favorited = tip.id in favorite_tip_ids
             tip.is_new_badge = is_recently_published(tip.published_at)
-            tip.can_view_content = can_view_restricted_knowledge_content(self.request.user, tip)
+            tip.can_view_content = (
+                not context['is_demo_user']
+                and can_view_restricted_knowledge_content(self.request.user, tip)
+            )
             tip.creator_display_name = resolve_saved_or_user_display_name(
                 tip.created_by_name,
                 tip.created_by,
@@ -2549,8 +2598,6 @@ class TipsListView(ListView):
         user = self.request.user
         if is_customer_user(user):
             queryset = queryset.filter(visible_to_customer=True)
-            if is_demo_user(user):
-                queryset = queryset.filter(visible_to_demo=True)
             if FAQ_APPROVAL_ENABLED:
                 queryset = queryset.filter(is_approved=True)
             queryset = filter_queryset_by_customer_parent_settings(
@@ -2840,8 +2887,10 @@ class TipsApproveView(View):
         tip.approved_by = request.user
         tip.approved_by_name = resolve_user_display_name(request.user)
         tip.ai_review = ai_review
+        if 'reviewer_comment' in request.POST:
+            tip.reviewer_comment = request.POST['reviewer_comment'].strip()
         tip.remand_reason = ''
-        tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'updated_at'])
         redirect_url = _build_approval_mail_draft_redirect_url(
             request=request,
             management_code=tip.management_code,
@@ -2872,9 +2921,11 @@ class TipsRemandView(View):
         tip.approved_by = None
         tip.approved_by_name = ''
         tip.ai_review = ai_review
+        if 'reviewer_comment' in request.POST:
+            tip.reviewer_comment = request.POST['reviewer_comment'].strip()
         tip.remand_reason = reason
         tip.is_corrected = False
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'is_corrected', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=tip.management_code,
@@ -2900,9 +2951,10 @@ class TipsApprovalResetView(View):
         tip.approved_by = None
         tip.approved_by_name = ''
         tip.ai_review = ''
+        tip.reviewer_comment = ''
         tip.remand_reason = ''
         tip.is_corrected = False
-        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
+        tip.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'is_corrected', 'updated_at'])
         messages.success(request, f'Tips「{tip.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'tip_edit', pk=pk))
 
@@ -3191,6 +3243,76 @@ class StaffRequiredMixin(UserPassesTestMixin):
         return super().handle_no_permission()
 
 
+class KnowledgeDuplicateCandidatesView(View):
+    """登録前確認用。本文を返さず、一覧と同じ可視範囲の候補を返す。"""
+
+    http_method_names = ['get']
+    page_size = 20
+
+    def get(self, request, *args, **kwargs):
+        def respond(data, status=200):
+            response = JsonResponse(data, status=status)
+            response['Cache-Control'] = 'no-store'
+            return response
+
+        user = request.user
+        if not (user.is_authenticated and (user.is_staff or user.is_superuser)):
+            return respond({'error': '登録権限がありません。'}, status=403)
+
+        raw_ids = request.GET.getlist('registered_category')
+        try:
+            if not raw_ids or len(raw_ids) > 100:
+                raise ValueError
+            category_ids = {int(value) for value in raw_ids}
+            if any(value <= 0 or value > 2147483647 for value in category_ids):
+                raise ValueError
+            page = int(request.GET.get('page', '1'))
+            if page < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            return respond({'error': 'カテゴリを選択し直してください。'}, status=400)
+
+        categories = list(FAQCategory.objects.filter(pk__in=category_ids).order_by(
+            'parent_name', 'middle_name', 'child_name', 'pk',
+        ))
+        if len(categories) != len(category_ids):
+            return respond({'error': 'カテゴリが変更されています。選択し直してください。'}, status=400)
+        selected_names = {category.full_name for category in categories}
+        category_filter = Q()
+        for name in selected_names:
+            category_filter |= Q(category__contains=name)
+        candidates = []
+        for model, kind, url_name, list_view in (
+            (KnowledgeArticle, 'FAQ', 'article_detail', ArticleListView),
+            (TipsArticle, 'Tips', 'tip_detail', TipsListView),
+        ):
+            queryset = visible_knowledge_queryset(
+                model.objects.filter(category_filter), user, list_view.split_categories, list_view.parent_category_name,
+            )
+            for item in queryset.values('title', 'management_code', 'category', 'updated_at').iterator():
+                matches = selected_names.intersection(list_view.split_categories(item['category']))
+                if matches:
+                    candidates.append({
+                        'kind': kind,
+                        'title': item['title'],
+                        'management_code': item['management_code'],
+                        'categories': sorted(matches),
+                        'url': reverse(url_name, kwargs={'management_code': item['management_code']}),
+                        'updated_at': item['updated_at'],
+                    })
+        candidates.sort(key=lambda item: (item['updated_at'], item['kind'], item['management_code']), reverse=True)
+        total = len(candidates)
+        pages = max(1, (total + self.page_size - 1) // self.page_size)
+        if page > pages:
+            return respond({'error': 'ページが変更されています。再検索してください。'}, status=400)
+        start = (page - 1) * self.page_size
+        return respond({
+            'categories': [category.full_name for category in categories],
+            'results': candidates[start:start + self.page_size],
+            'total': total, 'page': page, 'pages': pages,
+        })
+
+
 def _can_manage_all_users(user):
     """Admin/SystenaAdmin のアカウント名のみ、他ユーザー管理を許可する。"""
     return user.is_authenticated and user.username.lower() in PASSWORD_MANAGER_USERNAMES
@@ -3248,6 +3370,90 @@ class StaffOrSelfRequiredMixin(UserPassesTestMixin):
         return super().handle_no_permission()
 
 
+class PostingQuotaSettingsView(StaffRequiredMixin, FormView):
+    template_name = 'tenasapo_knowledge/posting_quota_settings.html'
+    form_class = PostingQuotaForm
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def selected_month(self):
+        raw = (self.request.POST.get('effective_month') if self.request.method == 'POST'
+               else self.request.GET.get('month'))
+        if raw and len(raw) == 7:
+            try:
+                month = PostingQuotaForm.base_fields['effective_month'].clean(raw)
+                if month >= date(2026, 6, 1) and month.strftime('%Y-%m') == raw:
+                    return month
+            except ValidationError:
+                pass
+        return max(timezone.localdate().replace(day=1), date(2026, 6, 1))
+
+    def get_initial(self):
+        initial = super().get_initial()
+        month = self.selected_month()
+        initial['effective_month'] = month
+        quota = PostingQuota.objects.filter(effective_month=month).first()
+        if quota is not None:
+            initial.update(faq_count=quota.faq_count, tips_count=quota.tips_count,
+                           alpha_count=quota.alpha_count)
+        return initial
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        month = self.selected_month()
+        raw_year = self.request.GET.get('year', '')
+        year = int(raw_year) if len(raw_year) == 4 and raw_year.isascii() and raw_year.isdigit() else month.year
+        if not 2026 <= year <= 9999:
+            year = month.year
+        filters = summary_filters(self.request.GET)
+        quotas = {q.effective_month: q for q in PostingQuota.objects.filter(
+            effective_month__gte=date(2026, 6, 1), effective_month__lte=date(year, 12, 1),
+        )}
+        previous = [q for month, q in quotas.items() if month.year < year]
+        running_total = sum(q.faq_count + q.tips_count + q.alpha_count for q in previous)
+        configured_months = len(previous)
+        current_month = timezone.localdate().replace(day=1)
+        rows = []
+        for number in range(1, 13):
+            target_month = date(year, number, 1)
+            if target_month < date(2026, 6, 1):
+                continue
+            quota = quotas.get(target_month)
+            total = quota.faq_count + quota.tips_count + quota.alpha_count if quota is not None else None
+            if total is not None:
+                running_total += total
+                configured_months += 1
+            required_months = (year - 2026) * 12 + number - 6 + 1
+            rows.append({
+                'month': target_month, 'quota': quota,
+                'total': total,
+                'cumulative_total': running_total if configured_months == required_months else None,
+                'is_current_month': target_month == current_month,
+                'edit_query': urlencode({**filters, 'year': year, 'month': target_month.strftime('%Y-%m')}),
+            })
+        context.update(quota_rows=rows, selected_year=year,
+                       quota_years=sorted({*range(2026, 2031), timezone.localdate().year, year}),
+                       quota_filters=filters)
+        context['summary_return_url'] = self.get_success_url()
+        return context
+
+    def get_success_url(self):
+        return reverse('summary') + '?' + urlencode(summary_filters(self.request.GET))
+
+    def form_valid(self, form):
+        quota, created = PostingQuota.objects.update_or_create(
+            effective_month=form.cleaned_data['effective_month'],
+            defaults={
+                'faq_count': form.cleaned_data['faq_count'],
+                'tips_count': form.cleaned_data['tips_count'],
+                'alpha_count': form.cleaned_data['alpha_count'],
+                'updated_by': self.request.user,
+            },
+        )
+        action = '登録' if created else '更新（同じ対象月の設定を上書き）'
+        messages.success(self.request, f'{quota.effective_month:%Y年%m月}の投稿目標を{action}しました。他の月は変更していません。')
+        return super().form_valid(form)
+
+
 class SummaryView(StaffRequiredMixin, TemplateView):
     template_name = 'tenasapo_knowledge/summary.html'
     excluded_contributor_names = {'admin'}
@@ -3264,6 +3470,126 @@ class SummaryView(StaffRequiredMixin, TemplateView):
     def is_excluded_contributor(cls, contributor_name):
         return not contributor_name or contributor_name.lower() in cls.excluded_contributor_names
 
+    @staticmethod
+    def posting_queryset(model):
+        # 投稿数は公開・承認・期限では絞らない。保存名の解決も追加クエリなしで行う。
+        return model.objects.select_related('created_by__knowledge_profile').filter(
+            visible_to_any_account_filter()
+        )
+
+    @classmethod
+    def member_registry(cls, include_hidden=False):
+        users = get_user_model().objects.filter(
+            groups__name=CONTRIBUTOR_GROUP_NAME
+        ).distinct().select_related('knowledge_profile')
+        if not include_hidden:
+            users = users.filter(knowledge_profile__exclude_from_analysis=False)
+        members, order = {}, {}
+        for user in users.order_by('knowledge_profile__uid', 'id'):
+            name = resolve_user_display_name(user).strip()
+            if cls.is_excluded_contributor(name):
+                continue
+            profile = getattr(user, 'knowledge_profile', None)
+            uid = (getattr(profile, 'uid', '') or '').strip()
+            if name not in order:
+                order[name] = int(uid) if uid.isdigit() else 10**9 + user.id
+            if name not in members:
+                members[name] = {
+                    'member_id': user.id,
+                    'management_uid': uid,
+                    'name': name,
+                    'approved_count_total': 0,
+                    'faq_approved_count': 0,
+                    'faq_post_count': 0,
+                    'tips_approved_count': 0,
+                    'tips_post_count': 0,
+                    'good_count_total': 0,
+                    'view_count_total': 0,
+                }
+        return members, order
+
+    @classmethod
+    def counted_member_posts(cls, articles, members, post_key=None):
+        """既存の保存名優先ルールで対象メンバーへ加算し、詳細集計へ渡す。"""
+        for article in articles:
+            name = cls.resolve_contributor_name(article.created_by_name, article.created_by)
+            if cls.is_excluded_contributor(name) or name not in members:
+                continue
+            member = members[name]
+            if post_key:
+                member[post_key] += 1
+            yield article, name, member
+
+    @staticmethod
+    def member_sort_key(item, order):
+        return (
+            order.get(item['name'], 10**9),
+            item['management_uid'] or '999999',
+            item['name'].lower(),
+        )
+
+    @staticmethod
+    def posting_period_dates(period, today):
+        """分析とホーム共通。日付変換はORMの現在のタイムゾーンを使用する。"""
+        if period == 'current':
+            return today.replace(day=1), today
+        if period == 'previous':
+            last_day = today.replace(day=1) - timedelta(days=1)
+            return last_day.replace(day=1), last_day
+        return None, None
+
+    @classmethod
+    def half_year_posting_target(cls, target_month, today, members):
+        """対象月の属する半期を、既存の分析対象・保存名ルールで集計。"""
+        if 4 <= target_month.month <= 10:
+            start = date(target_month.year, 4, 1)
+            end = date(target_month.year, 10, 31)
+            label = '上半期（4月〜10月）'
+        else:
+            year = target_month.year if target_month.month >= 11 else target_month.year - 1
+            start, end = date(year, 11, 1), date(year + 1, 3, 31)
+            label = '下半期（11月〜3月）'
+        counts = {}
+        for model, key in ((KnowledgeArticle, 'faq'), (TipsArticle, 'tips')):
+            articles = cls.posting_queryset(model).filter(
+                created_at__date__gte=start, created_at__date__lte=min(end, today),
+            ).order_by()
+            counts[key] = sum(1 for _ in cls.counted_member_posts(articles.iterator(), members))
+        actual = counts['faq'] + counts['tips']
+        return dict(label=label, start=start, end=end, actual=actual, **counts,
+                    target=300, progress_percent=actual / 300 * 100, achieved=actual >= 300)
+
+    @classmethod
+    def member_post_counts(cls, period='all'):
+        """ホーム用の投稿数のみ。詳細・顧客集計や履歴記録は行わない。"""
+        members, order = cls.member_registry()
+        from_date, to_date = cls.posting_period_dates(period, timezone.localdate())
+        for model, key in ((KnowledgeArticle, 'faq_post_count'), (TipsArticle, 'tips_post_count')):
+            articles = cls.posting_queryset(model).only(
+                'created_by_name', 'created_by__username',
+                'created_by__knowledge_profile__display_name',
+            ).order_by()
+            if from_date:
+                articles = articles.filter(created_at__date__gte=from_date)
+            if to_date:
+                articles = articles.filter(created_at__date__lte=to_date)
+            for _ in cls.counted_member_posts(articles.iterator(), members, key):
+                pass
+        rows = [
+            {
+                'name': item['name'],
+                'faq_post_count': item['faq_post_count'],
+                'tips_post_count': item['tips_post_count'],
+                'post_count_total': item['faq_post_count'] + item['tips_post_count'],
+            }
+            for item in sorted(members.values(), key=lambda item: cls.member_sort_key(item, order))
+        ]
+        totals = {
+            key: sum(row[key] for row in rows)
+            for key in ('faq_post_count', 'tips_post_count', 'post_count_total')
+        }
+        return rows, totals
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -3276,27 +3602,39 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             sort_by = 'no'
         context['sort_by'] = sort_by
 
-        from_date = None
-        to_date = None
         today = timezone.localdate()
-        if selected_period == 'current':
-            from_date = today.replace(day=1)
-            to_date = today
-        elif selected_period == 'previous':
-            first_day_this_month = today.replace(day=1)
-            last_day_previous_month = first_day_this_month - timedelta(days=1)
-            from_date = last_day_previous_month.replace(day=1)
-            to_date = last_day_previous_month
+        from_date, to_date = self.posting_period_dates(selected_period, today)
         current_month_start = today.replace(day=1)
 
+        target_month = from_date if selected_period == 'previous' else current_month_start
+        context['posting_targets'] = posting_targets(target_month, selected_period)
+        context['posting_target_chart'] = context['posting_targets']['chart']
+        context['summary_filter_query'] = urlencode(summary_filters(self.request.GET))
+
+        month_end = (target_month.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+        personal_counts = {'monthly': 0, 'cumulative': 0}
+        personal_breakdown = {'monthly': {}, 'cumulative': {}}
+        cumulative_start = date(2026, 6, 1)
+        for model, kind in ((KnowledgeArticle, 'faq'), (TipsArticle, 'tips')):
+            own_posts = self.posting_queryset(model).filter(
+                created_by=self.request.user,
+                created_at__date__lte=min(month_end, today),
+            )
+            for period, start in (('monthly', target_month), ('cumulative', cumulative_start)):
+                count = own_posts.filter(created_at__date__gte=start).count()
+                personal_breakdown[period][kind] = count
+                personal_counts[period] += count
+        context['personal_posting_counts'] = personal_counts
+        context['personal_posting_breakdown'] = personal_breakdown
+        context['posting_month_end'] = month_end
+        context['posting_cumulative_start'] = cumulative_start
+
         base_faq_qs = (
-            KnowledgeArticle.objects.select_related('created_by')
-            .filter(visible_to_any_account_filter())
+            self.posting_queryset(KnowledgeArticle)
             .annotate(good_count=Count('goods'))
         )
         base_tips_qs = (
-            TipsArticle.objects.select_related('created_by')
-            .filter(visible_to_any_account_filter())
+            self.posting_queryset(TipsArticle)
             .annotate(good_count=Count('goods'))
         )
 
@@ -3328,43 +3666,12 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         include_hidden = self.request.GET.get('include_hidden') == '1'
         context['include_hidden'] = include_hidden
 
-        User = get_user_model()
-        summary_users_qs = User.objects.filter(
-            groups__name=CONTRIBUTOR_GROUP_NAME
-        ).distinct().prefetch_related('knowledge_profile')
-
-        if not include_hidden:
-            summary_users_qs = summary_users_qs.filter(
-                knowledge_profile__exclude_from_analysis=False
-            )
-
-        summary_users = summary_users_qs.order_by('knowledge_profile__uid', 'id')
-
-        member_map = {}
+        member_map, member_order_map = self.member_registry(include_hidden=include_hidden)
+        # 半期実績は月間／全期間の表示フィルターとは独立して集計する。
+        context['half_year_target'] = self.half_year_posting_target(target_month, today, member_map)
         member_monthly_map = {}
-        member_order_map = {}
         member_current_month_map = {}
         summary_monthly_map = {}
-
-        def ensure_member(name, member_id=None, management_uid=''):
-            node = member_map.get(name)
-            if node is None:
-                if member_id is None:
-                    member_id = member_order_map.get(name, 10**9)
-                node = {
-                    'member_id': member_id,
-                    'management_uid': management_uid,
-                    'name': name,
-                    'approved_count_total': 0,
-                    'faq_approved_count': 0,
-                    'faq_post_count': 0,
-                    'tips_approved_count': 0,
-                    'tips_post_count': 0,
-                    'good_count_total': 0,
-                    'view_count_total': 0,
-                }
-                member_map[name] = node
-            return node
 
         def ensure_member_month(name, month_key):
             monthly = member_monthly_map.setdefault(name, {})
@@ -3412,33 +3719,12 @@ class SummaryView(StaffRequiredMixin, TemplateView):
                 summary_monthly_map[month_key] = node
             return node
 
-        for user in summary_users:
-            display_name = resolve_user_display_name(user).strip()
-            if self.is_excluded_contributor(display_name):
-                continue
-            if display_name not in member_order_map:
-                profile = getattr(user, 'knowledge_profile', None)
-                uid_value = (getattr(profile, 'uid', '') or '').strip()
-                uid_order = int(uid_value) if uid_value.isdigit() else 10**9 + user.id
-                member_order_map[display_name] = uid_order
-            profile = getattr(user, 'knowledge_profile', None)
-            ensure_member(
-                display_name,
-                user.id,
-                (getattr(profile, 'uid', '') or '').strip(),
-            )
-
-        for article in faq_articles:
-            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
-            if self.is_excluded_contributor(creator_name):
-                continue
-            if creator_name not in member_map:
-                continue
-            member = ensure_member(creator_name)
+        for article, creator_name, member in self.counted_member_posts(
+            faq_articles, member_map, 'faq_post_count'
+        ):
             month_key = article.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             summary_month = ensure_summary_month(month_key)
-            member['faq_post_count'] += 1
             if article.is_approved:
                 member['approved_count_total'] += 1
                 member['faq_approved_count'] += 1
@@ -3455,17 +3741,12 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             summary_month['good_count_total'] += article.good_count
             summary_month['view_count_total'] += article.answer_view_count
 
-        for tip in tips_articles:
-            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
-            if self.is_excluded_contributor(creator_name):
-                continue
-            if creator_name not in member_map:
-                continue
-            member = ensure_member(creator_name)
+        for tip, creator_name, member in self.counted_member_posts(
+            tips_articles, member_map, 'tips_post_count'
+        ):
             month_key = tip.created_at.strftime('%Y-%m')
             month_node = ensure_member_month(creator_name, month_key)
             summary_month = ensure_summary_month(month_key)
-            member['tips_post_count'] += 1
             if tip.is_approved:
                 member['approved_count_total'] += 1
                 member['tips_approved_count'] += 1
@@ -3482,24 +3763,14 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             summary_month['good_count_total'] += tip.good_count
             summary_month['view_count_total'] += tip.view_count
 
-        for article in current_month_faq_articles:
-            creator_name = self.resolve_contributor_name(article.created_by_name, article.created_by)
-            if self.is_excluded_contributor(creator_name):
-                continue
-            if creator_name not in member_map:
-                continue
+        for article, creator_name, _ in self.counted_member_posts(current_month_faq_articles, member_map):
             current_month = ensure_current_month(creator_name)
             current_month['faq_post_count'] += 1
             if article.is_approved:
                 current_month['approved_count_total'] += 1
                 current_month['faq_approved_count'] += 1
 
-        for tip in current_month_tips_articles:
-            creator_name = self.resolve_contributor_name(tip.created_by_name, tip.created_by)
-            if self.is_excluded_contributor(creator_name):
-                continue
-            if creator_name not in member_map:
-                continue
+        for tip, creator_name, _ in self.counted_member_posts(current_month_tips_articles, member_map):
             current_month = ensure_current_month(creator_name)
             current_month['tips_post_count'] += 1
             if tip.is_approved:
@@ -3519,6 +3790,8 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             item['current_month_approved_count_total'] = current_month.get('approved_count_total', 0)
             item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
             monthly_totals = list(member_monthly_map.get(item['name'], {}).values())
+            target = context['posting_targets']['cumulative' if selected_period == 'all' else 'monthly']
+            item['quota_progress'] = quota_progress(item['faq_post_count'], item['tips_post_count'], target)
             for month_item in monthly_totals:
                 month_item['post_count_total'] = month_item['faq_post_count'] + month_item['tips_post_count']
             monthly_totals.sort(key=lambda month_item: month_item['month'], reverse=True)
@@ -3528,18 +3801,12 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             member_summaries.sort(
                 key=lambda item: (
                     -item['post_count_total'],
-                    member_order_map.get(item['name'], 10**9),
-                    item['management_uid'] or '999999',
-                    item['name'].lower(),
+                    *self.member_sort_key(item, member_order_map),
                 )
             )
         else:
             member_summaries.sort(
-                key=lambda item: (
-                    member_order_map.get(item['name'], 10**9),
-                    item['management_uid'] or '999999',
-                    item['name'].lower(),
-                )
+                key=lambda item: self.member_sort_key(item, member_order_map)
             )
 
         context['selected_period'] = selected_period
@@ -3657,6 +3924,90 @@ class SummaryView(StaffRequiredMixin, TemplateView):
             ),
         )
 
+        # 投稿レポートは投稿集計のperiodとは独立した投稿月を選択する。
+        today = timezone.localdate()
+        requested_month = self.request.GET.get('report_month', '')
+        try:
+            report_start = datetime.strptime(requested_month, '%Y-%m').date().replace(day=1)
+            if report_start.strftime('%Y-%m') != requested_month:
+                raise ValueError('Invalid month format')
+            report_next = (report_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        except (ValueError, OverflowError):
+            report_start = today.replace(day=1)
+            report_next = (report_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        report_end = report_next - timedelta(days=1)
+        # 0件のメンバーも保持し、投稿集計periodではなく出力対象月だけを数える。
+        report_members = {
+            item['name']: dict(name=item['name'], management_uid=item['management_uid'],
+                               faq_post_count=0, tips_post_count=0)
+            for item in member_summaries
+        }
+        for articles, key in ((internal_faq_articles, 'faq_post_count'),
+                              (internal_tips_articles, 'tips_post_count')):
+            month_articles = (article for article in articles
+                              if report_start <= timezone.localtime(article.created_at).date() <= report_end)
+            for _ in self.counted_member_posts(month_articles, report_members, key):
+                pass
+        report_member_rows = list(report_members.values())
+        for item in report_member_rows:
+            item['post_count_total'] = item['faq_post_count'] + item['tips_post_count']
+        if sort_by == 'post_count':
+            report_member_rows.sort(key=lambda item: (-item['post_count_total'],
+                                                      self.member_sort_key(item, member_order_map)))
+        context['report_member_summaries'] = report_member_rows
+        context['report_monthly_target'] = posting_targets(report_start, 'current')['monthly']
+        context['report_member_totals'] = {
+            key: sum(item[key] for item in report_member_rows)
+            for key in ('faq_post_count', 'tips_post_count', 'post_count_total')
+        }
+        context['report_half_year_target'] = (
+            context['half_year_target'] if report_start == target_month
+            else self.half_year_posting_target(report_start, today, report_members)
+        )
+        report_articles = []
+        for kind, articles, route in (
+            ('Q&A', internal_faq_articles, 'article_detail'),
+            ('Tips', internal_tips_articles, 'tip_detail'),
+        ):
+            for article in articles:
+                posted_at = timezone.localtime(article.created_at)
+                if not report_start <= posted_at.date() <= report_end:
+                    continue
+                detail_url = ''
+                if article.management_code and article.is_published and (
+                    article.expires_on is None or article.expires_on >= today
+                ):
+                    return_query = self.request.GET.copy()
+                    return_query['tab'] = 'report'
+                    return_query['report_month'] = report_start.strftime('%Y-%m')
+                    return_url = reverse('summary') + '?' + return_query.urlencode()
+                    detail_url = reverse(route, kwargs={'management_code': article.management_code})
+                    detail_url += '?' + urlencode({'next': return_url})
+                report_articles.append({
+                    'kind': kind, 'title': article.title,
+                    'management_code': article.management_code,
+                    'category': article.category,
+                    'creator_name': article.creator_display_name,
+                    'created_at': posted_at, 'is_approved': article.is_approved,
+                    'detail_url': detail_url, 'id': article.pk,
+                    'question': (article.summary or article.title) if kind == 'Q&A' else '',
+                    'body': article.body if (
+                        not is_demo_user(self.request.user)
+                        and can_view_restricted_knowledge_content(self.request.user, article)
+                    ) else 'この記事の内容は閲覧制限されています。',
+                })
+        report_articles.sort(key=lambda item: (item['created_at'], item['kind'], item['id']), reverse=True)
+        context['report_month'] = report_start.strftime('%Y-%m')
+        context['report_month_start'] = report_start
+        context['report_month_end'] = report_end
+        context['report_articles'] = report_articles
+        context['report_totals'] = {
+            'total': len(report_articles),
+            'faq': sum(item['kind'] == 'Q&A' for item in report_articles),
+            'tips': sum(item['kind'] == 'Tips' for item in report_articles),
+        }
+        context['report_active'] = self.request.GET.get('tab') == 'report' or 'report_month' in self.request.GET
+
         # ── 顧客タブ用（旧集計） ──────────────────────────────────────────────
         User = get_user_model()
         customer_users = User.objects.filter(groups__name=CUSTOMER_GROUP_NAME)
@@ -3727,6 +4078,18 @@ class SummaryView(StaffRequiredMixin, TemplateView):
         context['customer_tips_good_total'] = sum(tip.good_count for tip in tips_with_goods)
 
         return context
+
+
+class SummaryPostingReportPDFView(StaffRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        from .posting_report_pdf import build_posting_report_pdf
+
+        summary = SummaryView()
+        summary.setup(request, *args, **kwargs)
+        context = summary.get_context_data()
+        response = HttpResponse(build_posting_report_pdf(context), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="posting_report_{context["report_month"]}.pdf"'
+        return response
 
 
 class SummaryPDFView(StaffRequiredMixin, View):
@@ -4054,8 +4417,8 @@ class SummaryPDFView(StaffRequiredMixin, View):
         summary_data = [
             ['項目', '総数'],
             ['投稿数（合計）', str(summary_totals['post_count_total'])],
-            ['FAQ投稿数', str(summary_totals['faq_post_count'])],
-            ['FAQ承認数', str(summary_totals['faq_approved_count'])],
+            ['Q&A投稿数', str(summary_totals['faq_post_count'])],
+            ['Q&A承認数', str(summary_totals['faq_approved_count'])],
             ['Tips投稿数', str(summary_totals['tips_post_count'])],
             ['Tips承認数', str(summary_totals['tips_approved_count'])],
             ['承認数（合計）', str(summary_totals['approved_count_total'])],
@@ -4088,7 +4451,7 @@ class SummaryPDFView(StaffRequiredMixin, View):
 
         # メンバーテーブル
         member_data = [
-            ['メンバー', '投稿数', 'FAQ', 'Tips', '承認数', 'Good数', '閲覧数'],
+            ['メンバー', '投稿数', 'Q&A', 'Tips', '承認数', 'Good数', '閲覧数'],
         ]
 
         for member in member_summaries:
@@ -4209,7 +4572,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form_title'] = 'FAQ登録'
+        context['form_title'] = 'Q&A登録'
         context['submit_label'] = '登録'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
@@ -4277,7 +4640,7 @@ class KnowledgeArticleCreateView(StaffRequiredMixin, FormView):
         self.save_question_images(article, form)
         self.save_answer_images(article, form)
         self.save_file_attachments(article, form)
-        messages.success(self.request, f'FAQ「{article.title}」を登録しました。')
+        messages.success(self.request, f'Q&A「{article.title}」を登録しました。')
         return super().form_valid(form)
 
     @staticmethod
@@ -4343,7 +4706,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form_title'] = 'FAQ編集'
+        context['form_title'] = 'Q&A編集'
         context['submit_label'] = '更新'
         context['category_create_url'] = f"{reverse_lazy('category_create')}?{urlencode({'next': self.request.get_full_path()})}"
         context['tag_create_url'] = f"{reverse_lazy('tag_create')}?{urlencode({'next': self.request.get_full_path()})}"
@@ -4400,7 +4763,7 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
             and will_be_visible_for_any
             and not can_republish_hidden_content(self.request.user)
         ):
-            error_message = '全ユーザー非表示のFAQを再公開できるのはSystenaAdminのみです。'
+            error_message = '全ユーザー非表示のQ&Aを再公開できるのはSystenaAdminのみです。'
             form.add_error('visible_to_customer', error_message)
             form.add_error('visible_to_systena', error_message)
             return self.form_invalid(form)
@@ -4453,9 +4816,9 @@ class KnowledgeArticleUpdateView(ArticleEditorRequiredMixin, FormView):
         KnowledgeArticleCreateView.save_answer_images(self.article, form)
         KnowledgeArticleCreateView.save_file_attachments(self.article, form)
         if is_corrected_click:
-            messages.success(self.request, f'FAQ「{self.article.title}」をお知らせに「修正」ステータスで提出しました。')
+            messages.success(self.request, f'Q&A「{self.article.title}」をお知らせに「修正」ステータスで提出しました。')
         else:
-            messages.success(self.request, f'FAQ「{self.article.title}」を更新しました。')
+            messages.success(self.request, f'Q&A「{self.article.title}」を更新しました。')
         return super().form_valid(form)
 
 
@@ -4467,7 +4830,7 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
             return redirect(resolve_next_path(request, 'article_list'))
 
         if article.is_approved:
-            messages.info(request, f'FAQ「{article.title}」は既に承認済みです。')
+            messages.info(request, f'Q&A「{article.title}」は既に承認済みです。')
             return redirect(resolve_next_path(request, 'article_list'))
 
         standard_contract_only_raw = str(request.POST.get('standard_contract_only', '1')).strip().lower()
@@ -4482,8 +4845,10 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
         article.approved_by = request.user
         article.approved_by_name = resolve_user_display_name(request.user)
         article.ai_review = ai_review
+        if 'reviewer_comment' in request.POST:
+            article.reviewer_comment = request.POST['reviewer_comment'].strip()
         article.remand_reason = ''
-        article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'updated_at'])
+        article.save(update_fields=['is_approved', 'standard_contract_only', 'visible_to_customer', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'updated_at'])
         redirect_url = _build_approval_mail_draft_redirect_url(
             request=request,
             management_code=article.management_code,
@@ -4491,9 +4856,9 @@ class KnowledgeArticleApproveView(ArticleApprovalRequiredMixin, View):
             creator_user=article.created_by,
         )
         if redirect_url:
-            messages.success(request, f'FAQ「{article.title}」を承認しました。メール下書きを作成します。')
+            messages.success(request, f'Q&A「{article.title}」を承認しました。メール下書きを作成します。')
             return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'article_list'))
-        messages.success(request, f'FAQ「{article.title}」を承認しました。')
+        messages.success(request, f'Q&A「{article.title}」を承認しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
 
@@ -4508,10 +4873,11 @@ class KnowledgeArticleApprovalResetView(View):
         article.approved_by = None
         article.approved_by_name = ''
         article.ai_review = ''
+        article.reviewer_comment = ''
         article.remand_reason = ''
         article.is_corrected = False
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
-        messages.success(request, f'FAQ「{article.title}」の承認をリセットしました。')
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'is_corrected', 'updated_at'])
+        messages.success(request, f'Q&A「{article.title}」の承認をリセットしました。')
         return redirect(resolve_next_path(request, 'article_edit', pk=pk))
 
 
@@ -4529,9 +4895,11 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
         article.approved_by = None
         article.approved_by_name = ''
         article.ai_review = ai_review
+        if 'reviewer_comment' in request.POST:
+            article.reviewer_comment = request.POST['reviewer_comment'].strip()
         article.remand_reason = reason
         article.is_corrected = False
-        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'remand_reason', 'is_corrected', 'updated_at'])
+        article.save(update_fields=['is_approved', 'approved_by', 'approved_by_name', 'ai_review', 'reviewer_comment', 'remand_reason', 'is_corrected', 'updated_at'])
         redirect_url = _build_remand_mail_draft_redirect_url(
             request=request,
             management_code=article.management_code,
@@ -4540,9 +4908,9 @@ class KnowledgeArticleRemandView(ArticleApprovalRequiredMixin, View):
             remand_reason=reason,
         )
         if redirect_url:
-            messages.success(request, f'FAQ「{article.title}」を差戻しました。メール下書きを作成します。')
+            messages.success(request, f'Q&A「{article.title}」を差戻しました。メール下書きを作成します。')
             return _open_gas_newtab_response(request, redirect_url, resolve_next_path(request, 'article_list'))
-        messages.success(request, f'FAQ「{article.title}」を差戻しました。')
+        messages.success(request, f'Q&A「{article.title}」を差戻しました。')
         return redirect(resolve_next_path(request, 'article_list'))
 
 
@@ -4575,7 +4943,7 @@ class KnowledgeArticleDeleteView(StaffRequiredMixin, View):
         for image in article.images.all():
             image.file.delete(save=False)
         article.delete()
-        messages.success(request, f'FAQ「{title}」を削除しました。')
+        messages.success(request, f'Q&A「{title}」を削除しました。')
         return redirect('article_list')
 
 
@@ -4870,11 +5238,50 @@ class UserCreateView(StaffRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class UserDemoIssueView(StaffRequiredMixin, View):
+class UserIssueFormView(StaffRequiredMixin, FormView):
+    template_name = 'tenasapo_knowledge/user_issue_form.html'
     success_url = reverse_lazy('user_list')
+    is_demo = False
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['is_demo'] = self.is_demo
+        context['return_to'] = resolve_next_path(self.request, 'user_list')
+        form = context['form']
+        context['account_fields'] = [form[name] for name in (
+            'display_name', 'email_addresses', 'company_name', 'department',
+        ) if name in form.fields]
+        # Read-only preview: issuance still resolves the number again, without reservation.
+        number = (self._resolve_next_demo_number() if self.is_demo
+                  else self._resolve_next_contract_number())
+        uid = f'{number:06d}' if number is not None else ''
+        email = '' if self.is_demo else str(form['email_addresses'].value() or '').strip()
+        login = f'{self.demo_prefix}{uid}' if self.is_demo and uid else email
+        context['issue_preview'] = {
+            'uid': uid,
+            'at_capacity': number is None,
+            'login': login,
+            'password': login if self.is_demo else (
+                email.split('@', 1)[0].strip() if '@' in email else ''
+            ),
+        }
+        return context
+
+    def issuance_error(self, form, message):
+        form.add_error(None, message)
+        return self.form_invalid(form)
+
+
+class UserDemoIssueView(UserIssueFormView):
+    success_url = reverse_lazy('user_list')
+    is_demo = True
     demo_prefix = 'CSDemo'
     demo_number_start = 900001
     demo_number_end = 999999
+
+    def get_form_class(self):
+        from .forms import UserDemoIssueForm
+        return UserDemoIssueForm
 
     @classmethod
     def _iter_used_demo_numbers(cls):
@@ -4904,20 +5311,17 @@ class UserDemoIssueView(StaffRequiredMixin, View):
                 return number
         return None
 
-    def post(self, request):
+    def form_valid(self, form):
+        request = self.request
         next_path = resolve_next_path(request, 'user_list')
-        company_name = (request.POST.get('company_name') or '').strip()
-        if not company_name:
-            messages.error(request, '会社名を入力してください。', extra_tags='user')
-            return redirect(next_path)
+        company_name = form.cleaned_data['company_name']
 
         demo_group, _ = Group.objects.get_or_create(name=DEMO_GROUP_NAME)
 
         for _ in range(10):
             number = self._resolve_next_demo_number()
             if number is None:
-                messages.error(request, 'デモアカウント番号の発行上限（999999）に達しました。', extra_tags='user')
-                return redirect(next_path)
+                return self.issuance_error(form, 'デモアカウント番号の発行上限（999999）に達しました。')
 
             uid = f'{number:06d}'
             username = f'{self.demo_prefix}{uid}'
@@ -4968,15 +5372,18 @@ class UserDemoIssueView(StaffRequiredMixin, View):
             }
             return redirect(next_path)
 
-        messages.error(request, 'デモアカウント発行時に競合が発生しました。再度お試しください。', extra_tags='user')
-        return redirect(next_path)
+        return self.issuance_error(form, 'デモアカウント発行時に競合が発生しました。再度お試しください。')
 
 
-class UserContractIssueView(StaffRequiredMixin, View):
+class UserContractIssueView(UserIssueFormView):
     success_url = reverse_lazy('user_list')
     contract_prefix = 'CSUser'
     contract_number_start = 800001
     contract_number_end = 899999
+
+    def get_form_class(self):
+        from .forms import UserContractIssueForm
+        return UserContractIssueForm
 
     @classmethod
     def _iter_used_contract_numbers(cls):
@@ -5006,52 +5413,24 @@ class UserContractIssueView(StaffRequiredMixin, View):
                 return number
         return None
 
-    def post(self, request):
+    def form_valid(self, form):
+        request = self.request
         next_path = resolve_next_path(request, 'user_list')
-        display_name = (request.POST.get('display_name') or '').strip()
-        company_name = (request.POST.get('company_name') or '').strip()
-        department = (request.POST.get('department') or '').strip()
-        email = (request.POST.get('email_addresses') or '').strip()
-        note = (request.POST.get('note') or '').strip()
-
-        if not display_name:
-            messages.error(request, 'ユーザー名を入力してください。', extra_tags='user')
-            return redirect(next_path)
-        if not company_name:
-            messages.error(request, '会社名を入力してください。', extra_tags='user')
-            return redirect(next_path)
-        if not email:
-            messages.error(request, 'メールアドレスを入力してください。', extra_tags='user')
-            return redirect(next_path)
-        try:
-            validate_email(email)
-        except ValidationError:
-            messages.error(request, 'メールアドレスの形式が正しくありません。', extra_tags='user')
-            return redirect(next_path)
+        display_name = form.cleaned_data['display_name']
+        company_name = form.cleaned_data['company_name']
+        department = form.cleaned_data['department']
+        email = form.cleaned_data['email_addresses']
+        note = form.cleaned_data['note']
 
         login_id = email
         initial_password = (email.split('@', 1)[0] if '@' in email else '').strip()
-        if not login_id:
-            messages.error(request, 'メールアドレスからログインIDを生成できませんでした。', extra_tags='user')
-            return redirect(next_path)
-        if not initial_password:
-            messages.error(request, 'メールアドレスから初期パスワードを生成できませんでした。', extra_tags='user')
-            return redirect(next_path)
 
         User = get_user_model()
-        if User.objects.filter(username=login_id).exists():
-            messages.error(
-                request,
-                'ログインID（メールアドレス）が既に使用されています。別のメールアドレスを指定してください。',
-                extra_tags='user',
-            )
-            return redirect(next_path)
 
         for _ in range(10):
             number = self._resolve_next_contract_number()
             if number is None:
-                messages.error(request, '契約アカウント番号の発行上限（899999）に達しました。', extra_tags='user')
-                return redirect(next_path)
+                return self.issuance_error(form, '契約アカウント番号の発行上限（899999）に達しました。')
 
             uid = f'{number:06d}'
             username = login_id
@@ -5095,8 +5474,7 @@ class UserContractIssueView(StaffRequiredMixin, View):
             )
             return redirect(next_path)
 
-        messages.error(request, '契約アカウント発行時に競合が発生しました。再度お試しください。', extra_tags='user')
-        return redirect(next_path)
+        return self.issuance_error(form, '契約アカウント発行時に競合が発生しました。再度お試しください。')
 
 
 class UserListView(StaffRequiredMixin, ListView):
@@ -5182,7 +5560,15 @@ class UserListView(StaffRequiredMixin, ListView):
                     knowledge_profile__company_name=customer_name,
                 )
 
-        return queryset.distinct()
+        # Prefetch only after filtering; ListView slices users before evaluation.
+        # A separate list avoids per-user queries and keeps management loops intact.
+        return queryset.distinct().prefetch_related(Prefetch(
+            'login_histories',
+            queryset=LoginHistory.objects.only(
+                'id', 'user_id', 'logged_in_at', 'logged_out_at', 'ip_address',
+            ).order_by('-logged_in_at', '-pk'),
+            to_attr='history_login_records',
+        ))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -5500,6 +5886,13 @@ class ViewHistoryListView(StaffRequiredMixin, ListView):
     context_object_name = 'users'
     paginate_by = 20
 
+    def test_func(self):
+        return (
+            super().test_func()
+            and _can_manage_all_users(self.request.user)
+            and can_view_view_history(self.request, PASSWORD_MANAGER_USERNAMES)
+        )
+
     def get_queryset(self):
         User = get_user_model()
         queryset = User.objects.select_related('knowledge_profile').all().order_by(
@@ -5749,6 +6142,38 @@ class ManualListView(StaffRequiredMixin, ListView):
     def get_queryset(self):
         return Manual.objects.all()
 
+    def get_context_data(self, **kwargs):
+        from .manual_presentation import (
+            MENU_ICONS, build_menu_groups, menu_definitions, parse_manual_body,
+        )
+        context = super().get_context_data(**kwargs)
+        manuals = list(context['manuals'])
+        keyed = {manual.menu_key: manual for manual in manuals if manual.menu_key}
+        sections = []
+        for definition in menu_definitions():
+            manual = keyed.get(definition.menu_key)
+            if manual is None:
+                continue
+            anchor = f'manual-{manual.menu_key}'
+            sections.append({
+                'manual': manual, 'anchor': anchor,
+                'icon': MENU_ICONS[manual.menu_key],
+                'blocks': parse_manual_body(manual.description),
+                'menu_url': reverse(definition.url_name),
+                'return_to': reverse('manual_list') + '#' + anchor,
+            })
+        supplemental = [
+            {'manual': manual, 'anchor': f'manual-legacy-{manual.pk}',
+             'icon': 'bi-journal-text', 'blocks': parse_manual_body(manual.description),
+             'return_to': reverse('manual_list') + f'#manual-legacy-{manual.pk}'}
+            for manual in manuals if not manual.menu_key and manual.description.strip()
+        ]
+        context['menu_sections'] = sections
+        context['menu_groups'] = build_menu_groups(sections)
+        context['supplemental_sections'] = supplemental
+        context['manual_sections'] = sections + supplemental
+        return context
+
 
 class ManualDetailView(StaffRequiredMixin, View):
     def get(self, request, pk):
@@ -5795,7 +6220,17 @@ class ManualUpdateView(StaffRequiredMixin, FormView):
         context['form_title'] = 'マニュアル編集'
         context['submit_label'] = '更新'
         context['manual'] = self.manual
+        context['return_to'] = self.get_success_url()
         return context
+
+    def get_success_url(self):
+        candidate = self.request.POST.get('next') or self.request.GET.get('next') or ''
+        if candidate and url_has_allowed_host_and_scheme(
+            candidate, allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return candidate
+        return reverse('manual_list')
 
     def form_valid(self, form):
         manual = form.save()
@@ -5806,8 +6241,10 @@ class ManualUpdateView(StaffRequiredMixin, FormView):
 class ManualDeleteView(StaffRequiredMixin, View):
     def post(self, request, pk):
         manual = get_object_or_404(Manual, pk=pk)
+        if manual.menu_key:
+            messages.error(request, '固定メニューの操作手順は削除できません。編集で内容を更新してください。')
+            return redirect('manual_list')
         title = manual.title
-        manual.pdf_file.delete(save=False)
         manual.delete()
         messages.success(request, f'マニュアル「{title}」を削除しました。')
         return redirect('manual_list')
@@ -5992,6 +6429,9 @@ class ProjectDocumentCreateView(FormView):
         context['submit_label'] = '登録'
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['document_category_records_json'] = json.dumps(list(
+            FAQCategory.objects.values('id', 'parent_name', 'middle_name', 'child_name')
+        ), ensure_ascii=False)
         return context
 
     def form_valid(self, form):
@@ -6067,6 +6507,16 @@ class ProjectDocumentUpdateView(FormView):
         })
         category_name = doc.category
         if category_name:
+            category_ids, _ = split_registered_and_unregistered_categories(category_name)
+            category = FAQCategory.objects.filter(pk__in=category_ids).first()
+            if category:
+                initial.update({
+                    'parent_category': category.parent_name,
+                    'middle_category': category.middle_name,
+                    'child_category': category.child_name,
+                    'category_selection_id': category.pk,
+                })
+                return initial
             parts = [p.strip() for p in category_name.split('/') if p.strip()]
             if len(parts) == 3:
                 initial.update({
@@ -6090,6 +6540,9 @@ class ProjectDocumentUpdateView(FormView):
         context['document'] = self.get_document()
         context['category_browser'] = FAQCategoryCreateView.category_browser_data()
         context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
+        context['document_category_records_json'] = json.dumps(list(
+            FAQCategory.objects.values('id', 'parent_name', 'middle_name', 'child_name')
+        ), ensure_ascii=False)
         return context
 
     def form_valid(self, form):
@@ -6251,6 +6704,14 @@ class ReviewListView(TemplateView):
 
         status_filter = (self.request.GET.get('status') or '').strip().lower()
         creator_filter = (self.request.GET.get('creator_id') or '').strip()
+        created_month = (self.request.GET.get('created_month') or '').strip()
+        created_month_value = None
+        if created_month:
+            try:
+                created_month_value = datetime.strptime(created_month, '%Y-%m').date()
+                created_month = created_month_value.strftime('%Y-%m')
+            except ValueError:
+                created_month = ''
         date_from = (self.request.GET.get('date_from') or '').strip()
         date_to = (self.request.GET.get('date_to') or '').strip()
         sort_by = (self.request.GET.get('sort') or 'management_code').strip().lower()
@@ -6312,6 +6773,7 @@ class ReviewListView(TemplateView):
                         'updated_at': article.updated_at,
                         'approval_status': approval_status_value(article),
                         'ai_review': article.ai_review,
+                        'reviewer_comment': article.reviewer_comment,
                         'remand_reason': article.remand_reason,
                         'standard_contract_only': article.standard_contract_only,
                         'visible_to_customer': article.visible_to_customer,
@@ -6366,6 +6828,7 @@ class ReviewListView(TemplateView):
                         'updated_at': tip.updated_at,
                         'approval_status': approval_status_value(tip),
                         'ai_review': tip.ai_review,
+                        'reviewer_comment': tip.reviewer_comment,
                         'remand_reason': tip.remand_reason,
                         'standard_contract_only': tip.standard_contract_only,
                         'visible_to_customer': tip.visible_to_customer,
@@ -6395,17 +6858,42 @@ class ReviewListView(TemplateView):
 
         # フィルター処理
         filtered_items = []
+        status_counts = Counter()
         for item in review_items:
-            if status_filter and item['approval_status'] != status_filter:
-                continue
             if creator_filter and str(item.get('creator_id') or '') != creator_filter:
                 continue
             created_date = item['created_at'].date()
+            if created_month_value and (created_date.year, created_date.month) != (
+                created_month_value.year, created_month_value.month,
+            ):
+                continue
             if date_from_value and created_date < date_from_value:
                 continue
             if date_to_value and created_date > date_to_value:
                 continue
+            status_counts[item['approval_status']] += 1
+            if status_filter and item['approval_status'] != status_filter:
+                continue
             filtered_items.append(item)
+
+        review_status_tabs = []
+        for value, label in (
+            ('', 'すべて'), ('registered', '登録'), ('corrected', '修正済'),
+            ('remanded', '差戻し'), ('approved', '承認済'),
+        ):
+            params = self.request.GET.copy()
+            params.pop('focus', None)
+            params.pop('status', None)
+            if value:
+                params['status'] = value
+            query = params.urlencode()
+            review_status_tabs.append({
+                'value': value,
+                'label': label,
+                'count': status_counts[value] if value else sum(status_counts.values()),
+                'url': self.request.path + ('?' + query if query else ''),
+                'active': status_filter == value,
+            })
 
         # ソート処理
         def management_parts(value):
@@ -6463,6 +6951,9 @@ class ReviewListView(TemplateView):
         context['sort_created_at_url'] = build_sort_url('created_at')
         context['creator_list'] = creator_list
         context['review_items'] = review_items
+        context['review_status_tabs'] = review_status_tabs
+        context['created_month'] = created_month
+        context['review_result_count'] = len(review_items)
         context['can_approve_review'] = can_approve_article(self.request.user)
         context['use_edit_button_in_review_list'] = can_reset_approval(self.request.user)
         context['return_to'] = self.request.get_full_path()
@@ -6511,6 +7002,9 @@ class ArticleManagementView(TemplateView):
         date_to = (self.request.GET.get('date_to') or '').strip()
         sort_by = (self.request.GET.get('sort') or 'created_at').strip()
         sort_dir = (self.request.GET.get('dir') or 'desc').strip()
+        if sort_by not in {'created_at', 'good_count', 'view_count'}:
+            sort_by = 'created_at'
+        sort_dir = 'asc' if sort_dir == 'asc' else 'desc'
 
         # 投稿者ロールのユーザー表示名リストを構築（プルダウン用）
         User = get_user_model()
@@ -6747,7 +7241,38 @@ class ArticleManagementView(TemplateView):
         context['sort_by'] = sort_by
         context['sort_dir'] = sort_dir
         context['can_edit'] = can_edit_article(self.request.user)
+        sort_options = []
+        for key, label in (('created_at', '作成日'), ('good_count', 'いいね'), ('view_count', '閲覧数')):
+            query = self.request.GET.copy()
+            query['sort'] = key
+            query['dir'] = 'asc' if sort_by == key and sort_dir == 'desc' else 'desc'
+            sort_options.append({
+                'label': label,
+                'url': f'?{query.urlencode()}',
+                'active': sort_by == key,
+                'direction': sort_dir,
+            })
+        context['management_sort_options'] = sort_options
         return context
+
+
+def knowledge_detail_back_context(request, fallback_route, fallback_label):
+    """Only accept relative analysis URLs as the detail-page return target."""
+    candidate = (request.GET.get('next') or '').strip()
+    try:
+        parts = urlsplit(candidate)
+        valid = (
+            not parts.scheme and not parts.netloc and parts.path == reverse('summary')
+            and url_has_allowed_host_and_scheme(
+                candidate, allowed_hosts={request.get_host()}, require_https=request.is_secure(),
+            )
+        )
+    except ValueError:
+        valid = False
+    return {
+        'detail_back_url': candidate if valid else reverse(fallback_route),
+        'detail_back_label': 'アナライズに戻る' if valid else fallback_label,
+    }
 
 
 class KnowledgeArticleDetailView(TemplateView):
@@ -6770,8 +7295,6 @@ class KnowledgeArticleDetailView(TemplateView):
         if not (is_admin or is_systena or is_reviewer):
             if not article.visible_to_customer:
                 raise Http404('記事が見つかりません。')
-            if is_demo_user(user) and not article.visible_to_demo:
-                raise Http404('記事が見つかりません。')
             if FAQ_APPROVAL_ENABLED and not article.is_approved:
                 raise Http404('記事が見つかりません。')
 
@@ -6785,7 +7308,10 @@ class KnowledgeArticleDetailView(TemplateView):
         )
         article.category_chips = list(dict.fromkeys(ArticleListView.split_categories(article.category)))
         article.target_os_chips = parse_target_os_values(article.target_os)
-        article.can_view_content = can_view_restricted_knowledge_content(user, article)
+        article.can_view_question = True
+        article.can_view_content = (
+            not is_demo_user(user) and can_view_restricted_knowledge_content(user, article)
+        )
 
         ordered_attachments = sorted(
             article.attachments.all(),
@@ -6828,11 +7354,13 @@ class KnowledgeArticleDetailView(TemplateView):
         related_articles = article.get_related_articles(limit=5, approved_only=approved_only)
 
         context['article'] = article
+        context['can_view_question'] = article.can_view_question
         context['related_articles'] = related_articles
         context['can_use_good'] = is_customer_user(user)
         context['can_use_favorite'] = can_use_favorite(user)
         context['can_edit_article'] = can_edit_article(user)
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
+        context.update(knowledge_detail_back_context(self.request, 'article_list', 'Q&A一覧に戻る'))
         return context
 
 
@@ -6856,8 +7384,6 @@ class TipsArticleDetailView(TemplateView):
         if not (is_admin or is_systena or is_reviewer):
             if not tip.visible_to_customer:
                 raise Http404('記事が見つかりません。')
-            if is_demo_user(user) and not tip.visible_to_demo:
-                raise Http404('記事が見つかりません。')
             if FAQ_APPROVAL_ENABLED and not tip.is_approved:
                 raise Http404('記事が見つかりません。')
 
@@ -6871,7 +7397,10 @@ class TipsArticleDetailView(TemplateView):
         )
         tip.category_chips = list(dict.fromkeys(TipsListView.split_categories(tip.category)))
         tip.target_os_chips = parse_target_os_values(tip.target_os)
-        tip.can_view_content = can_view_restricted_knowledge_content(user, tip)
+        tip.can_view_content = (
+            not is_demo_user(user)
+            and can_view_restricted_knowledge_content(user, tip)
+        )
         tip.inline_images = sorted(
             tip.images.all(),
             key=lambda image: (image.uploaded_at, image.id),
@@ -6908,5 +7437,6 @@ class TipsArticleDetailView(TemplateView):
         context['can_edit_tip'] = can_edit_article(user)
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
         context['approval_enabled'] = FAQ_APPROVAL_ENABLED
+        context.update(knowledge_detail_back_context(self.request, 'tip_list', 'Tips一覧に戻る'))
         return context
 

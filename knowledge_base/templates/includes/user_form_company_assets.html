@@ -1,0 +1,29 @@
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('form[data-knowledge-completion="user"]');
+    const wrapper = document.getElementById('user-company-field');
+    if (!form || !wrapper) return;
+    // Only creation has a switch. Editing retains the immutable type and company behavior.
+    const toggle = form.querySelector('input[type="checkbox"][name="user_type"]');
+    const company = form.elements.namedItem('company_name');
+    if (!toggle || !company) return;
+
+    let systena = toggle.checked;
+    let customerCompany = systena ? '' : company.value;
+    function synchronizeCompany() {
+        if (toggle.checked) {
+            if (!systena) customerCompany = company.value;
+            company.value = 'システナ';
+        } else if (systena) {
+            company.value = customerCompany;
+        }
+        systena = toggle.checked;
+        company.readOnly = toggle.checked;
+        company.required = !toggle.checked;
+        company.classList.toggle('bg-light', toggle.checked);
+        company.dispatchEvent(new Event('input', {bubbles: true}));
+    }
+    toggle.addEventListener('change', synchronizeCompany);
+    synchronizeCompany();
+});
+</script>

@@ -2,7 +2,7 @@
 
 {% block title %}更新履歴 | Nexus{% endblock %}
 
-{% block content %}
+{% block page_header %}
 <div class="page-title-panel mb-4">
     <div class="d-flex align-items-center justify-content-between">
         <div>
@@ -16,7 +16,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block content %}
 {% if revision_histories %}
     <div class="d-grid gap-3">
         {% for history in revision_histories %}

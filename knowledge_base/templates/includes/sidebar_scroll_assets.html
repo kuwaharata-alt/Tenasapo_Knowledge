@@ -1,0 +1,40 @@
+<script>
+(() => {
+    const sidebar = document.getElementById('app-sidebar');
+    if (!sidebar) return;
+    const body = sidebar.querySelector('.offcanvas-body');
+    if (!body) return;
+    const desktop = matchMedia('(min-width: 992px)');
+    const key = 'nexus-sidebar-scroll:' + sidebar.dataset.scrollOwner;
+    let position = 0;
+    try {
+        const saved = Number(sessionStorage.getItem(key));
+        if (Number.isFinite(saved) && saved >= 0) position = saved;
+    } catch (error) { /* 保存を許可しないブラウザーでもメニューは利用可能。 */ }
+    const scroller = () => desktop.matches ? sidebar : body;
+    const visible = () => sidebar.getClientRects().length > 0
+        && (desktop.matches || sidebar.classList.contains('show'));
+    const restore = () => {
+        if (!visible()) return;
+        scroller().scrollTop = position;
+    };
+    const save = () => {
+        if (!visible()) return;
+        position = scroller().scrollTop;
+        try { sessionStorage.setItem(key, String(position)); }
+        catch (error) { /* 保存失敗でリンク遷移を妨げない。 */ }
+    };
+    sidebar.addEventListener('scroll', save, {passive: true});
+    body.addEventListener('scroll', save, {passive: true});
+    sidebar.addEventListener('click', event => {
+        if (event.target.closest('.sidebar-menu a')) save();
+    }, true);
+    window.addEventListener('pagehide', save);
+    window.addEventListener('pageshow', restore);
+    sidebar.addEventListener('shown.bs.offcanvas', restore);
+    document.getElementById('sidebar-toggle')?.addEventListener('click', () => requestAnimationFrame(restore));
+    window.addEventListener('resize', restore);
+    // The existing collapse preference is applied later in the base script.
+    requestAnimationFrame(restore);
+})();
+</script>

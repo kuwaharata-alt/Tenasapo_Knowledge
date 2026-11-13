@@ -1,0 +1,236 @@
+<style>
+    .knowledge-form-nav .form-completion-icon {
+        margin-left: auto;
+        flex: 0 0 1.25rem;
+        text-align: center;
+        font-size: 1.05rem;
+        line-height: 1;
+        color: #8a817a;
+    }
+    .knowledge-form-nav .form-completion-icon[data-state="complete"] { color: #16803d; }
+    .knowledge-form-nav .form-completion-icon[data-state="warning"] { color: #ac6400; }
+    .knowledge-form-nav .form-completion-legend {
+        border-top: 1px solid var(--tk-border);
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        color: var(--tk-muted);
+        font-size: 0.72rem;
+        line-height: 1.7;
+    }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form[data-knowledge-completion]');
+    const nav = document.querySelector('.knowledge-form-nav');
+    const root = document.getElementById('app-main');
+    if (!form || !nav || !root) return;
+    const kind = form.dataset.knowledgeCompletion;
+    const knowledge = kind === 'faq' || kind === 'tips';
+    const required = new Set(knowledge ? ['title', 'category', 'os', 'question', 'answer', 'body'] : []);
+    const entries = Array.from(nav.querySelectorAll('a[href^="#form-section-"]')).map(link => ({
+        link, section: document.getElementById(link.hash.slice(1)),
+        key: link.hash.replace('#form-section-', ''), visited: false,
+    })).filter(entry => entry.section && form.contains(entry.section));
+    if (!entries.length) return;
+
+    function columns(entry) {
+        const index = entries.indexOf(entry);
+        const next = entries[index + 1]?.section.parentElement;
+        const nodes = [];
+        for (let node = entry.section.parentElement; node && node !== next; node = node.nextElementSibling) {
+            nodes.push(node);
+        }
+        return nodes;
+    }
+    const controls = entry => columns(entry).flatMap(node => Array.from(node.querySelectorAll('input, textarea, select')));
+    const field = name => form.elements.namedItem(name);
+    const hasText = value => Boolean(String(value || '').replace(/[\s\u200b\ufeff]/g, ''));
+    const value = name => String(field(name)?.value || '').trim();
+    const nodes = entry => controls(entry).filter(input => !input.disabled);
+    function filled(input) {
+        if (input.type === 'checkbox' || input.type === 'radio') return input.checked;
+        if (input.type === 'file') return Boolean(input.files.length);
+        return hasText(input.value);
+    }
+    function valid(input) {
+        if (input.disabled) return true;
+        if (input.type === 'file') {
+            const extensions = input.accept.toLowerCase().split(',').map(part => part.trim()).filter(part => part.startsWith('.'));
+            return !extensions.length || Array.from(input.files).every(file =>
+                extensions.some(extension => file.name.toLowerCase().endsWith(extension))
+            );
+        }
+        if (input.type === 'checkbox' || input.type === 'radio') return input.validity.valid;
+        const maximum = Number(input.dataset.completionMaxlength || input.getAttribute('maxlength'));
+        return (!maximum || input.value.length <= maximum) && input.validity.valid;
+    }
+    function isRequired(entry) {
+        if (knowledge) return required.has(entry.key);
+        if (kind === 'document' && entry.key === 'project') return !field('is_template')?.checked;
+        return entry.section.hasAttribute('data-completion-required') || nodes(entry).some(input => input.required);
+    }
+    function existingFile(entry) {
+        return columns(entry).some(node => node.querySelector('[data-completion-existing-file]'));
+    }
+    function genericComplete(entry) {
+        const inputs = nodes(entry);
+        if (!inputs.every(valid)) return false;
+        const mandatory = inputs.filter(input => input.required && !input.readOnly);
+        if (mandatory.length && !mandatory.every(filled)) return false;
+        if (entry.key === 'pdf_file') return inputs.some(filled) || existingFile(entry);
+        return mandatory.length > 0 || inputs.some(input => input.type !== 'hidden' && filled(input));
+    }
+    function otherComplete(entry) {
+        if (kind === 'category' && entry.key === 'parent') {
+            const input = field('new_parent_name') || field('new_reference_type');
+            if (input && hasText(input.value)) {
+                return input.dataset.completionDisallowed !== 'true' && valid(input);
+            }
+            return hasText(value('parent_name') || value('reference_type'));
+        }
+        if (kind === 'convenience') {
+            if (entry.key === 'frequency') return /^[1-5]$/.test(value('usage_frequency'));
+            if (entry.key === 'category') {
+                const matches = (pane, selected) => Array.from(form.querySelectorAll(pane + ' [data-value]'))
+                    .some(button => button.dataset.value === selected);
+                return matches('#qrBigPane', value('reference_type'))
+                    && matches('#qrMidPane', value('category'))
+                    && (!form.querySelector('#qrSmallPane [data-value]') || matches('#qrSmallPane', value('middle_category')));
+            }
+        }
+        if (kind === 'first-login' && entry.key === 'employee') return /^\d{6}$/.test(value('employee_number'));
+        if (kind === 'document') {
+            if (entry.key === 'category') return hasText(value('parent_category')) && hasText(value('middle_category') || value('child_category'));
+            if (entry.key === 'files') return nodes(entry).every(valid) && (nodes(entry).some(filled) || existingFile(entry));
+            if (entry.key === 'project' && !field('is_template')?.checked) {
+                return hasText(value('project_number')) && hasText(value('customer_name')) && nodes(entry).every(valid);
+            }
+        }
+        if (kind === 'user') {
+            if (entry.key === 'account' || entry.key === 'permissions') {
+                // Hidden defaults and same-name switches are both valid settings, including OFF.
+                const posted = new FormData(form);
+                const last = name => posted.getAll(name).at(-1);
+                if (entry.key === 'permissions') return ['user', 'admin'].includes(last('role'));
+                return (!value('uid') || /^\d{6}$/.test(value('uid')))
+                    && ['customer', 'systena'].includes(last('user_type')) && genericComplete(entry);
+            }
+        }
+        return genericComplete(entry);
+    }
+    function richText(name) {
+        const textarea = field(name);
+        if (textarea?.dataset.knowledgeBlockEditor === 'true') return window.KnowledgeBlockEditors.hasContent(textarea.id);
+        const editor = textarea && window.tinymce?.get(textarea.id);
+        if (editor && editor.initialized) return hasText(editor.getContent({format: 'text'}));
+        const html = new DOMParser().parseFromString(textarea?.value || '', 'text/html');
+        return hasText(html.body.textContent);
+    }
+    function completion(entry) {
+        if (!knowledge) return otherComplete(entry);
+        switch (entry.key) {
+            case 'title': return hasText(field('title')?.value) && field('title').validity.valid;
+            case 'category': return Array.from(form.querySelectorAll(
+                'input[type="hidden"][name="registered_category"]'
+            )).some(input => hasText(input.value));
+            case 'os': return hasText(field('target_os_name')?.value);
+            case 'question': case 'answer': case 'body': return richText(entry.key);
+            case 'pdf': return !field('clear_pdf')?.checked && Boolean(
+                field('pdf_file')?.files.length || field('clear_pdf')
+            );
+            case 'reference': {
+                const urls = Array.from(form.querySelectorAll('#reference_links_container input[type="url"]'));
+                if (urls.some(input => hasText(input.value) && !input.validity.valid)) return false;
+                return urls.some(input => hasText(input.value)) || Boolean(
+                    field('file_attachments')?.files.length || form.querySelector('[data-existing-attachment-name]')
+                );
+            }
+            case 'visibility': return controls(entry).some(input => input.type === 'checkbox' && input.checked);
+            default: return false;
+        }
+    }
+    const legend = document.createElement('div');
+    legend.className = 'form-completion-legend';
+    legend.textContent = '✓ 入力済み　⚠ 必須未入力・要確認　○ 未入力（任意は警告なし）';
+    nav.appendChild(legend);
+    entries.forEach(entry => {
+        entry.icon = document.createElement('span');
+        entry.icon.className = 'form-completion-icon';
+        entry.icon.setAttribute('role', 'img');
+        entry.link.appendChild(entry.icon);
+        entry.visited = columns(entry).some(node => node.querySelector('.invalid-feedback, .is-invalid'));
+    });
+    function update() {
+        entries.forEach(entry => {
+            const complete = completion(entry);
+            const invalidOptional = knowledge ? entry.key === 'reference' && controls(entry).some(input =>
+                input.type === 'url' && hasText(input.value) && !input.validity.valid
+            ) : nodes(entry).some(input => filled(input) && !valid(input));
+            const warning = !complete && entry.visited && (isRequired(entry) || invalidOptional);
+            const state = complete ? 'complete' : warning ? 'warning' : 'empty';
+            const label = complete ? '入力済み' : warning ? '必須未入力・要確認' : isRequired(entry) ? '未入力' : '未入力（任意）';
+            entry.icon.dataset.state = state;
+            entry.icon.textContent = complete ? '✓' : warning ? '⚠' : '○';
+            entry.icon.setAttribute('aria-label', label);
+            entry.icon.title = label;
+        });
+    }
+    let scheduled = false;
+    function schedule() {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(() => { scheduled = false; update(); });
+    }
+    let focused = null;
+    function visit(entry) {
+        if (!entry) return;
+        if (focused && focused !== entry) focused.visited = true;
+        entries.slice(0, entries.indexOf(entry)).forEach(previous => { previous.visited = true; });
+        focused = entry;
+        schedule();
+    }
+    function findEntry(target) {
+        return entries.find(entry => columns(entry).some(node => node.contains(target)));
+    }
+    entries.forEach(entry => entry.link.addEventListener('click', event => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button > 0) return;
+        visit(entry);
+    }));
+    document.addEventListener('focusin', event => {
+        if (form.contains(event.target)) visit(findEntry(event.target));
+        else if (focused && !nav.contains(event.target)) {
+            focused.visited = true;
+            focused = null;
+            schedule();
+        }
+    });
+    document.addEventListener('knowledge-editor-state', event => {
+        const textarea = document.getElementById(event.detail.id);
+        if (!textarea || !form.contains(textarea)) return;
+        if (event.detail.focused) visit(findEntry(textarea));
+        schedule();
+    });
+    form.addEventListener('input', schedule);
+    form.addEventListener('change', schedule);
+    // QR stars/category buttons and inverse switches assign hidden values without change events.
+    form.addEventListener('click', schedule);
+    form.addEventListener('invalid', event => {
+        const entry = findEntry(event.target);
+        if (entry) entry.visited = true;
+        schedule();
+    }, true);
+    root.addEventListener('scroll', () => {
+        const top = root.getBoundingClientRect().top + root.clientTop + 24;
+        entries.forEach(entry => {
+            const visible = columns(entry).filter(node => node.getClientRects().length);
+            if (visible.length && Math.max(...visible.map(node => node.getBoundingClientRect().bottom)) <= top) {
+                entry.visited = true;
+            }
+        });
+        schedule();
+    }, {passive: true});
+    // Category choices, dynamic URL rows and attachments change the DOM without input events.
+    new MutationObserver(schedule).observe(form, {childList: true, subtree: true});
+    update();
+});
+</script>

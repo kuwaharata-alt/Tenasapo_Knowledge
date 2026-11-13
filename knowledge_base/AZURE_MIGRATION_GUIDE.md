@@ -83,8 +83,13 @@ az webapp config appsettings set -g $rg -n $app --settings `
   DB_PORT="5432"
 
 # 3. デプロイ
-Compress-Archive -Path . -DestinationPath app.zip -Exclude .venv, .git
-az webapp deployment source config-zip -g $rg -n $app --src app.zip
+# OLDやローカル秘密設定を除外するZIP作成手順は DEPLOY_AZURE.md の方法Aを参照
+$excluded = @('OLD', '.venv', 'venv', '.git', '.env', '.vscode', 'db.sqlite3', 'sent_emails', 'backups', 'media', 'logs', '__pycache__')
+$deployFiles = Get-ChildItem -Force | Where-Object {
+   $_.Name -notin $excluded -and $_.Name -notlike '.env.*' -and $_.Name -notlike 'client_secret_*.json'
+}
+Compress-Archive -LiteralPath $deployFiles.FullName -DestinationPath ..\app.zip -Force
+az webapp deployment source config-zip -g $rg -n $app --src ..\app.zip
 
 # 4. マイグレーション
 az webapp ssh -g $rg -n $app
