@@ -152,7 +152,11 @@
         // Keep keyboard focus on the control while the asynchronous API is pending.
         if (button.getAttribute('aria-busy') === 'true') return;
         button.setAttribute('aria-busy', 'true');
-        const text = code.textContent;
+        // TinyMCE can serialize line breaks as BR rather than literal newlines.
+        // Read a clone so neither saved markup nor the displayed code is changed.
+        const copySource = code.cloneNode(true);
+        copySource.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+        const text = copySource.textContent;
         let copied = false;
         try {
             if (navigator.clipboard?.writeText) {
