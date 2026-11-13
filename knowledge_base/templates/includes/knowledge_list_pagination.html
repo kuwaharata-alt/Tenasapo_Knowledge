@@ -1,7 +1,6 @@
 {% if is_paginated %}
 <nav class="knowledge-pagination border-top pt-3 mt-2 flex-shrink-0" aria-label="一覧のページ移動">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-        <span class="small text-muted">{{ paginator.count }}件中 {{ page_obj.start_index }}–{{ page_obj.end_index }}件 / {{ page_obj.number }}ページ目（全{{ paginator.num_pages }}ページ）</span>
         <div class="d-flex flex-wrap align-items-center gap-2">
             {% if pagination_previous_url %}
                 <a class="btn btn-outline-secondary btn-sm" href="{{ pagination_previous_url }}" aria-label="前のページ">前へ</a>
@@ -26,6 +25,7 @@
                 <a class="btn btn-outline-secondary btn-sm" href="{{ pagination_next_url }}" aria-label="次のページ">次へ</a>
             {% endif %}
         </div>
+        <span class="small text-muted ms-auto text-end">{{ paginator.count }}件中 {{ page_obj.start_index }}–{{ page_obj.end_index }}件 / {{ page_obj.number }}ページ目（全{{ paginator.num_pages }}ページ）</span>
     </div>
 </nav>
 {% endif %}

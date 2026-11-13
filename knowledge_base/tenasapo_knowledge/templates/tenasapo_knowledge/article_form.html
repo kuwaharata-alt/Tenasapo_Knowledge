@@ -1349,7 +1349,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (refLinks.length > 0) {
                 refLinks.forEach(function(r) {
                     const url = (typeof r === 'object' && r !== null) ? (r.url || '') : r;
-                    const label = (typeof r === 'object' && r !== null) ? (r.label || url) : url;
+                    const label = (typeof r === 'object' && r !== null && String(r.label || '').trim()) ? r.label : 'リンク';
                     if (!url) {
                         return;
                     }

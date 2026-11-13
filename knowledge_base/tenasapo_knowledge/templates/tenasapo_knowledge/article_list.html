@@ -397,11 +397,11 @@
                                                         {% for link in article.reference_links %}
                                                             {% if link.url %}
                                                                 <a class="btn btn-outline-info btn-sm" href="{{ link.url }}" target="_blank" rel="noopener">
-                                                                    🔗 {{ link.label|default:link.url }}
+                                                                    🔗 {{ link.label|default:"リンク" }}
                                                                 </a>
                                                             {% else %}
                                                                 <a class="btn btn-outline-info btn-sm" href="{{ link }}" target="_blank" rel="noopener">
-                                                                    🔗 {{ link }}
+                                                                    🔗 リンク
                                                                 </a>
                                                             {% endif %}
                                                         {% endfor %}
