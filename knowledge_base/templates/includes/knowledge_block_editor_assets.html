@@ -7,7 +7,7 @@
 .knowledge-block-heading-shortcuts > button { border: 1px solid #bca58b; border-radius: .35rem; padding: .3rem .7rem; background: #fffaf4; color: #633d19; cursor: pointer; }
 .knowledge-block-heading-shortcuts > button:hover { background: #f5e1c9; }
 .knowledge-block-body { padding: 1rem; }
-.knowledge-block-body textarea { width: 100%; min-height: 200px; resize: vertical; box-sizing: border-box; }
+.knowledge-block-body textarea { width: 100%; height: 300px; min-height: 160px; resize: vertical; box-sizing: border-box; }
 .knowledge-block-card:not(.knowledge-editor-ready) .knowledge-block-body textarea { display: block !important; visibility: visible !important; }
 .knowledge-block-card:not(.knowledge-editor-ready) .tox-tinymce { display: none !important; }
 .knowledge-block-error { color: #b42318; margin: 0; }
@@ -410,7 +410,8 @@
                 target: block.input, plugins: 'lists', toolbar: 'undo redo | bold italic forecolor | bullist numlist | knowledgecommand',
                 paste_as_text: true,
                 license_key: 'gpl', indent: false, indent_use_margin: false,
-                height: 200, min_height: 160, resize: true, menubar: false, statusbar: false,
+                height: 300, min_height: 160, resize: true, menubar: false, statusbar: true,
+                elementpath: false,
                 branding: false, promotion: false, browser_spellcheck: true,
                 valid_elements: 'p[style|class],br,strong/b,em/i,u,s,strike,del,sub,sup,' +
                     'ul[style|class],ol[start|type|style|class],li[style|class],a[href|title|target|rel],' +

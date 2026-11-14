@@ -483,8 +483,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         assert(tinyOptions.every(o => o.target.id !== 'original' && o.target.id !== 'other'), 'never initialize original IDs');
         const options = tinyOptions[0];
         assert(options.plugins === 'lists' && options.toolbar === 'undo redo | bold italic forecolor | bullist numlist | knowledgecommand', 'restricted plugins and toolbar');
-        assert(options.height === 200 && options.min_height === 160 && options.resize, 'sizing');
-        assert(!options.menubar && !options.statusbar && !options.branding && !options.promotion, 'no extra UI');
+        assert(options.height === 300 && options.min_height === 160 && options.resize === true, 'initial height and vertical resizing');
+        assert(options.statusbar === true && options.elementpath === false, 'resize handle visible without element path');
+        assert(!options.menubar && !options.branding && !options.promotion, 'no extra UI');
         assert(!options.language && options.valid_elements.includes('img[') && options.browser_spellcheck, 'offline-safe and retained rich markup');
         assert(api.getHtml('original') === initial, 'init normalization not a user edit');
         editor.edit('<p><strong>first</strong><img src="/i.png"></p>', 'change');
