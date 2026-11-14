@@ -32,7 +32,10 @@
         return node.innerHTML;
     };
     const isHtml = value => /<\/?[a-z][^>]*>/i.test(value);
-    const editableHtml = value => isHtml(value) ? value : '<p>' + escape(value)
+    const normalizeLines = value => value.replace(/\r\n?/g, '\n');
+    const textParagraphs = value => normalizeLines(value).split('\n')
+        .map(line => '<p>' + (escape(line) || '<br>') + '</p>').join('');
+    const legacyHtml = value => '<p>' + escape(value)
         .replace(/\r\n?/g, '\n').replace(/\n/g, '<br>')
         .replace(/\[b\]([\s\S]*?)\[\/b\]/gi, '<strong>$1</strong>')
         .replace(/\[i\]([\s\S]*?)\[\/i\]/gi, '<em>$1</em>')
@@ -45,6 +48,105 @@
         template.innerHTML = html;
         return template.content;
     };
+    // Range fragments retain inline formatting even when a BR is inside a span.
+    function breakLines(node) {
+        const doc = node.ownerDocument, breaks = [...node.querySelectorAll('br:not([data-mce-bogus])')];
+        let point = [node, 0];
+        const lines = breaks.map(br => {
+            const range = doc.createRange(); range.setStart(...point); range.setEndBefore(br);
+            point = [br.parentNode, [...br.parentNode.childNodes].indexOf(br) + 1];
+            return range;
+        });
+        const last = doc.createRange(); last.setStart(...point); last.setEnd(node, node.childNodes.length);
+        return [...lines, last];
+    }
+    function editableHtml(value) {
+        if (isHtml(value)) return value;
+        if (!value) return '<p></p>';
+        const paragraph = fragment(legacyHtml(value)).firstChild;
+        const container = document.createElement('div');
+        breakLines(paragraph).forEach(range => {
+            const p = document.createElement('p'); p.append(range.cloneContents());
+            if (!p.hasChildNodes()) p.append(document.createElement('br'));
+            container.append(p);
+        });
+        return container.innerHTML;
+    }
+    function selectedLines(editor) {
+        const body = editor.getBody(), selection = editor.selection.getRng();
+        if (!body.contains(selection.startContainer) || !body.contains(selection.endContainer)) return [];
+        const start = selection.cloneRange(), end = selection.cloneRange();
+        start.collapse(true); end.collapse(false);
+        return [...body.querySelectorAll('p,h1,h2,h3,h4,h5,h6,div,li')].filter(node => {
+            // Do not flatten nested lists, command/code blocks or structural DIVs.
+            if (node.closest('pre,code,.knowledge-command') ||
+                    node.querySelector('p,div,h1,h2,h3,h4,h5,h6,ul,ol,pre,code,table,blockquote') ||
+                    !node.querySelector('br:not([data-mce-bogus])')) return false;
+            const range = body.ownerDocument.createRange(); range.selectNodeContents(node);
+            if (selection.collapsed) return range.comparePoint(selection.startContainer, selection.startOffset) === 0;
+            const a = range.cloneRange(), b = range.cloneRange(); a.collapse(true); b.collapse(false);
+            if (end.compareBoundaryPoints(0, a) <= 0 || start.compareBoundaryPoints(0, b) >= 0) return false;
+            // Exclude the next paragraph when selection ends at its first character.
+            const overlap = range.cloneRange();
+            if (start.compareBoundaryPoints(0, a) > 0) overlap.setStart(selection.startContainer, selection.startOffset);
+            if (end.compareBoundaryPoints(0, b) < 0) overlap.setEnd(selection.endContainer, selection.endOffset);
+            return Boolean(overlap.toString().length);
+        });
+    }
+    function splitSelectedLines(editor, nodes) {
+        const doc = editor.getBody().ownerDocument, range = editor.selection.getRng().cloneRange();
+        const token = 'knowledge-list-bookmark-' + (++serial);
+        const marker = suffix => {
+            const span = doc.createElement('span'); span.id = token + suffix;
+            span.setAttribute('data-mce-type', 'bookmark'); return span;
+        };
+        // Markers survive Range cloning, unlike text-node offsets. Remove them before lists runs.
+        const end = range.cloneRange(); end.collapse(false); end.insertNode(marker('-end'));
+        range.collapse(true); range.insertNode(marker('-start'));
+        nodes.forEach(node => {
+            const output = doc.createDocumentFragment();
+            breakLines(node).forEach(line => {
+                const block = node.cloneNode(false); block.removeAttribute('id'); block.append(line.cloneContents());
+                if (!block.hasChildNodes()) block.append(doc.createElement('br'));
+                output.append(block);
+            });
+            node.replaceWith(output);
+        });
+        const body = editor.getBody(), first = body.querySelector('#' + token + '-start'), last = body.querySelector('#' + token + '-end');
+        const restored = doc.createRange(); restored.setStartAfter(first); restored.setEndBefore(last);
+        first.remove(); last.remove(); editor.selection.setRng(restored);
+    }
+    function insertPlainText(editor, text) {
+        const range = editor.selection.getRng(), body = editor.getBody();
+        const element = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+        const code = element.closest('pre,code,.knowledge-command');
+        if (code && body.contains(code)) {
+            // Literal newlines matter in code; HTML paragraphs would escape the code block.
+            range.deleteContents();
+            const node = body.ownerDocument.createTextNode(normalizeLines(text)); range.insertNode(node);
+            range.setStartAfter(node); range.collapse(true); editor.selection.setRng(range);
+            return;
+        }
+        const item = element.closest('li'), lines = normalizeLines(text).split('\n');
+        const endElement = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+        if (item && body.contains(item) && item === endElement.closest('li') && lines.length > 1) {
+            // Split at the actual caret, retaining the current item's prefix and final suffix/sublist.
+            range.deleteContents();
+            const doc = body.ownerDocument, first = doc.createTextNode(lines[0]); range.insertNode(first);
+            const tail = doc.createRange(); tail.selectNodeContents(item); tail.setStartAfter(first);
+            const suffix = tail.extractContents();
+            let previous = item, caret = first;
+            lines.slice(1).forEach(line => {
+                const li = item.cloneNode(false); li.removeAttribute('id');
+                caret = doc.createTextNode(line); li.append(caret); previous.after(li); previous = li;
+                if (!line) li.append(doc.createElement('br'));
+            });
+            previous.append(suffix);
+            range.setStartAfter(caret); range.collapse(true); editor.selection.setRng(range);
+            return;
+        }
+        editor.insertContent(lines.length === 1 ? escape(text) : textParagraphs(text));
+    }
     // Keep source slices rather than reserializing DOM: untouched markup is byte-for-byte stable.
     function slices(html) {
         const tags = /<!--[\s\S]*?-->|<![^>]*>|<\/?[a-z][a-z0-9:-]*(?:\s+(?:[^'">]|"[^"]*"|'[^']*')*)?\s*\/?>/gi;
@@ -357,11 +459,12 @@
         event.preventDefault();
         event.stopImmediatePropagation?.();
         record.active = block;
-        const content = escape(text.replace(/\r\n?/g, '\n')).replace(/\n/g, '<br>');
+        const content = /[\r\n]/.test(text) ? textParagraphs(text) : escape(text);
         if (block.editor) {
-            const insert = () => block.editor.insertContent(content);
+            const insert = () => insertPlainText(block.editor, text);
             if (block.editor.undoManager) block.editor.undoManager.transact(insert);
             else insert();
+            block.editor.nodeChanged?.();
             block.body = block.editor.getContent();
             block.editor.setDirty(false);
         } else {
@@ -439,6 +542,21 @@
                     editor.on('input change Undo Redo', event => read(editor, event));
                     editor.on('init input change SetContent Undo Redo focus blur', () => state(record, Boolean(editor.hasFocus?.())));
                     editor.on('paste', event => receivePaste(record, block, event));
+                    let listing = false;
+                    editor.on('BeforeExecCommand', event => {
+                        if (listing || !/^(InsertOrderedList|InsertUnorderedList)$/i.test(event.command)) return;
+                        const nodes = selectedLines(editor);
+                        if (!nodes.length) return;
+                        event.preventDefault();
+                        // Splitting and TinyMCE's own list operation must be one Undo step.
+                        listing = true;
+                        try {
+                            editor.undoManager.transact(() => {
+                                splitSelectedLines(editor, nodes);
+                                editor.execCommand(event.command, event.ui, event.value);
+                            });
+                        } finally { listing = false; }
+                    });
                     editor.on('drop', event => receiveImages(record, block, event, 'drop'));
                     editor.on('focus', () => { record.active = block; state(record, true); });
                     editor.on('blur', () => {

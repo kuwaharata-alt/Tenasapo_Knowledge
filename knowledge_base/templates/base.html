@@ -735,7 +735,7 @@
             font-weight: 700;
             line-height: 1.5;
         }
-        /* Align text with the heading; list markers hang to its left. */
+        /* Body aligns with the heading; lists and their markers sit one level in. */
         .knowledge-content-section > .knowledge-section-body {
             padding-left: 1rem;
             padding-right: 1rem;
@@ -744,7 +744,7 @@
         /* Outrank the later legacy .faq-body-indent ul/ol rules only in new sections. */
         .knowledge-content-section > .knowledge-section-body :is(ul, ol) {
             margin: .25rem 0;
-            padding-left: 0;
+            padding-left: 1.5em;
             list-style-position: outside;
         }
         .knowledge-content-section > .knowledge-section-body :is(ul, ol) :is(ul, ol) {

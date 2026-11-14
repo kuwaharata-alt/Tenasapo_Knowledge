@@ -57,6 +57,45 @@ class KnowledgeBlockFormTests(KnowledgeBlockFormFixture, TestCase):
             self.addCleanup(guard.assert_not_called)
         super().setUp()
 
+    def test_pasted_paragraphs_blank_lines_lists_and_code_survive_create_edit_and_render(self):
+        for model, prefix, fields, kind in SPECS:
+            with self.subTest(kind=kind):
+                item = None
+                for stage in ('create', 'edit'):
+                    body = ('<p>' + stage + ' 一行目 &lt;値&gt; &amp; 内容</p><p><br></p><p>三行目</p>'
+                            '<ol><li>番号1</li><li>番号2</li></ol>'
+                            '<ul><li>箇条書き1</li><li><br></li><li>箇条書き3</li></ul>'
+                            '<div class="knowledge-command"><code>  echo &lt;値&gt;\n\n次の行\t\n</code></div>')
+                    markup = ('<div class="knowledge-content-section"><h3>貼り付け</h3>'
+                              '<div class="knowledge-section-body">' + body + '</div></div>')
+                    route = reverse(prefix + '_create') if item is None else reverse(prefix + '_edit', args=[item.pk])
+                    saved = self.client.post(route, self.payload(**{field: markup for field in fields}))
+                    self.assertEqual(saved.status_code, 302)
+                    item = model.objects.latest('pk')
+                    item.refresh_from_db()
+                    for stored in ([item.summary, item.body] if kind == 'faq' else [item.body]):
+                        self.assertEqual(stored, markup)
+                    edit_page = self.client.get(reverse(prefix + '_edit', args=[item.pk]))
+                    self.assertEqual(edit_page.status_code, 200)
+                    for field in fields:
+                        self.assertEqual(edit_page.context['form'][field].value(), markup)
+                    model.objects.filter(pk=item.pk).update(is_published=True, is_approved=True, expires_on=None)
+                    fragments = [str(render_inline_images(markup, []))]
+                    for url in (reverse(prefix + '_list'), reverse(prefix + '_detail', args=[item.management_code])):
+                        response = self.client.get(url)
+                        self.assertEqual(response.status_code, 200)
+                        fragments.append(response.content.decode())
+                    preview = self.client.post(reverse('preview_render'),
+                                               json.dumps({'type': kind, **{field: markup for field in fields}}),
+                                               content_type='application/json')
+                    self.assertEqual(preview.status_code, 200)
+                    self.assertTrue(preview.json()['ok'])
+                    fragments.extend(preview.json()[field + '_html'] for field in fields)
+                    for rendered in fragments:
+                        # The existing display renderer expresses empty P/BR as P/NBSP.
+                        # Both retain one visible blank line; storage above stays byte-exact.
+                        self.assertIn(body, rendered.replace('<p>&nbsp;</p>', '<p><br></p>'))
+
     def test_command_and_forecolor_survive_create_edit_reload_and_all_render_surfaces(self):
         for model, prefix, fields, kind in SPECS:
             with self.subTest(kind=kind):

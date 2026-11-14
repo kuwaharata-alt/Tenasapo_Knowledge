@@ -127,7 +127,7 @@ CHECKS
             self.assertIsNotNone(report, result.stderr[-2000:])
             self.assertEqual(html.unescape(report.group(1)), 'PASS: section layout')
 
-    def test_heading_paragraph_and_top_level_list_text_x_match(self):
+    def test_heading_and_body_align_with_lists_indented_one_level(self):
         self.run_checks(r'''
 eachLayout((section, body, label, rootSize) => {
     const heading = section.querySelector('[data-heading]');
@@ -135,15 +135,18 @@ eachLayout((section, body, label, rootSize) => {
     close(x - section.getBoundingClientRect().x, rootSize, label + ': heading 1rem');
     close(px(getComputedStyle(body).paddingLeft), rootSize, label + ': body left 1rem');
     close(px(getComputedStyle(body).paddingRight), rootSize, label + ': body right 1rem');
-    body.querySelectorAll('[data-paragraph], [data-top]').forEach(text =>
+    body.querySelectorAll('[data-paragraph]').forEach(text =>
         close(textX(text), x, label + ': ' + text.textContent));
+    const indent = 1.5 * px(getComputedStyle(body).fontSize);
+    body.querySelectorAll('[data-top]').forEach(text =>
+        close(textX(text), x + indent, label + ': list text one level in'));
     const wrapped = body.querySelector('[data-wrap]');
     const range = document.createRange(); range.selectNodeContents(wrapped);
     const lines = [...range.getClientRects()];
     assert(lines.length > 1, label + ': fixture must actually wrap');
-    lines.forEach(line => close(line.x, x, label + ': wrapped line'));
+    lines.forEach(line => close(line.x, x + indent, label + ': wrapped line'));
     body.querySelectorAll(':scope > ul, :scope > ol').forEach(list => {
-        close(px(getComputedStyle(list).paddingLeft), 0, label + ': top-level padding');
+        close(px(getComputedStyle(list).paddingLeft), indent, label + ': top-level padding');
         close(px(getComputedStyle(list).marginLeft), 0, label + ': top-level margin');
     });
 });

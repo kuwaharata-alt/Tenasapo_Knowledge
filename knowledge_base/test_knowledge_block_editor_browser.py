@@ -31,6 +31,16 @@ window.tinymce = {
             }); },
             emit(name, event = {type: name}) { (listeners.get(name) || []).forEach(callback => callback(event)); },
             dispatch(name) { this.emit(name); },
+            nativeCommands: [],
+            execCommand(command, ui, value) {
+                const event = {command, ui, value, prevented: false, preventDefault() { this.prevented = true; }};
+                this.emit('BeforeExecCommand', event);
+                if (!event.prevented) {
+                    // This boundary records native input; it deliberately does not emulate TinyMCE lists.
+                    this.nativeCommands.push({command, ui, value, html: dom.innerHTML, selection: range.toString()});
+                    dirty = true; this.emit('input');
+                }
+            },
             getContent() { return dom.innerHTML; },
             setContent(value) { dom.innerHTML = value; this.emit('change'); },
             isDirty() { return dirty; }, setDirty(value) { dirty = value; },
@@ -105,10 +115,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 </script>'''.replace('CHECKS', checks)
         with tempfile.TemporaryDirectory(prefix='knowledge-block-browser-') as directory:
             page = Path(directory) / 'fixture.html'
-            page.write_text(fixture + setup + self.assets + self.assets + harness, encoding='utf-8')
+            page.write_text(fixture + setup + self.assets + self.assets + harness, encoding='utf-8', newline='\n')
             result = subprocess.run([
                 self.browser, '--headless=new', '--disable-gpu', '--no-sandbox',
                 '--no-first-run', '--disable-background-networking',
+                '--host-resolver-rules=MAP * ~NOTFOUND',
                 f'--user-data-dir={directory}/profile', '--virtual-time-budget=8500',
                 '--dump-dom', page.as_uri(),
             ], capture_output=True, encoding='utf-8', errors='replace', timeout=60, check=False)
@@ -210,10 +221,120 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 const value = api.getHtml('original');
                 assert(event.defaultPrevented, 'default rich paste prevented');
-                assert(value.includes('貼り付け &lt;script&gt; &amp; text<br>次の行'), 'escaped text and line breaks retained');
+                assert(value.includes('<p>貼り付け &lt;script&gt; &amp; text</p><p>次の行</p>'), 'each pasted line is an escaped independent paragraph');
                 assert(!value.includes('WRONG FORMAT') && !value.includes('<script>'), 'clipboard HTML never inserted');
                 assert(api.hasContent('original'), 'paste synchronizes source');
                 ''', tiny=tiny)
+
+    def test_plaintext_lines_are_independent_paragraphs_without_rewriting_original(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+        assert(dom.innerHTML === '<p>first</p><p><br></p><p>second</p><p><br></p>', 'CRLF, blank and trailing lines become independent blocks');
+        assert(api.getHtml('original') === initial, 'unmodified source remains byte-for-byte identical');
+        ''', original='first\r\n\r\nsecond\r', tiny=True)
+
+    def test_paste_blank_lines_crlf_and_escaped_text_undo(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id);
+        editor.edit(''); const original = editor.getContent();
+        const transfer = new DataTransfer(); transfer.setData('text/plain', 'first\r\n\r\n<unsafe> & \"quote\"\rfinal\n');
+        const event = new ClipboardEvent('paste', {clipboardData: transfer, cancelable: true});
+        editor.emit('paste', event);
+        const dom = editor.getBody(), paragraphs = [...dom.querySelectorAll('p')];
+        assert(paragraphs.map(p => p.textContent).join('|') === 'first||<unsafe> & "quote"|final|', 'blank, CRLF, CR and trailing lines preserved');
+        assert(paragraphs[1].innerHTML === '<br>' && paragraphs[4].innerHTML === '<br>', 'empty paragraphs stay visible');
+        assert(!dom.querySelector('unsafe'), 'literal angle brackets never become markup');
+        const pasted = dom.innerHTML;
+        editor.undoManager.undo(); assert(editor.getContent() === original, 'paste undone in one step');
+        editor.undoManager.redo(); assert(editor.getContent() === pasted && source.value.includes(pasted), 'redo and source synchronized');
+        ''', tiny=True)
+
+    def test_paste_in_list_splits_items_keeps_prefix_suffix_and_nested_list(self):
+        for tag in ('ul', 'ol'):
+            with self.subTest(tag=tag):
+                self.run_checks(r'''
+                await sleep(30);
+                const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+                const initial = dom.innerHTML, item = dom.querySelector('li'), text = item.querySelector('strong').firstChild;
+                const range = document.createRange(); range.setStart(text, 3); range.setEnd(text, 6); editor.selection.setRng(range);
+                const transfer = new DataTransfer(); transfer.setData('text/plain', '<first>\r\n\r\nlast &');
+                editor.emit('paste', new ClipboardEvent('paste', {clipboardData: transfer, cancelable: true}));
+                const items = [...dom.firstElementChild.children];
+                assert(items.length === 4, 'one LI per pasted line and existing sibling retained');
+                assert(items[0].textContent === 'pre<first>' && items[0].querySelector('strong'), 'prefix formatting and escaped text retained');
+                assert(items[1].textContent === '' && items[1].querySelector('br'), 'blank line is visible empty LI');
+                assert(items[2].textContent === 'last &POSTnested' && items[2].querySelector('strong').textContent === 'POST', 'suffix formatting retained on final LI');
+                assert(items[2].querySelector('ul > li').textContent === 'nested' && items[3].textContent === 'other', 'nested and sibling lists preserved');
+                assert(!dom.querySelector('first') && !dom.querySelector('li > li'), 'no HTML injection or invalid nesting');
+                const pasted = dom.innerHTML;
+                assert(source.value.includes(pasted), 'list paste synchronized');
+                editor.undoManager.undo(); assert(dom.innerHTML === initial, 'single Undo restores exact original list');
+                editor.undoManager.redo(); assert(dom.innerHTML === pasted, 'Redo restores items');
+                ''', original=f'<{tag}><li><strong>preCUTPOST</strong><ul><li>nested</li></ul></li><li>other</li></{tag}>', tiny=True)
+
+    def test_paste_in_code_preserves_literal_newlines_and_selection(self):
+        for original in ('<pre><code>preCUTpost</code></pre>',
+                         '<div class="knowledge-command"><code>preCUTpost</code></div>'):
+            with self.subTest(original=original):
+                self.run_checks(r'''
+                await sleep(30);
+                const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody(), before = dom.innerHTML;
+                const text = dom.querySelector('code').firstChild, range = document.createRange();
+                range.setStart(text, 3); range.setEnd(text, 6); editor.selection.setRng(range);
+                const transfer = new DataTransfer(); transfer.setData('text/plain', '  <tag> &\r\n\r\nlast\t\n');
+                editor.emit('paste', new ClipboardEvent('paste', {clipboardData: transfer, cancelable: true}));
+                assert(dom.querySelector('code').textContent === 'pre  <tag> &\n\nlast\t\npost', 'literal code whitespace and replacement retained');
+                assert(!dom.querySelector('p,br,tag'), 'code never receives paragraphs, BR or executable HTML');
+                assert(editor.selection.getRng().collapsed, 'caret collapsed after inserted code');
+                assert(source.value.includes('&lt;tag&gt; &amp;\n\nlast\t\n'), 'code source synchronized safely');
+                editor.undoManager.undo(); assert(dom.innerHTML === before, 'code paste is one Undo');
+                ''', original=original, tiny=True)
+
+    def test_list_command_splits_legacy_br_lines_preserves_styles_selection_and_undo(self):
+        for command in ('InsertOrderedList', 'InsertUnorderedList'):
+            with self.subTest(command=command):
+                self.run_checks(r'''
+                await sleep(30);
+                const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody(), before = dom.innerHTML;
+                const strong = dom.querySelector('strong'), range = document.createRange();
+                range.setStart(strong.firstChild, 1); range.setEnd(strong.lastChild, 2); editor.selection.setRng(range);
+                const selected = range.toString();
+                editor.execCommand(COMMAND, false, {test: true});
+                const paragraphs = dom.querySelectorAll('section > p');
+                assert(paragraphs.length === 5 && [...paragraphs].map(p => p.textContent).join('|') === 'keep|first||second|tail', 'BR lines including blank line become separate blocks');
+                assert(paragraphs[1].querySelector('strong') && paragraphs[3].querySelector('strong'), 'inline formatting cloned across line break');
+                assert(paragraphs[1].style.color === 'red' && paragraphs[3].style.color === 'red', 'block formatting retained');
+                assert(editor.selection.getRng().toString() === selected, 'partial selected text preserved');
+                assert(!dom.querySelector('[data-mce-type="bookmark"]'), 'no private marker leaks into native command or saved HTML');
+                assert(editor.nativeCommands.length === 1 && editor.nativeCommands[0].command === COMMAND && editor.nativeCommands[0].value.test, 'native command forwarded exactly once with parameters');
+                const split = dom.innerHTML;
+                editor.undoManager.undo(); assert(dom.innerHTML === before && source.value.includes(before), 'one Undo restores BR structure and source');
+                editor.undoManager.redo(); assert(dom.innerHTML === split, 'Redo restores split blocks');
+                '''.replace('COMMAND', repr(command)), original='<section><p>keep</p><p style="color:red"><strong>first<br><br>second</strong></p><p>tail</p></section>', tiny=True)
+
+    def test_list_command_boundaries_caret_nested_list_and_protected_code(self):
+        self.run_checks(r'''
+        await sleep(30);
+        const editor = tinyInstances.get(body(cards()[0]).id), dom = editor.getBody();
+        const select = (a, x, b = a, y = x) => { const r = document.createRange(); r.setStart(a, x); r.setEnd(b, y); editor.selection.setRng(r); };
+        editor.edit('<p>one<br>two</p><p>excluded<br>next</p>');
+        select(dom.firstChild.firstChild, 1, dom.lastChild.firstChild, 0);
+        editor.execCommand('InsertOrderedList');
+        assert(dom.children.length === 3 && dom.lastChild.innerHTML === 'excluded<br>next', 'end at next paragraph start does not split next paragraph');
+        editor.edit('<ul><li>one<br><em>two</em></li><li>parent<br>line<ul><li>child<br>next</li></ul></li></ul>');
+        const nested = dom.firstChild.lastChild.outerHTML;
+        select(dom.querySelector('em').firstChild, 1); editor.execCommand('InsertUnorderedList');
+        assert(dom.firstChild.children.length === 3 && dom.firstChild.lastChild.outerHTML === nested, 'current leaf LI split without flattening neighboring nested list');
+        const protectedHtml = '<pre>one<br>two</pre><div class="knowledge-command"><code>a<br>b</code></div>';
+        editor.edit(protectedHtml); select(dom.querySelector('code').firstChild, 0, dom.querySelector('code').lastChild, 1);
+        editor.execCommand('InsertOrderedList');
+        assert(dom.innerHTML === protectedHtml, 'normalizer leaves code and command blocks untouched');
+        editor.edit('<p>a<br>b</p>'); select(dom.firstChild.firstChild, 0, dom.firstChild.lastChild, 1);
+        editor.execCommand('ForeColor', false, '#123abc');
+        assert(dom.innerHTML === '<p>a<br>b</p>', 'unrelated commands never split BR');
+        ''', tiny=True)
 
     def test_command_marks_current_paragraph_toggles_and_undo_syncs(self):
         self.run_checks(r'''
