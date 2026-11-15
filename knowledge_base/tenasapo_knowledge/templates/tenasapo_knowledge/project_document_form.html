@@ -77,6 +77,7 @@
                         <input type="hidden" name="category_selection_id" id="id_category_selection_id" value="{{ form.category_selection_id.value|default_if_none:'' }}">
                         <div class="category-sidebar category-browser{% if form.parent_category.errors or form.middle_category.errors or form.child_category.errors or form.category_selection_id.errors %} is-invalid{% endif %}" id="documentCategoryBrowser">
                             <div class="category-browser-header">カテゴリブラウザ</div>
+                            {% include 'includes/category_browser_genre_selector.html' with genre_selector_id='documentCategoryGenre' %}
                             <div class="category-browser-grid">
                                 <div class="category-browser-pane">
                                     <div class="category-browser-pane-title">大カテゴリ</div>
@@ -208,6 +209,7 @@
     </div>
 </div>
 
+{% include 'includes/category_browser_genre_assets.html' %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const templateSwitch = document.getElementById('id_is_template');
@@ -361,6 +363,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     if (!categoryBrowserData.length) showEmpty(parentPane, '登録済みカテゴリがありません。');
     renderMiddle();
+    window.setupCategoryBrowserGenre({
+        data: categoryBrowserData, selectorId: 'documentCategoryGenre', parentPane,
+        initialParentName: activeParent ? activeParent.name : parentInput.value,
+        onChange: parents => {
+            activeParent = parents[0] || null;
+            activeMiddle = null;
+            renderMiddle();
+        }
+    });
 });
 </script>
 {% endblock %}

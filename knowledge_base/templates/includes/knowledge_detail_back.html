@@ -1,0 +1,17 @@
+<a href="{{ detail_back_url }}" id="knowledge-detail-back" class="link-secondary text-decoration-none"{% if request.GET.close_tab == '1' %} aria-label="戻る（このタブを閉じる）"{% endif %}>&larr; {% if request.GET.close_tab == '1' %}戻る（タブを閉じる）{% else %}{{ detail_back_label }}{% endif %}</a>
+{% if request.GET.close_tab == '1' %}
+<script>
+(() => {
+    const back = document.getElementById('knowledge-detail-back');
+    back.addEventListener('click', event => {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        // Browsers may refuse to close a tab opened manually. Keep a safe fallback.
+        try { window.close(); } catch (_) { /* Use the existing back destination. */ }
+        window.setTimeout(() => {
+            if (!window.closed) window.location.assign(back.href);
+        }, 150);
+    });
+})();
+</script>
+{% endif %}

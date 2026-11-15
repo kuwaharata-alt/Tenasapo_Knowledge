@@ -6,7 +6,7 @@
 {% block page_header %}
 <div class="page-title-panel mb-4">
     <div class="d-flex align-items-center gap-2 mb-2">
-        <a href="{{ detail_back_url }}" class="link-secondary text-decoration-none">&larr; {{ detail_back_label }}</a>
+        {% include 'includes/knowledge_detail_back.html' %}
     </div>
     <h1 class="page-title-main mb-0 d-flex align-items-center gap-2">
         <span class="badge text-bg-primary">Q&amp;A</span>
@@ -114,7 +114,7 @@
                         <div class="row g-3">
                             {% for related in related_articles %}
                                 <div class="col-12 col-md-6 col-lg-4">
-                                    <a href="{% url 'article_detail' related.management_code %}" class="card h-100 shadow-sm text-decoration-none text-reset link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
+                                    <a href="{% url 'article_detail' related.management_code %}{% if request.GET.close_tab == '1' %}?close_tab=1{% endif %}" class="card h-100 shadow-sm text-decoration-none text-reset link-underline link-underline-opacity-0 link-underline-opacity-75-hover">
                                         <div class="card-body">
                                             <div class="card-title h6 mb-2" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{{ related.title }}</div>
                                             <div class="small text-muted">{{ related.management_code }}</div>

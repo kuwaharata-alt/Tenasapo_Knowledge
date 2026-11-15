@@ -1,0 +1,59 @@
+<style>
+    .category-browser [data-parent-name][hidden] { display: none !important; }
+</style>
+<script>
+// 表示専用。カテゴリのID・名称・投稿値には触れない。
+window.setupCategoryBrowserGenre = function ({data, selectorId, parentPane, initialParentName, onChange, parentSelect}) {
+    const selector = document.getElementById(selectorId);
+    if (!selector || !parentPane || !Array.isArray(data)) return;
+    const keyOf = parent => parent.genre_key || 'other';
+    const nameOf = parent => parent.genre_name || 'その他';
+    const genres = new Map();
+    data.forEach(parent => genres.set(keyOf(parent), nameOf(parent)));
+    genres.forEach((name, key) => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = name;
+        selector.appendChild(option);
+    });
+    const initialParent = data.find(parent => parent.name === initialParentName);
+    selector.value = initialParent ? keyOf(initialParent) : '';
+    if (parentSelect) {
+        // Group only real, existing choices; never add fixed mapping names to CRUD.
+        const selectedValue = parentSelect.value;
+        const options = [...parentSelect.options];
+        genres.forEach((name, key) => {
+            const group = document.createElement('optgroup');
+            group.label = name;
+            options.forEach(option => {
+                const parent = data.find(item => item.name === option.value);
+                if (parent && keyOf(parent) === key) group.appendChild(option);
+            });
+            if (group.children.length) parentSelect.appendChild(group);
+        });
+        parentSelect.value = selectedValue;
+    }
+    function filter() {
+        const candidates = data.filter(parent => !selector.value || keyOf(parent) === selector.value);
+        parentPane.querySelectorAll('[data-parent-name]').forEach(row => {
+            row.hidden = !candidates.some(parent => parent.name === row.dataset.parentName);
+        });
+        if (parentSelect) {
+            [...parentSelect.options].forEach(option => {
+                const parent = data.find(item => item.name === option.value);
+                // Keep the current CRUD value available even across genre switches.
+                option.hidden = !!parent && option.value !== parentSelect.value
+                    && !!selector.value && keyOf(parent) !== selector.value;
+            });
+        }
+        return candidates;
+    }
+    filter();
+    selector.addEventListener('change', () => onChange(filter()));
+    if (parentSelect) parentSelect.addEventListener('change', () => {
+        const parent = data.find(item => item.name === parentSelect.value);
+        if (parent) selector.value = keyOf(parent);
+        onChange(filter());
+    });
+};
+</script>

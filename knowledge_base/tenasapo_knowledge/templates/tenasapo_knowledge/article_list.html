@@ -56,17 +56,21 @@
 
 <div class="row knowledge-split-row">
     <aside class="col-12 col-lg-2 category-sidebar-col has-os-filter" tabindex="0" aria-label="カテゴリ一覧">
-        <div class="category-sidebar">
+        <div class="category-sidebar category-sidebar-with-genre">
             <div class="category-sidebar-title">カテゴリ</div>
+            {% include "includes/category_genre_selector.html" with genre_id_prefix="faq" %}
             <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="カテゴリ項目">
                 <a
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
                     href="{{ category_all_url }}"
                 >
-                    <span>すべて</span>
+                    <span>{% if selected_genre %}このジャンルのすべて{% else %}すべて{% endif %}</span>
                     <span class="category-count">{{ all_count|default:0 }}件</span>
                 </a>
                 {% for parent_category in parent_categories %}
+                    {% ifchanged parent_category.genre_key %}
+                        <div class="category-genre-heading">{{ parent_category.genre_name }}</div>
+                    {% endifchanged %}
                     <a
                         class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
                         href="{{ parent_category.url }}"
@@ -138,6 +142,9 @@
         <div class="search-panel py-3">
 
             <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+                {% if selected_genre %}
+                    <input type="hidden" name="genre" value="{{ selected_genre }}">
+                {% endif %}
                 {% if selected_parent_category %}
                     <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
                 {% endif %}
@@ -163,7 +170,6 @@
                             {% if favorite_only %}☆表示解除{% else %}☆のみ表示{% endif %}
                         </a>
                     {% endif %}
-                    {% if can_edit_article %}
                         <button
                             class="btn btn-toolbar-secondary{% if active_filter_count %} is-selected{% endif %} position-relative"
                             type="button"
@@ -174,9 +180,7 @@
                         >
                             <i class="bi bi-funnel"></i> フィルタ{% if active_filter_count %}<span class="badge rounded-pill bg-danger ms-1" style="font-size:0.65rem;">{{ active_filter_count }}</span>{% endif %}
                         </button>
-                    {% endif %}
                 </div>
-                {% if can_edit_article %}
                 <div class="col-12">
                     <div class="collapse {% if active_filter_count %}show{% endif %}" id="faqFilterPanel">
                         <div class="border rounded p-3 mt-1" style="background:var(--tk-panel-bg,#fff);">
@@ -184,7 +188,6 @@
                         </div>
                     </div>
                 </div>
-                {% endif %}
             </form>
         </div>
 
@@ -236,13 +239,14 @@
                                                 </div>
                                             </div>
                                             <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
+                                                <div class="d-flex align-items-center gap-2 mb-1">
                                                 {% if can_edit_article %}
-                                                    <div class="d-flex align-items-center gap-1 mb-1">
                                                         <span class="knowledge-status {% if article.is_approved %}knowledge-status-approved{% elif article.approval_status == 'corrected' %}knowledge-status-corrected{% elif article.approval_status == 'remanded' %}knowledge-status-remanded{% else %}knowledge-status-registered{% endif %}">
                                                             <span class="visually-hidden">ステータス：</span>{% if article.is_approved %}公開中(承認済){% elif article.approval_status == 'corrected' %}修正{% elif article.approval_status == 'remanded' %}差戻し{% else %}登録{% endif %}
                                                         </span>
-                                                    </div>
                                                 {% endif %}
+                                                    <a class="knowledge-detail-tab" href="{% url 'article_detail' article.management_code %}?close_tab=1" target="_blank" rel="noopener" title="別タブで開く" aria-label="{{ article.title }}を別タブで開く"><i class="bi bi-box-arrow-up-right" aria-hidden="true"></i></a>
+                                                </div>
                                                 <div class="d-flex align-items-center gap-1">
                                                     {% if can_edit_article %}
                                                         <button

@@ -103,6 +103,7 @@
                     </div>
                     {% else %}
                     <div class="col-12">
+                        {% include 'includes/category_browser_genre_selector.html' with genre_selector_id='managementCategoryGenre' %}
                         <div class="form-section-label mb-2" id="form-section-parent" data-form-section data-completion-required tabindex="-1">大カテゴリ</div>
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
@@ -170,8 +171,9 @@
                         <div class="category-browser-pane-title">大カテゴリ</div>
                         <div class="list-group list-group-flush">
                             {% for parent in category_browser %}
-                                <div class="list-group-item category-sidebar-link d-flex justify-content-between align-items-center">
+                                <div class="list-group-item category-sidebar-link d-flex justify-content-between align-items-center" data-parent-name="{{ parent.name }}">
                                     <span>{{ parent.name }}</span>
+                                    {% if category_type_tab != 'qr' %}<small class="text-muted">{{ parent.genre_name|default:'その他' }}</small>{% endif %}
                                 </div>
                             {% empty %}
                                 <div class="list-group-item text-muted">カテゴリがありません。</div>
@@ -198,6 +200,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'includes/category_browser_genre_assets.html' %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const data = JSON.parse('{{ category_browser_json|escapejs }}');
@@ -267,8 +270,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function renderSub1(parentName) {
         parentContainer.querySelectorAll('.category-sidebar-link').forEach(item => {
-            const span = item.querySelector('span');
-            item.classList.toggle('active', !!span && span.textContent.trim() === parentName);
+            item.classList.toggle('active', item.dataset.parentName === parentName);
         });
         const parent = data.find(item => item.name === parentName);
         if (!parent) {
@@ -333,6 +335,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 break;
             }
         }
+    }
+    if (!isQrTab) {
+        const parentSelect = document.getElementById('{{ form.parent_name.id_for_label|escapejs }}');
+        const focusedParent = parentContainer.querySelector('[data-parent-name].active');
+        const initialParentName = (parentSelect && parentSelect.value) || (focusedParent && focusedParent.dataset.parentName) || '';
+        if (parentSelect && parentSelect.value && (!focusedParent || focusedParent.dataset.parentName !== parentSelect.value)) {
+            renderSub1(parentSelect.value);
+        }
+        window.setupCategoryBrowserGenre({
+            data, selectorId: 'managementCategoryGenre', parentPane: parentContainer,
+            initialParentName,
+            parentSelect,
+            onChange: parents => renderSub1(parents.length ? parents[0].name : '')
+        });
     }
 });
 </script>

@@ -537,6 +537,26 @@
             color: var(--tk-text);
             background: #f1f3f5;
         }
+        .knowledge-detail-tab {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 1.5rem;
+            padding: 0;
+            flex-shrink: 0;
+            font-size: .8rem;
+            line-height: 1;
+            color: var(--tk-muted);
+            background: transparent;
+            border: 0;
+            text-decoration: none;
+        }
+        .knowledge-detail-tab:hover { color: var(--tk-text); }
+        .knowledge-detail-tab:focus-visible {
+            outline: 2px solid var(--tk-primary);
+            outline-offset: 2px;
+        }
         .knowledge-action-menu {
             position: fixed;
             inset: auto;

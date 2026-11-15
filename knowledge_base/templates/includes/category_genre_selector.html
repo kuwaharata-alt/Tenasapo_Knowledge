@@ -1,0 +1,48 @@
+<style>
+    .knowledge-split-row .category-sidebar.category-sidebar-with-genre {
+        grid-template-rows: auto auto minmax(0, 1fr);
+    }
+    .category-genre-selector { min-width: 0; padding: .5rem .75rem; border-bottom: 1px solid var(--tk-border, #dee2e6); }
+    .category-sidebar-with-genre .category-sidebar-title { font-size: .85rem; font-weight: 600; }
+    .category-sidebar-with-genre .category-sidebar-link { font-size: .85rem; }
+    .category-sidebar-with-genre .category-sidebar-link.category-sidebar-toggle {
+        padding-left: calc(.8rem + 1em);
+    }
+    .category-sidebar-with-genre > .list-group > .collapse > .category-child-list {
+        font-size: .85rem;
+        padding-left: calc(.8rem + 2em - .45rem);
+    }
+    .category-genre-selector label { font-size: .9rem; font-weight: 700; color: var(--tk-primary-dark, #08786d); }
+    .category-genre-selector select { width: 100%; min-width: 0; font-size: .95rem; font-weight: 600; }
+    .category-genre-selector select:focus-visible { outline: 2px solid var(--tk-primary, #0b9385); outline-offset: 2px; }
+    .category-genre-fallback { display: flex; flex-direction: column; gap: .25rem; font-size: .95rem; }
+    .category-genre-fallback a[aria-current="page"] { font-weight: 600; }
+    .category-genre-heading { padding: .65rem .8rem .3rem; font-size: .9rem; font-weight: 700;
+        color: var(--tk-muted, #6c757d); background: var(--tk-soft, #f8f9fa); }
+</style>
+<div class="category-genre-selector">
+    <label class="form-label mb-1" for="{{ genre_id_prefix }}CategoryGenreNavigation">ジャンル</label>
+    <select class="form-select form-select-sm" id="{{ genre_id_prefix }}CategoryGenreNavigation" data-category-genre-navigation>
+        <option value="{{ genre_all_url }}" data-genre=""{% if not selected_genre %} selected{% endif %}>すべて（{{ genre_all_count }}件）</option>
+        {% for genre in genre_options %}
+            <option value="{{ genre.url }}" data-genre="{{ genre.key }}"{% if genre.selected %} selected{% endif %}>{{ genre.name }}（{{ genre.count }}件）</option>
+        {% endfor %}
+    </select>
+    <noscript>
+        <style>.category-genre-selector select, .category-genre-selector label { display: none; }</style>
+        <nav class="category-genre-fallback" aria-label="ジャンル選択">
+            <a href="{{ genre_all_url }}" data-genre=""{% if not selected_genre %} aria-current="page"{% endif %}>すべて（{{ genre_all_count }}件）</a>
+            {% for genre in genre_options %}
+                <a href="{{ genre.url }}" data-genre="{{ genre.key }}"{% if genre.selected %} aria-current="page"{% endif %}>{{ genre.name }}（{{ genre.count }}件）</a>
+            {% endfor %}
+        </nav>
+    </noscript>
+</div>
+<script>
+(() => {
+    const select = document.currentScript.previousElementSibling.querySelector('[data-category-genre-navigation]');
+    select.addEventListener('change', () => {
+        if (select.value) window.location.assign(select.value);
+    });
+})();
+</script>

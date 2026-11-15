@@ -98,6 +98,10 @@ from .models import (
 )
 from .utils import can_view_view_history, resolve_saved_or_user_display_name, resolve_user_display_name
 from .posting_quotas import posting_targets, quota_progress, summary_filters
+from .category_genres import (
+    CATEGORY_GENRES, OTHER_GENRE, category_genre_keys, category_matches_genre,
+    genre_fields, genre_for_parent, group_parents_by_genre, normalize_genre_key,
+)
 
 
 ADMIN_GROUP_NAME = getattr(
@@ -1306,6 +1310,7 @@ def build_parent_category_groups(
         groups.append(
             {
                 'name': parent_name,
+                **genre_fields(parent_name),
                 'children': list(node['direct_children'].values()),
                 'middle_groups': middle_groups,
             }
@@ -1945,7 +1950,7 @@ def filter_knowledge_list(queryset, request):
 
 def knowledge_list_filter_context(request, model):
     if not can_edit_article(request.user):
-        return {}
+        return {'active_filter_count': 0}
     filters = knowledge_list_filter_values(request)
     creator_ids = model.objects.filter(is_published=True).filter(active_until_filter()).exclude(
         created_by=None,
@@ -2028,6 +2033,73 @@ def filter_queryset_by_target_os(queryset, request):
     }
 
 
+def normalize_knowledge_genre_request(request):
+    """Ignore invalid slugs; discard stale category/page state on a genre mismatch."""
+    params = request.GET.copy()
+    genre = normalize_genre_key(params.get('genre', ''))
+    if not genre:
+        params.pop('genre', None)
+    parent = params.get('parent_category', '')
+    category = params.get('category', '')
+    if genre and (
+        (parent and genre_for_parent(parent)['key'] != genre)
+        or (category and not category_matches_genre(category, genre))
+    ):
+        for key in ('parent_category', 'category', 'page', 'open_code', 'open_id'):
+            params.pop(key, None)
+    request.GET = params
+    return genre
+
+
+def filter_queryset_by_genre(queryset, genre):
+    if not genre:
+        return queryset
+    ids = [pk for pk, text in queryset.values_list('pk', 'category')
+           if category_matches_genre(text, genre)]
+    return queryset.filter(pk__in=ids)
+
+
+def knowledge_genre_context(request, parents, category_texts):
+    """Global navigation counts use visible articles, once per article per genre.
+
+    Like legacy category counts, these are independent of search/favorite/OS.
+    parent_categories remains flat for compatibility; genre_groups is additive.
+    """
+    selected = normalize_genre_key(request.GET.get('genre', ''))
+    counts = Counter(key for text in category_texts for key in category_genre_keys(text))
+    params = request.GET.copy()
+    for key in ('genre', 'parent_category', 'category', 'page', 'open_code', 'open_id'):
+        params.pop(key, None)
+
+    def link(key):
+        query = params.copy()
+        if key:
+            query['genre'] = key
+        encoded = query.urlencode()
+        return request.path + ('?' + encoded if encoded else '')
+
+    genres = list(CATEGORY_GENRES)
+    if counts['other'] or any(parent['genre_key'] == 'other' for parent in parents):
+        genres.append(OTHER_GENRE)
+    options = [
+        {'key': genre['key'], 'name': genre['name'], 'count': counts[genre['key']],
+         'url': link(genre['key']), 'selected': selected == genre['key']}
+        for genre in genres
+    ]
+    groups = group_parents_by_genre(parents)
+    if selected:
+        groups = [group for group in groups if group['key'] == selected]
+    return {
+        'selected_genre': selected,
+        'genre_options': options,
+        'genre_all_url': link(''),
+        'genre_all_count': len(category_texts),
+        'genre_groups': groups,
+        'parent_categories': [parent for group in groups for parent in group['parents']],
+        'all_count': counts[selected] if selected else len(category_texts),
+    }
+
+
 class KnowledgeListPaginationMixin:
     paginate_by = 20
 
@@ -2091,6 +2163,7 @@ class ArticleListView(KnowledgeListPaginationMixin, ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
+        genre = normalize_knowledge_genre_request(self.request)
         queryset = (
             KnowledgeArticle.objects.select_related('customer', 'created_by', 'approved_by')
             .prefetch_related('attachments', 'images')
@@ -2104,6 +2177,8 @@ class ArticleListView(KnowledgeListPaginationMixin, ListView):
             self.split_categories,
             self.parent_category_name,
         )
+
+        queryset = filter_queryset_by_genre(queryset, genre)
 
         query = self.request.GET.get('q')
         if query:
@@ -2267,6 +2342,7 @@ class ArticleListView(KnowledgeListPaginationMixin, ListView):
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         context.update(knowledge_list_filter_context(self.request, KnowledgeArticle))
+        context.update(knowledge_genre_context(self.request, parent_categories, all_category_texts))
         knowledge_list_navigation_context(self.request, context)
         return context
 
@@ -2335,22 +2411,10 @@ class ArticleListView(KnowledgeListPaginationMixin, ListView):
         return parent_counts, category_counts
 
     def navigation_category_texts(self):
-        queryset = (
-            KnowledgeArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
+        queryset = visible_knowledge_queryset(
+            KnowledgeArticle.objects.all(), self.request.user,
+            self.split_categories, self.parent_category_name,
         )
-        user = self.request.user
-        if is_customer_user(user):
-            queryset = queryset.filter(visible_to_customer=True)
-            if FAQ_APPROVAL_ENABLED:
-                queryset = queryset.filter(is_approved=True)
-            queryset = filter_queryset_by_customer_parent_settings(
-                queryset,
-                user,
-                self.split_categories,
-                self.parent_category_name,
-            )
         return queryset.values_list('category', flat=True)
 
     def available_parent_category_groups(self):
@@ -2398,6 +2462,7 @@ class TipsListView(KnowledgeListPaginationMixin, ListView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
+        genre = normalize_knowledge_genre_request(self.request)
         queryset = (
             TipsArticle.objects.prefetch_related('images', 'attachments')
             .annotate(good_count=Count('goods'))
@@ -2410,6 +2475,8 @@ class TipsListView(KnowledgeListPaginationMixin, ListView):
             self.split_categories,
             self.parent_category_name,
         )
+
+        queryset = filter_queryset_by_genre(queryset, genre)
 
         query = self.request.GET.get('q')
         if query:
@@ -2566,6 +2633,7 @@ class TipsListView(KnowledgeListPaginationMixin, ListView):
         context['query'] = self.request.GET.get('q', '')
         context['favorite_only'] = str(self.request.GET.get('favorite_only', '')).lower() in {'1', 'true', 'on'}
         context.update(knowledge_list_filter_context(self.request, TipsArticle))
+        context.update(knowledge_genre_context(self.request, parent_categories, all_category_texts))
         knowledge_list_navigation_context(self.request, context)
         return context
 
@@ -2634,22 +2702,10 @@ class TipsListView(KnowledgeListPaginationMixin, ListView):
         return parent_counts, category_counts
 
     def navigation_category_texts(self):
-        queryset = (
-            TipsArticle.objects.filter(is_published=True)
-            .filter(active_until_filter())
-            .filter(visible_to_any_account_filter())
+        queryset = visible_knowledge_queryset(
+            TipsArticle.objects.all(), self.request.user,
+            self.split_categories, self.parent_category_name,
         )
-        user = self.request.user
-        if is_customer_user(user):
-            queryset = queryset.filter(visible_to_customer=True)
-            if FAQ_APPROVAL_ENABLED:
-                queryset = queryset.filter(is_approved=True)
-            queryset = filter_queryset_by_customer_parent_settings(
-                queryset,
-                user,
-                self.split_categories,
-                self.parent_category_name,
-            )
         return queryset.values_list('category', flat=True)
 
     def available_parent_category_groups(self):
@@ -5075,6 +5131,7 @@ class FAQCategoryCreateView(StaffRequiredMixin, FormView):
                 category.parent_name,
                 {
                     'name': category.parent_name,
+                    **genre_fields(category.parent_name),
                     'visible_to_customer': True,
                     'direct_children': [],
                     'middles': {},
@@ -6326,12 +6383,23 @@ class ProjectDocumentListView(ListView):
         )
         return super().dispatch(request, *args, **kwargs)
 
-    def get_queryset(self):
-        queryset = (
+    def visible_documents_queryset(self):
+        # Customer access is rejected in dispatch; all other roles see published documents.
+        # Share this scope with navigation counts, before search/Temp/category filters.
+        return (
             ProjectDocument.objects.select_related('created_by')
             .filter(is_published=True)
             .order_by('-created_at', '-id')
         )
+
+    def get_queryset(self):
+        params = self.request.GET.copy()
+        for key in ('parent_category', 'category'):
+            if key in params:
+                params[key] = params[key].strip()
+        self.request.GET = params
+        genre = normalize_knowledge_genre_request(self.request)
+        queryset = filter_queryset_by_genre(self.visible_documents_queryset(), genre)
 
         query = (self.request.GET.get('q') or '').strip()
         if query:
@@ -6378,18 +6446,19 @@ class ProjectDocumentListView(ListView):
 
         parent_categories = build_parent_category_groups(user=self.request.user)
         all_category_texts = list(
-            ProjectDocument.objects.filter(is_published=True).values_list('category', flat=True)
+            self.visible_documents_queryset().values_list('category', flat=True)
         )
         parent_counts, category_counts = self.category_count_maps_from_texts(all_category_texts)
+        category_sets = [set(self.split_categories(text)) for text in all_category_texts]
 
         for parent_category in parent_categories:
             parent_category['count'] = parent_counts.get(parent_category.get('name', ''), 0)
             for child_category in parent_category.get('children', []):
                 child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
             for middle_group in parent_category.get('middle_groups', []):
+                full_names = set(middle_group.get('full_names', []))
                 middle_group['count'] = sum(
-                    category_counts.get(full_name, 0)
-                    for full_name in middle_group.get('full_names', [])
+                    bool(full_names & categories) for categories in category_sets
                 )
                 for child_category in middle_group.get('children', []):
                     child_category['count'] = category_counts.get(child_category.get('full_name', ''), 0)
@@ -6410,7 +6479,28 @@ class ProjectDocumentListView(ListView):
             [group['name'] for group in parent_categories],
         )
         context['can_create_document'] = can_edit_article(self.request.user)
+        context.update(knowledge_genre_context(self.request, parent_categories, all_category_texts))
+        self.category_navigation_context(context)
         return context
+
+    def category_navigation_context(self, context):
+        """Keep search/Temp and repeated query values on every category link."""
+        def url(**selection):
+            params = self.request.GET.copy()
+            for key in ('parent_category', 'category', 'page', 'open_code', 'open_id'):
+                params.pop(key, None)
+            params.update(selection)
+            encoded = params.urlencode()
+            return self.request.path + ('?' + encoded if encoded else '')
+
+        context['category_all_url'] = url()
+        for parent in context['parent_categories']:
+            parent['url'] = url(parent_category=parent['name'])
+            children = list(parent.get('children', []))
+            for middle in parent.get('middle_groups', []):
+                children.extend(middle.get('children', []))
+            for child in children:
+                child['url'] = url(parent_category=parent['name'], category=child['full_name'])
 
     @staticmethod
     def split_categories(value):

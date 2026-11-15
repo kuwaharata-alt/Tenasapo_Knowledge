@@ -4,6 +4,7 @@
     </style>
 </noscript>
 <div class="row g-3 align-items-start">
+    {% if approval_filter_choices %}
     <fieldset class="col-12 col-lg-auto mb-0">
         <legend class="form-label small fw-semibold mb-1">承認状態</legend>
         <div class="d-flex flex-wrap gap-2">
@@ -26,6 +27,7 @@
         <label class="form-label small fw-semibold mb-1" for="{{ filter_id_prefix }}CreatedMonth">作成月</label>
         <input type="month" class="form-control form-control-sm" name="filter_created_month" id="{{ filter_id_prefix }}CreatedMonth" value="{{ filter_created_month }}">
     </div>
+    {% endif %}
     <div class="col-12 d-flex flex-wrap gap-2 justify-content-end mt-4">
         <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-funnel"></i> 絞り込む</button>
         <a href="{{ filter_clear_url }}" class="btn btn-outline-secondary btn-sm">フィルタ解除</a>

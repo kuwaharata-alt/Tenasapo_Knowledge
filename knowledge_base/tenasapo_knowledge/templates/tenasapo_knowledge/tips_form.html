@@ -52,6 +52,7 @@
                         <div class="form-text mb-2">{{ form.registered_category.help_text }}</div>
                         <div class="category-sidebar category-browser{% if form.registered_category.errors %} is-invalid{% endif %}">
                             <div class="category-browser-header">カテゴリブラウザ</div>
+                            {% include 'includes/category_browser_genre_selector.html' with genre_selector_id='tipsCategoryGenre' %}
                             <div class="category-browser-grid">
                                 <div class="category-browser-pane">
                                     <div class="category-browser-pane-title">大カテゴリ</div>
@@ -358,6 +359,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include 'includes/category_browser_genre_assets.html' %}
 {% if not tip %}{% include 'includes/knowledge_duplicate_check_assets.html' %}{% endif %}
 <script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin" async onload="window.KnowledgeBlockEditors?.upgrade()"></script>
 {% include 'includes/knowledge_block_editor_assets.html' %}
@@ -680,6 +682,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (initialSelection) {
             renderSub1(initialSelection.parentName, initialSelection.sub1Name);
         }
+        window.setupCategoryBrowserGenre({
+            data, selectorId: 'tipsCategoryGenre', parentPane,
+            initialParentName: initialSelection ? initialSelection.parentName : '',
+            onChange: parents => renderSub1(parents.length ? parents[0].name : '', '')
+        });
     })();
 
     function mergeFilesToInput(fileInput, incomingFiles) {

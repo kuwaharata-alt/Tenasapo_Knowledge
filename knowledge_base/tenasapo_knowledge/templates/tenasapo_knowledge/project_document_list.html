@@ -24,20 +24,24 @@
 {% block content %}
 <div class="row knowledge-split-row">
     <aside class="col-12 col-lg-2 category-sidebar-col" tabindex="0" aria-label="カテゴリ一覧">
-        <div class="category-sidebar">
+        <div class="category-sidebar category-sidebar-with-genre">
             <div class="category-sidebar-title">カテゴリ</div>
+            {% include "includes/category_genre_selector.html" with genre_id_prefix="document" %}
             <div class="list-group list-group-flush" tabindex="0" role="region" aria-label="カテゴリ項目">
                 <a
                     class="list-group-item category-sidebar-link {% if not selected_parent_category %}active{% endif %}"
-                    href="?q={{ query|urlencode }}"
+                    href="{{ category_all_url }}"
                 >
-                    <span>すべて</span>
+                    <span>{% if selected_genre %}このジャンルのすべて{% else %}すべて{% endif %}</span>
                     <span class="category-count">{{ all_count|default:0 }}件</span>
                 </a>
                 {% for parent_category in parent_categories %}
+                    {% ifchanged parent_category.genre_key %}
+                        <div class="category-genre-heading">{{ parent_category.genre_name }}</div>
+                    {% endifchanged %}
                     <a
                         class="list-group-item category-sidebar-link category-sidebar-toggle {% if selected_parent_category == parent_category.name %}active{% endif %}"
-                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}"
+                        href="{{ parent_category.url }}"
                         aria-expanded="{% if selected_parent_category == parent_category.name %}true{% else %}false{% endif %}"
                         aria-controls="categoryChildren{{ forloop.counter }}"
                     >
@@ -53,7 +57,7 @@
                                 {% if child_category.count > 0 %}
                                     <a
                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                        href="{{ child_category.url }}"
                                     >
                                         <span>{{ child_category.name }}</span>
                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -83,7 +87,7 @@
                                                 {% if child_category.count > 0 %}
                                                     <a
                                                         class="category-child-link {% if selected_category == child_category.full_name %}active{% endif %}"
-                                                        href="?q={{ query|urlencode }}&parent_category={{ parent_category.name|urlencode }}&category={{ child_category.full_name|urlencode }}"
+                                                        href="{{ child_category.url }}"
                                                     >
                                                         <span>{{ child_category.name }}</span>
                                                         <span class="category-count">{{ child_category.count|default:0 }}件</span>
@@ -104,6 +108,9 @@
     <section class="col-12 col-lg-10 category-content-col" tabindex="0" aria-label="ドキュメント一覧">
         <div class="search-panel py-3">
             <form class="row gy-2 gx-2 align-items-center justify-content-center" method="get">
+                {% if selected_genre %}
+                    <input type="hidden" name="genre" value="{{ selected_genre }}">
+                {% endif %}
                 {% if selected_parent_category %}
                     <input type="hidden" name="parent_category" value="{{ selected_parent_category }}">
                 {% endif %}

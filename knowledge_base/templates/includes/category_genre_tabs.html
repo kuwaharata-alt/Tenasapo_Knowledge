@@ -1,0 +1,17 @@
+<style>
+    .category-genre-tabs { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+    .category-genre-tabs a { border: 1px solid var(--tk-border, #dee2e6); border-radius: .5rem;
+        padding: .45rem .8rem; color: var(--tk-text, #343a40); text-decoration: none; background: var(--tk-panel-bg, #fff); }
+    .category-genre-tabs a:hover { background: var(--tk-soft, #f1f3f5); }
+    .category-genre-tabs a[aria-current="page"] { color: var(--tk-primary, #0b9385);
+        border-color: currentColor; font-weight: 600; }
+    .category-genre-tabs a:focus-visible { outline: 2px solid var(--tk-primary, #0b9385); outline-offset: 2px; }
+    .category-genre-heading { padding: .65rem 1rem .3rem; font-size: .8rem; font-weight: 600;
+        color: var(--tk-muted, #6c757d); background: var(--tk-soft, #f8f9fa); }
+</style>
+<nav class="category-genre-tabs" aria-label="ジャンルの絞り込み">
+    <a href="{{ genre_all_url }}" data-genre=""{% if not selected_genre %} aria-current="page"{% endif %}>すべて <span class="small">{{ genre_all_count }}件</span></a>
+    {% for genre in genre_options %}
+        <a href="{{ genre.url }}" data-genre="{{ genre.key }}"{% if genre.selected %} aria-current="page"{% endif %}>{{ genre.name }} <span class="small">{{ genre.count }}件</span></a>
+    {% endfor %}
+</nav>
