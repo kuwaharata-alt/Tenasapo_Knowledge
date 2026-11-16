@@ -12,7 +12,7 @@ from django.test import SimpleTestCase
 
 
 class HomeMemberPostsBrowserTests(SimpleTestCase):
-    def run_browser(self, checks, *, chart='recording', empty=False):
+    def run_browser(self, checks, *, chart='recording', empty=False, member_count=1, width=390):
         candidates = [shutil.which('chromium'), shutil.which('google-chrome'),
                       r'C:\Program Files\Google\Chrome\Application\chrome.exe',
                       r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe']
@@ -28,6 +28,15 @@ class HomeMemberPostsBrowserTests(SimpleTestCase):
                 'totals': dict(faq_post_count=faq, tips_post_count=tips, post_count_total=faq + tips),
                 'target_chart': {'value': 20 if period == 'all' else 0 if period == 'current' else 4, 'label': '投稿目標'},
             }
+            if not empty and member_count > 1:
+                periods[period]['rows'].extend(
+                    dict(name=f'メンバー氏名{index:02d}', faq_post_count=faq,
+                         tips_post_count=tips, post_count_total=faq + tips)
+                    for index in range(1, member_count)
+                )
+                periods[period]['totals'] = {
+                    key: value * member_count for key, value in periods[period]['totals'].items()
+                }
         context = {'home_member_post_periods': periods, 'home_member_post_totals': periods['all']['totals']}
         markup = render_to_string('includes/home_member_posts.html', context)
         payload = Template('{{ home_member_post_periods|json_script:"home-member-post-data" }}').render(Context(context))
@@ -73,12 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
         with tempfile.TemporaryDirectory(prefix='nexus-home-chart-') as directory:
             page = Path(directory) / 'home.html'
             page.write_text('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">'
+                            + f'<style>body {{width: {width - 16}px; max-width: 100%; margin: 8px;}}</style>'
                             + markup + payload + recording + target_assets + assets + assets
                             + '<pre id="result">PENDING</pre>' + harness, encoding='utf-8')
             result = subprocess.run([
                 browser, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
                 '--disable-background-networking', f'--user-data-dir={directory}/profile',
-                '--window-size=390,800', '--virtual-time-budget=2000', '--dump-dom', page.as_uri(),
+                f'--window-size={width},800', '--virtual-time-budget=2000', '--dump-dom', page.as_uri(),
             ], capture_output=True, encoding='utf-8', errors='replace', timeout=60, check=False)
             self.assertEqual(result.returncode, 0, result.stderr[-2000:])
             start = result.stdout.find('<pre id="result">')
@@ -158,6 +168,31 @@ tips.click();
 assert(chart.data.datasets.every(dataset => !dataset.hidden), 'restore both');
 assert(total() === '3' && instances.length === 1, 'same chart restored');
 ''')
+
+    def test_many_members_fit_card_width_with_diagonal_names(self):
+        for width in (320, 768, 1280):
+            with self.subTest(width=width):
+                self.run_browser(r'''
+const chart = instances[0];
+const wrapper = root.querySelector('[data-home-post-chart]');
+const size = wrapper.firstElementChild;
+const assertFits = () => {
+ assert(chart.data.labels.length === 32, 'all members retained');
+ assert(chart.options.scales.x.ticks.autoSkip === false, 'all member names retained');
+ assert(chart.options.scales.x.ticks.minRotation === 45, 'diagonal names');
+ assert(chart.options.scales.x.ticks.maxRotation === 45, 'consistent rotation');
+ assert(size.scrollWidth <= wrapper.clientWidth + 1, 'no chart horizontal scrolling');
+ assert(size.getBoundingClientRect().width <= root.getBoundingClientRect().width, 'chart fits card');
+ assert(parseFloat(getComputedStyle(size).height) === 320, 'compact chart height retained');
+};
+assertFits();
+select('current'); assertFits();
+select('previous'); assertFits();
+root.querySelector('[data-home-post-sort="post_count"]').click(); assertFits();
+root.querySelector('[data-home-post-dataset="0"]').click(); assertFits();
+assert(chart.data.datasets[0].hidden, 'legend still toggles');
+assert(instances.length === 1, 'same responsive chart');
+''', member_count=32, width=width)
 
     def test_missing_or_failed_chart_keeps_readable_switchable_tables(self):
         for chart in ('missing', 'broken'):
