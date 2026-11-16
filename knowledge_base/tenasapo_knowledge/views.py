@@ -46,6 +46,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.http import urlsafe_base64_encode
 from django.utils import timezone
 from django.views import View
+from django.views.decorators.csrf import csrf_protect
 from django.views.decorators.http import require_POST
 from django.views.generic import FormView, ListView, TemplateView, UpdateView
 
@@ -5698,6 +5699,7 @@ class UserListView(StaffRequiredMixin, ListView):
         context['selected_customer_name'] = self.request.GET.get('customer_name', '').strip()
         context['roles'] = getattr(settings, 'USER_ROLES', getattr(settings, 'USER_GROUPS', []))
         context['can_manage_all_users'] = _can_manage_all_users(self.request.user)
+        context['can_reset_terms_acceptance'] = can_view_view_history(self.request)
         context['can_staff_reissue_customer_password'] = bool(
             self.request.user.is_authenticated and (self.request.user.is_staff or self.request.user.is_superuser)
         )
@@ -5810,7 +5812,32 @@ class UserDetailView(StaffRequiredMixin, TemplateView):
         context['profile'] = getattr(self.user_obj, 'knowledge_profile', None)
         context['visible_roles'] = [name for name in role_names if name in user_group_names]
         context['can_edit'] = _can_manage_all_users(self.request.user) or self.user_obj.pk == self.request.user.pk
+        context['can_reset_terms_acceptance'] = can_view_view_history(self.request)
         return context
+
+
+@csrf_protect
+@require_POST
+def user_terms_acceptance_reset(request, pk):
+    """Remove only this user's current consent, serialized with consent saves."""
+    if not can_view_view_history(request):
+        return HttpResponseForbidden('利用規約への同意をリセットできるのは上位管理者のみです。')
+
+    from .models import TermsAcceptance
+    from .terms import lock_terms_set
+
+    user = get_object_or_404(get_user_model(), pk=pk)
+    with transaction.atomic():
+        lock_terms_set()
+        TermsAcceptance.objects.filter(user_id=user.pk).delete()
+
+    messages.success(
+        request,
+        f'{resolve_user_display_name(user)}（{user.username}）の現在の利用規約同意記録を削除しました。'
+        '同意対象のカスタマーは次回アクセス時に再同意が必要です。',
+        extra_tags='user',
+    )
+    return redirect(resolve_next_path(request, 'user_detail', pk=user.pk))
 
 
 class UserPasswordResetLinkIssueView(StaffRequiredMixin, View):

@@ -3,11 +3,13 @@
 import hashlib
 import json
 
+from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core import signing
 from django.db import connection, transaction
+from django.db.models import F
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
@@ -22,6 +24,11 @@ from .utils import can_view_view_history as can_edit_terms
 
 
 DEFAULT_TERMS_TITLE = 'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件'
+
+
+def terms_header_title(terms):
+    """Presentation metadata is intentionally absent from consent snapshots."""
+    return next((term.title for term in terms if term.is_header_title), DEFAULT_TERMS_TITLE)
 
 
 def terms_are_registered(terms):
@@ -61,13 +68,16 @@ def terms_snapshots(terms):
 def lock_terms_set():
     """Within atomic(), prevent PostgreSQL inserts/deletes as well as row edits.
 
-    Row locks alone cannot protect additions to the set. SQLite transactions
-    protect the read snapshot and cannot upgrade a stale reader to a writer.
+    Row locks alone cannot protect additions to the set. On SQLite acquire the
+    writer reservation BEFORE reading, including when there are no rows. This
+    serializes editor/consent transactions without a stale read-to-write upgrade.
     """
     if connection.vendor == 'postgresql':
         table = connection.ops.quote_name(TermsOfUse._meta.db_table)
         with connection.cursor() as cursor:
             cursor.execute(f'LOCK TABLE {table} IN SHARE ROW EXCLUSIVE MODE')
+    elif connection.vendor == 'sqlite':
+        TermsOfUse.objects.update(is_header_title=F('is_header_title'))
 
 
 @method_decorator([csrf_protect, never_cache], name='dispatch')
@@ -86,7 +96,7 @@ class TermsAcceptanceView(LoginRequiredMixin, TemplateView):
         if 'terms_list' not in context:
             context['terms_list'] = list(TermsOfUse.objects.order_by('pk'))
         terms = context['terms_list']
-        context['default_terms_title'] = DEFAULT_TERMS_TITLE
+        context['default_terms_title'] = terms_header_title(terms)
         context['can_edit_terms'] = can_edit_terms(self.request)
         context['terms_registered'] = terms_are_registered(terms)
         context['acceptance'] = TermsAcceptance.objects.filter(user=self.request.user).first()
@@ -134,7 +144,17 @@ class TermsOfUseForm(ManualForm):
 
     class Meta:
         model = TermsOfUse
-        fields = ('title', 'description')
+        fields = ('title', 'is_header_title', 'description')
+        widgets = {'is_header_title': forms.CheckboxInput(attrs={
+            'class': 'btn-check', 'autocomplete': 'off',
+            'aria-describedby': 'header-title-help',
+        })}
+
+    def _get_validation_exclusions(self):
+        # A checked form switches the current choice inside the locked save
+        # transaction, so the existing choice is not a form validation error.
+        # Direct ORM writes remain guarded by the database unique constraint.
+        return super()._get_validation_exclusions() | {'is_header_title'}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -154,7 +174,7 @@ class TermsOfUseDetailView(TemplateView):
         context = super().get_context_data(**kwargs)
         context['terms_list'] = list(TermsOfUse.objects.order_by('pk'))
         context['terms'] = context['terms_list'][0] if context['terms_list'] else None
-        context['default_terms_title'] = DEFAULT_TERMS_TITLE
+        context['default_terms_title'] = terms_header_title(context['terms_list'])
         context['can_edit_terms'] = can_edit_terms(self.request)
         return context
 
@@ -187,13 +207,25 @@ class TermsOfUseEditView(FormView):
     def form_valid(self, form):
         with transaction.atomic():
             lock_terms_set()
+            selected = form.cleaned_data['is_header_title']
             if self.terms is None:
+                if selected:
+                    TermsOfUse.objects.filter(is_header_title=True).update(is_header_title=False)
                 form.save()
             else:
                 # Never resurrect a document removed while its editor was open.
                 terms = get_object_or_404(TermsOfUse.objects.select_for_update(), pk=self.terms.pk)
+                if selected:
+                    TermsOfUse.objects.filter(is_header_title=True).exclude(pk=terms.pk).update(
+                        is_header_title=False)
+                legal_changed = (terms.title != form.cleaned_data['title']
+                                 or terms.description != form.cleaned_data['description'])
                 terms.title = form.cleaned_data['title']
                 terms.description = form.cleaned_data['description']
-                terms.save(update_fields=['title', 'description', 'updated_at'])
+                terms.is_header_title = selected
+                fields = ['is_header_title']
+                if legal_changed:
+                    fields += ['title', 'description', 'updated_at']
+                terms.save(update_fields=fields)
         messages.success(self.request, '利用規約を保存しました。')
         return super().form_valid(form)

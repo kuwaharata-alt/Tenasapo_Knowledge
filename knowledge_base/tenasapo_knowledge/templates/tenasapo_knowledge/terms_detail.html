@@ -6,7 +6,7 @@
 
 {% block page_header %}
 <div class="page-title-panel mb-4">
-    <h1 class="page-title-main" id="terms-page-title">{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }}</h1>
+    <h1 class="page-title-main mb-0 d-flex align-items-center gap-2" id="terms-page-title"><span class="page-title-icon" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span><span title="{{ default_terms_title }}">{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }}</span></h1>
 </div>
 {% endblock %}
 
@@ -24,10 +24,10 @@
 </div>
 <div class="terms-document terms-scroll" tabindex="0" role="region" aria-label="すべての利用規約の本文">
 {% for terms in terms_list %}
-<article class="terms-document-section" aria-labelledby="{% if terms.title|is_primary_terms_title %}terms-page-title{% else %}terms-title-{{ terms.pk }}{% endif %}">
-    {% if can_edit_terms or not terms.title|is_primary_terms_title %}
+<article class="terms-document-section" aria-labelledby="{% if terms.is_header_title %}terms-page-title{% else %}terms-title-{{ terms.pk }}{% endif %}">
+    {% if can_edit_terms or not terms.is_header_title %}
     <div class="terms-section-heading">
-    {% if not terms.title|is_primary_terms_title %}
+    {% if not terms.is_header_title %}
     <h2 class="terms-document-title{% if terms.title|is_article_heading %} terms-article-heading{% endif %}" id="terms-title-{{ terms.pk }}">{{ terms.title }}</h2>
     {% endif %}
     {% if can_edit_terms %}

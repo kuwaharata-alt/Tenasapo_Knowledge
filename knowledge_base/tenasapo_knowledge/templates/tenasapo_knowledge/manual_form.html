@@ -52,7 +52,11 @@
                         {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
                     </label>
 
-                    {% if field.name == 'is_published' %}
+                    {% if field.name == 'is_header_title' %}
+                        {{ field }}
+                        <label class="btn btn-outline-primary" for="{{ field.id_for_label }}">タイトルに使用</label>
+                        <div class="form-text" id="header-title-help">保存すると、この規約のタイトルをページ上部に使用します。他の規約の選択は解除されます。選択を外して保存すると、未選択時は既定のタイトルを表示します。本文・同意履歴には影響しません。</div>
+                    {% elif field.name == 'is_published' %}
                         <div class="form-check form-switch">
                             {{ field }}
                             <label class="form-check-label" for="{{ field.id_for_label }}">公開する</label>

@@ -1,0 +1,5 @@
+{% if block.style == 'bullet' %}<ul class="terms-numbered-list terms-bullet-list" role="list">{% else %}<ol class="terms-numbered-list{% if block.style == 'parenthetical' %} terms-parenthetical-list{% endif %}" role="list">{% endif %}
+{% for item in block.items %}
+	<li class="terms-numbered-item"><span class="terms-number">{{ item.marker }}</span><div class="terms-item-text">{{ item.text }}</div>{% if item.children %}<div class="terms-item-children">{% for child in item.children %}{% include 'tenasapo_knowledge/includes/terms_list.html' with block=child only %}{% endfor %}</div>{% endif %}</li>
+{% endfor %}
+{% if block.style == 'bullet' %}</ul>{% else %}</ol>{% endif %}

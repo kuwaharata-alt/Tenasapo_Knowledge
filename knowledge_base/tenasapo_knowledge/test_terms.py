@@ -69,7 +69,8 @@ class TermsOfUseTests(TestCase):
 
     def test_unregistered_public_page_uses_exact_requested_title_without_saving(self):
         response = self.client.get(reverse('terms_detail'))
-        self.assertContains(response, 'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件', count=2)
+        # Browser title, visible heading and its full-text native tooltip.
+        self.assertContains(response, 'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件', count=3)
         self.assertFalse(TermsOfUse.objects.exists())
 
     def login_as(self, user):
@@ -101,7 +102,7 @@ class TermsOfUseTests(TestCase):
                 for method in ('get', 'post'):
                     with self.subTest(user=getattr(user, 'username', None), method=method, url=url):
                         self.login_as(user)
-                        response = getattr(self.client, method)(url, self.payload(title='改ざん'))
+                        response = getattr(self.client, method)(url, self.payload(title='改ざん', is_header_title='on'))
                         if user is None:
                             self.assertEqual(response.status_code, 302)
                             self.assertTrue(response.url.startswith(reverse('login') + '?next='))
@@ -109,6 +110,7 @@ class TermsOfUseTests(TestCase):
                             self.assertEqual(response.status_code, 403)
                         terms.refresh_from_db()
                         self.assertEqual(terms.title, self.payload()['title'])
+                        self.assertFalse(terms.is_header_title)
                         self.assertEqual(TermsOfUse.objects.count(), 1)
 
     def test_denial_does_not_create_first_document(self):
@@ -176,7 +178,7 @@ class TermsOfUseTests(TestCase):
 
     def test_editor_reuses_manual_plaintext_fields_and_navigation(self):
         form = TermsOfUseForm()
-        self.assertEqual(list(form.fields), ['title', 'description'])
+        self.assertEqual(list(form.fields), ['title', 'is_header_title', 'description'])
         self.assertEqual(form.fields['description'].label, '内容')
         self.assertEqual(form.fields['description'].widget.attrs['rows'], 18)
         self.client.force_login(self.upper)
@@ -347,7 +349,7 @@ class TermsFormattingTests(SimpleTestCase):
         from .terms import DEFAULT_TERMS_TITLE
 
         documents = [
-            {'pk': 1, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用前文'},
+            {'pk': 1, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用前文', 'is_header_title': True},
             {'pk': 2, 'title': '第1条（<表示> & 検証）', 'description': '1. 検証用本文'},
         ]
         for editable in (False, True):
@@ -390,8 +392,9 @@ class TermsFormattingTests(SimpleTestCase):
 
         articles = [{'pk': pk, 'title': heading, 'description': '1. 検証用本文\n2. 次の項目'}
                     for pk, (heading, _) in enumerate(TERMS_PASTE_SECTIONS, start=2)]
-        primary = {'pk': 1, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用前文'}
-        for documents in ([primary, *articles], articles, [primary, *articles, {**primary, 'pk': 9}]):
+        primary = {'pk': 1, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用前文', 'is_header_title': True}
+        duplicate = {**primary, 'pk': 9, 'is_header_title': False}
+        for documents in ([primary, *articles], articles, [primary, *articles, duplicate]):
             for page in ('terms_detail.html', 'terms_accept.html'):
                 with self.subTest(page=page, first=documents[0]['pk'], count=len(documents)):
                     parser = ReviewDOMParser()
@@ -403,7 +406,7 @@ class TermsFormattingTests(SimpleTestCase):
                     self.assertEqual([node['text'] for node in parser.find(css_class='terms-article-heading')],
                                      [article['title'] for article in articles])
                     self.assertEqual([node['text'] for node in parser.find(css_class='terms-document-title')],
-                                     [article['title'] for article in articles])
+                                     [document['title'] for document in documents if not document.get('is_header_title')])
                     self.assertEqual(len(parser.find(css_class='terms-numbered-item')), 6)
                     for section in parser.find(css_class='terms-document-section'):
                         self.assertEqual(len(parser.find(id=section['attrs']['aria-labelledby'])), 1)
@@ -480,12 +483,86 @@ class TermsFormattingTests(SimpleTestCase):
 
         blocks = terms_blocks('1. 本文\n  続き\n  （1）内訳\n  1. 入れ子\n'
                               '普通の行\n1.2 バージョン\n2026.11.16\n第1条の説明\n\n2、末尾\n')
-        self.assertEqual(blocks[0], {'kind': 'list', 'items': [{'marker': '1.', 'text': '本文\n  続き'}]})
+        self.assertEqual(blocks[0], {'kind': 'list', 'items': [{
+            'marker': '1.', 'text': '本文\n  続き', 'children': [
+                {'kind': 'list', 'style': 'parenthetical', 'items': [
+                    {'marker': '（1）', 'text': '内訳'}]},
+            ],
+        }]})
         self.assertEqual(blocks[1], {'kind': 'paragraph', 'text':
-            '  （1）内訳\n  1. 入れ子\n普通の行\n1.2 バージョン\n2026.11.16\n第1条の説明'})
+            '  1. 入れ子\n普通の行\n1.2 バージョン\n2026.11.16\n第1条の説明'})
         self.assertEqual(blocks[2]['kind'], 'blank')
         self.assertEqual(blocks[3], {'kind': 'list', 'items': [{'marker': '2、', 'text': '末尾'}]})
         self.assertEqual(blocks[4]['kind'], 'blank')
+
+    def test_parenthetical_and_bullet_hierarchy_preserves_markers_and_continuations(self):
+        from .templatetags.terms_extras import terms_blocks
+
+        blocks = terms_blocks('1. 本文\n ・ 直下の箇条書き\n (1) 内訳\n  ・詳細\n   続き\n'
+                              ' （２）　次の内訳\n  ･ 半角中黒\n10．次項\n１００、最後')
+        self.assertEqual(blocks, [{'kind': 'list', 'items': [
+            {'marker': '1.', 'text': '本文', 'children': [
+                {'kind': 'list', 'style': 'bullet', 'items': [{'marker': '・', 'text': '直下の箇条書き'}]},
+                {'kind': 'list', 'style': 'parenthetical', 'items': [
+                    {'marker': '(1)', 'text': '内訳', 'children': [
+                        {'kind': 'list', 'style': 'bullet', 'items': [
+                            {'marker': '・', 'text': '詳細\n   続き'}]}]},
+                    {'marker': '（２）', 'text': '次の内訳', 'children': [
+                        {'kind': 'list', 'style': 'bullet', 'items': [
+                            {'marker': '･', 'text': '半角中黒'}]}]},
+                ]},
+            ]},
+            {'marker': '10．', 'text': '次項'}, {'marker': '１００、', 'text': '最後'},
+        ]}])
+
+    def test_standalone_lists_and_boundaries_do_not_reuse_previous_parent(self):
+        from .templatetags.terms_extras import terms_blocks
+
+        blocks = terms_blocks('1. 本文\n\n・単独\n\n（１）単独の内訳\n通常の行\n'
+                              '・別のリスト\n第2条（見出し）\n(2)別の内訳')
+        self.assertEqual([block['kind'] for block in blocks],
+                         ['list', 'blank', 'list', 'blank', 'list', 'paragraph', 'list', 'heading', 'list'])
+        self.assertEqual([block.get('style', 'numbered') for block in blocks if block['kind'] == 'list'],
+                         ['numbered', 'bullet', 'parenthetical', 'bullet', 'parenthetical'])
+        self.assertTrue(all('children' not in item for block in blocks if block['kind'] == 'list'
+                            for item in block['items']))
+
+    def test_decimal_embedded_bullets_and_unknown_markers_remain_plaintext(self):
+        from .templatetags.terms_extras import terms_blocks
+
+        for line in ('1.2 バージョン', '１．２ バージョン', '2026.11.16',
+                     '本文・本文', '本文 (1) 内訳', '(1）混在括弧', '（１)混在括弧',
+                     '・', '･　', '(1)', '（１２３４）本文', '1.'):
+            with self.subTest(line=line):
+                self.assertEqual(terms_blocks(line), [{'kind': 'paragraph', 'text': line}])
+
+    def test_nested_lists_are_semantic_and_escape_all_plaintext_on_both_pages(self):
+        from django.utils.safestring import mark_safe
+        from .test_review_list_layout import ReviewDOMParser
+
+        body = mark_safe('第1条（適用）\n1. <b>本文</b>\n(1) <script>内訳</script>\n'
+                         '・<img src=x onerror=alert(1)> & "詳細"\n（２）全角\n10. 次項')
+        for page in ('terms_detail.html', 'terms_accept.html'):
+            with self.subTest(page=page):
+                parser = ReviewDOMParser()
+                parser.feed(render_to_string('tenasapo_knowledge/' + page, {
+                    'terms_list': [{'pk': 1, 'title': '規約', 'description': body}],
+                    'terms_registered': True,
+                }))
+                root, = [node for node in parser.find(tag='ol', css_class='terms-numbered-list')
+                         if 'terms-parenthetical-list' not in node['attrs'].get('class', '').split()]
+                sub, = parser.find(tag='ol', css_class='terms-parenthetical-list')
+                bullet, = parser.find(tag='ul', css_class='terms-bullet-list')
+                self.assertIn(root, sub['parents'])
+                self.assertIn(sub, bullet['parents'])
+                self.assertEqual([node['text'] for node in parser.find(css_class='terms-number')],
+                                 ['1.', '(1)', '・', '（２）', '10.'])
+                self.assertEqual([node['text'] for node in parser.find(css_class='terms-item-text')],
+                                 ['<b>本文</b>', '<script>内訳</script>',
+                                  '<img src=x onerror=alert(1)> & "詳細"', '全角', '次項'])
+                content, = parser.find(css_class='terms-text-body')
+                self.assertFalse(any(node['tag'] in {'b', 'script', 'img'} and content in node['parents']
+                                     for node in parser.nodes))
 
     def test_all_structured_fragments_escape_html_even_if_input_marked_safe(self):
         from django.utils.safestring import mark_safe

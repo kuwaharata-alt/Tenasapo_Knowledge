@@ -45,8 +45,7 @@
 .terms-layout .terms-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; }
 .terms-layout .terms-register { margin-inline-start: auto; }
 .terms-page .page-title-main { overflow-wrap: anywhere; }
-.terms-page .app-page-header { padding-top: .5rem; padding-bottom: .5rem; }
-.terms-page .page-title-panel { padding: .5rem .75rem; }
+.terms-page .page-title-main > span:last-child { min-width: 0; }
 @media (max-width: 575.98px), (max-height: 600px) {
     .terms-page .app-content { padding-bottom: .5rem !important; }
     .terms-layout { gap: .5rem; }
@@ -117,18 +116,50 @@
 }
 .terms-document .terms-numbered-item {
     display: grid;
-    grid-template-columns: minmax(2.4em, max-content) minmax(0, 1fr);
-    column-gap: .5em;
+    grid-template-columns: minmax(1em, max-content) minmax(0, 1fr);
+    column-gap: .75em;
     align-items: baseline;
     margin: 0 0 .3em;
 }
 .terms-document .terms-number { color: #000; font-weight: 700; }
 .terms-document .terms-item-text { min-width: 0; white-space: pre-wrap; }
+.terms-document .terms-item-children {
+    grid-column: 2;
+    min-width: 0;
+    margin-top: .3em;
+}
+.terms-document .terms-item-children > .terms-numbered-list {
+    /* Each child marker starts at its parent's text, not at the page edge. */
+    padding-inline-start: 0;
+    margin-bottom: 0;
+}
+.terms-document .terms-parenthetical-list {
+    /* Indent parenthesized markers by one full-width character. */
+    margin-inline-start: 1em;
+}
+.terms-document .terms-parenthetical-list > .terms-numbered-item > .terms-number {
+    font-weight: 500;
+}
+.terms-document .terms-bullet-list > .terms-numbered-item > .terms-number {
+    text-align: center;
+    font-weight: 400;
+}
 @media (max-width: 575.98px) {
     .terms-document { padding: .75rem 16px; border-radius: 8px; }
 }
-/* Preserve the one body scroller and visible controls in short windows too. */
+/* Keep the COMMON heading font/padding, not a smaller terms-only font. In a
+   very short viewport, clamp only its visual text; the full accessible name,
+   native tooltip and browser title remain available. Controls retain room. */
 @media (max-height: 400px) {
-    .terms-page .page-title-main { font-size: 1rem; }
+    /* Reserve a usable body pane after the fixed header/footer and controls. */
+    .terms-layout { gap: 0; }
+    .terms-page .app-content { padding-bottom: .375rem !important; }
+    .terms-layout .terms-actions .btn { padding-block: .125rem; }
+    .terms-page .page-title-main > span:last-child {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
 }
 </style>

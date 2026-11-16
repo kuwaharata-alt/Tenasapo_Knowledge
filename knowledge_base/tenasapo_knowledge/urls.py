@@ -79,6 +79,7 @@ from .views import (
     UserPasswordResetView,
     UserPasswordResetLinkIssueView,
     UserUpdateView,
+    user_terms_acceptance_reset,
     switch_account_view_mode,
 )
 
@@ -146,6 +147,11 @@ urlpatterns = [
     path('users/issue-contract/', UserContractIssueView.as_view(), name='user_contract_issue'),
     path('users/issue-demo/', UserDemoIssueView.as_view(), name='user_demo_issue'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user_detail'),
+    path(
+        'users/<int:pk>/reset-terms-acceptance/',
+        user_terms_acceptance_reset,
+        name='user_terms_acceptance_reset',
+    ),
     path('users/<int:pk>/edit/', UserUpdateView.as_view(), name='user_edit'),
     path('users/<int:pk>/delete/', UserDeleteView.as_view(), name='user_delete'),
     path('histories/logins/', LoginHistoryListView.as_view(), name='login_history_list'),

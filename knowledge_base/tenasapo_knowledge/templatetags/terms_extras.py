@@ -4,7 +4,7 @@ import re
 
 from django import template
 
-from ..terms import DEFAULT_TERMS_TITLE, terms_acceptance_applies
+from ..terms import terms_acceptance_applies
 
 
 register = template.Library()
@@ -13,6 +13,8 @@ ARTICLE = re.compile(
     r'(?:[ \t　]*(?:（[^\n（）]+）|\([^\n()]+\))|[ \t　]+\S[^\n]*)[ \t　]*$'
 )
 NUMBERED = re.compile(r'^([0-9０-９]{1,3}[.．、])([ \t　]*)(\S.*)$')
+SUBNUMBERED = re.compile(r'^[ \t　]*((?:\([0-9０-９]{1,3}\)|（[0-9０-９]{1,3}）))[ \t　]*(\S.*)$')
+BULLET = re.compile(r'^[ \t　]*([・･])[ \t　]*(\S.*)$')
 NESTED = re.compile(r'^(?:[0-9０-９]+[.．、]|[（(][0-9０-９]+[）)])')
 
 
@@ -28,21 +30,21 @@ def is_article_heading(value):
 
 
 @register.filter
-def is_primary_terms_title(value):
-    return str(value or '').strip() == DEFAULT_TERMS_TITLE
-
-
-@register.filter
 def terms_blocks(value):
     """Recognize standalone headings/items, retaining unknown lines and spacing.
 
     Do not invoke the rich-text renderer: even stored HTML is literal legal text.
-    Only indented non-numbered lines continue an item. Blank/ordinary/nested
-    lines terminate the list rather than silently becoming part of its last item.
+    Parenthetical items belong to the preceding primary item; bullets belong
+    to the preceding parenthetical item (or primary item). Without a parent,
+    either form is a standalone list. Blank/unknown lines reset the hierarchy.
     """
     blocks = []
     paragraph = []
     items = []
+    root_style = 'numbered'
+    primary = None
+    secondary = None
+    current = None
 
     def flush_paragraph():
         if paragraph:
@@ -50,13 +52,36 @@ def terms_blocks(value):
             paragraph.clear()
 
     def flush_list():
+        nonlocal primary, secondary, current
         if items:
-            blocks.append({'kind': 'list', 'items': list(items)})
+            block = {'kind': 'list', 'items': list(items)}
+            if root_style != 'numbered':
+                block['style'] = root_style
+            blocks.append(block)
             items.clear()
+        primary = secondary = current = None
+
+    def append_item(style, marker, content, parent=None):
+        nonlocal root_style
+        if parent is None:
+            if items and root_style != style:
+                flush_list()
+            root_style = style
+            target = items
+        else:
+            children = parent.setdefault('children', [])
+            if not children or children[-1]['style'] != style:
+                children.append({'kind': 'list', 'style': style, 'items': []})
+            target = children[-1]['items']
+        item = {'marker': marker, 'text': content}
+        target.append(item)
+        return item
 
     text = str(value or '').replace('\r\n', '\n').replace('\r', '\n')
     for line in text.split('\n'):
         numbered = NUMBERED.fullmatch(line)
+        subnumbered = SUBNUMBERED.fullmatch(line)
+        bullet = BULLET.fullmatch(line)
         # A decimal/version such as 1.2 must not become a numbered item.
         if numbered and not numbered[2] and numbered[3][0] in '0123456789０１２３４５６７８９':
             numbered = None
@@ -66,13 +91,22 @@ def terms_blocks(value):
             blocks.append({'kind': 'heading', 'text': line})
         elif numbered:
             flush_paragraph()
-            items.append({'marker': numbered[1], 'text': numbered[3]})
+            primary = append_item('numbered', numbered[1], numbered[3])
+            secondary = None
+            current = primary
+        elif subnumbered:
+            flush_paragraph()
+            secondary = append_item('parenthetical', subnumbered[1], subnumbered[2], primary)
+            current = secondary
+        elif bullet:
+            flush_paragraph()
+            current = append_item('bullet', bullet[1], bullet[2], secondary or primary)
         elif not line.strip():
             flush_paragraph()
             flush_list()
             blocks.append({'kind': 'blank', 'text': line})
-        elif items and line[0] in ' \t　' and not NESTED.match(line.lstrip()):
-            items[-1]['text'] += '\n' + line
+        elif current is not None and line[0] in ' \t　' and not NESTED.match(line.lstrip()):
+            current['text'] += '\n' + line
         else:
             flush_list()
             paragraph.append(line)

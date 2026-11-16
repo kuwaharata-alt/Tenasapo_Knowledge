@@ -127,6 +127,13 @@
                         <dt>同意した規約の版（更新日時）</dt><dd><time datetime="{{ document.updated_at|date:'c' }}">{{ document.updated_at|date:"Y/m/d H:i:s.u O" }}</time></dd>
                         {% endfor %}
                     </dl>
+                    {% if can_reset_terms_acceptance %}
+                    <form method="post" action="{% url 'user_terms_acceptance_reset' user_obj.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" onclick="return confirm('このユーザーの現在の利用規約同意記録（同意日時・同意した規約の保存内容）を削除します。同意対象のカスタマーは次回アクセス時に再同意が必要です。リセットしますか？');">利用規約の同意をリセット</button>
+                    </form>
+                    {% endif %}
                 {% elif not applicable %}
                     <p><span class="badge text-bg-secondary">対象外</span></p>
                 {% else %}

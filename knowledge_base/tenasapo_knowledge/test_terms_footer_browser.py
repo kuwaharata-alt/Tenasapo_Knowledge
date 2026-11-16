@@ -76,6 +76,102 @@ try {{
 
 
 class TermsAcceptanceBrowserTests(SimpleTestCase):
+    def test_nested_markers_wrap_align_and_fit_at_320_and_1280_pixels(self):
+        candidates = [shutil.which('chromium'), shutil.which('google-chrome'),
+                      r'C:\Program Files\Google\Chrome\Application\chrome.exe',
+                      r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe']
+        browser = next((path for path in candidates if path and Path(path).is_file()), None)
+        if not browser:
+            self.skipTest('Chrome/Edge/Chromium is required')
+        long_text = '折り返した本文の開始位置をそろえて読みやすくします。' * 90
+        description = '\n'.join([
+            '第1条（番号と箇条書き）', '1. ' + long_text, '・' + long_text,
+            '(1) ' + long_text, '・' + long_text, '（２）' + long_text, '･' + long_text,
+            '10. ' + long_text, '100. ' + long_text, '１．' + long_text,
+            '（１）' + long_text, '・' + long_text,
+        ])
+        content = render_to_string('tenasapo_knowledge/includes/terms_content.html', {
+            'terms': {'description': description},
+        })
+        css = render_to_string('tenasapo_knowledge/includes/terms_styles.html')
+        for width in (320, 1280):
+            for font_size in (16, 20):
+                with self.subTest(width=width, font_size=font_size), tempfile.TemporaryDirectory(
+                        prefix='nexus-terms-markers-') as directory:
+                    terms_page = Path(directory) / 'terms.html'
+                    terms_page.write_text(f'''<!doctype html><html><head><meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'">
+<style>* {{ box-sizing:border-box; }} html {{ font-size:{font_size}px; }}
+body {{ margin:0; }} .terms-document {{ margin:0; }}</style>{css}</head>
+<body><article class="terms-document">{content}</article></body></html>''', encoding='utf-8')
+                    fixture = '''<!doctype html><meta charset="utf-8">
+<iframe id="page" style="border:0;width:WIDTHpx;height:800px"></iframe>
+<output id="result">PENDING</output><script>
+const frame = document.getElementById('page');
+const assert = (ok, message) => { if (!ok) throw new Error(message); };
+frame.onload = () => {
+ try {
+  const doc = frame.contentDocument, win = frame.contentWindow;
+  const box = el => el.getBoundingClientRect();
+  const style = el => win.getComputedStyle(el);
+  const textBox = el => {
+   const range = doc.createRange(); range.selectNodeContents(el); return range.getBoundingClientRect();
+  };
+  assert(win.innerWidth === WIDTH, 'exact iframe viewport');
+  const heading = doc.querySelector('.terms-article-heading');
+  const primary = [...doc.querySelector('.terms-text-body > .terms-numbered-list').children];
+  assert(primary.length === 4, 'four primary items including 10/100/fullwidth');
+  assert(primary.map(el => el.firstElementChild.textContent).join('|') === '1.|10.|100.|１．', 'markers unchanged');
+  assert(doc.querySelectorAll('.terms-parenthetical-list').length === 2, 'parenthetical groups');
+  assert(doc.querySelectorAll('.terms-bullet-list').length === 4, 'bullet groups');
+  const headingX = textBox(heading).left;
+  for (const item of primary) {
+   assert(Math.abs(box(item.firstElementChild).left - headingX) < 1, 'primary marker starts at heading text');
+  }
+  const firstText = primary[0].querySelector('.terms-item-text');
+  const em = parseFloat(style(firstText).fontSize);
+  const inset = box(firstText).left - headingX;
+  assert(inset >= 1.7 * em && inset <= 1.8 * em, 'compact single-digit body inset');
+  assert(box(primary[2].querySelector('.terms-item-text')).left > box(firstText).left,
+      '100 marker grows naturally without overlap');
+  for (const item of doc.querySelectorAll('.terms-numbered-item')) {
+   const marker = item.firstElementChild, text = marker.nextElementSibling;
+   assert(style(marker).color === 'rgb(0, 0, 0)', 'black marker');
+   assert(box(text).left - box(marker).right >= .74 * em, 'clear marker-body gap');
+   const range = doc.createRange(); range.selectNodeContents(text);
+   const lines = [...range.getClientRects()];
+   assert(lines.length > 1, 'long item really wraps');
+   assert(lines.every(line => Math.abs(line.left - box(text).left) < 1), 'wrapped lines align to body');
+   assert(item.scrollWidth <= item.clientWidth + 1, 'item has no overflow');
+   assert(box(text).width >= 60, 'nested body still has usable width');
+  }
+  for (const list of doc.querySelectorAll('.terms-item-children > .terms-numbered-list')) {
+   const parent = list.parentElement.parentElement;
+   const parentText = parent.querySelector(':scope > .terms-item-text');
+   const extraInset = list.classList.contains('terms-parenthetical-list') ? em : 0;
+   assert(Math.abs(box(list.firstElementChild.firstElementChild).left - box(parentText).left - extraInset) < 1,
+       'parenthetical marker indented one em; bullet stays at parent body');
+   assert(box(list).top >= box(parentText).bottom, 'nested list below parent body');
+   assert(list.parentElement.closest('li') === parent, 'nested list remains in parent li');
+  }
+  assert(doc.documentElement.scrollWidth <= win.innerWidth + 1, 'no horizontal page overflow');
+  document.getElementById('result').textContent = 'PASS';
+ } catch(error) { document.getElementById('result').textContent = 'FAIL: ' + error.message; }
+}; frame.src = 'terms.html';
+</script>'''.replace('WIDTH', str(width))
+                    page = Path(directory) / 'layout.html'
+                    page.write_text(fixture, encoding='utf-8')
+                    result = subprocess.run([
+                        browser, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+                        '--allow-file-access-from-files', '--disable-background-networking',
+                        '--host-resolver-rules=MAP * ~NOTFOUND', f'--user-data-dir={directory}/profile',
+                        '--virtual-time-budget=3000', '--dump-dom', page.as_uri(),
+                    ], capture_output=True, encoding='utf-8', errors='replace', timeout=60, check=False)
+                    self.assertEqual(result.returncode, 0, result.stderr[-2000:])
+                    outcome = re.search(r'<output id="result"[^>]*>(.*?)</output>', result.stdout, re.S)
+                    self.assertIsNotNone(outcome, result.stdout[-2000:])
+                    self.assertEqual(outcome.group(1), 'PASS')
+
     def test_saved_article_titles_have_visible_orange_lines_in_full_templates(self):
         """Reproduce the local storage shape: headings in titles, not bodies."""
         from .terms import DEFAULT_TERMS_TITLE
@@ -90,7 +186,7 @@ class TermsAcceptanceBrowserTests(SimpleTestCase):
                      'description': '\n'.join(f'{item}. ' + '表示検証の本文です。' * 12 for item in range(1, 10))
                                     + '\n第十条（本文内の見出し）\n1. 本文内の番号の表示検証です。'}
                     for index in range(1, 4)]
-        primary = {'pk': 10, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用の前文です。'}
+        primary = {'pk': 10, 'title': DEFAULT_TERMS_TITLE, 'description': '検証用の前文です。', 'is_header_title': True}
         for page_name, editable in (('terms_detail.html', False), ('terms_detail.html', True),
                                     ('terms_accept.html', False)):
             for include_primary in (True, False):
@@ -237,7 +333,7 @@ frame.onload = () => {
                   '利用規約が更新されたか、確認情報が無効です。内容を再確認して同意してください。'))
         for page_name, count, consent_error in cases:
             documents = [{'pk': number, 'title': title if number == 1 else '追加規約' + '長いタイトル' * 24,
-                          'description': body} for number in range(1, count + 1)]
+                          'description': body, 'is_header_title': number == 1} for number in range(1, count + 1)]
             rendered = render_to_string('tenasapo_knowledge/' + page_name, {
                 'terms_registered': bool(count), 'terms_token': 'offline-token',
                 'csrf_token': 'offline-csrf-token', 'terms': documents[0] if count else None,
@@ -316,11 +412,24 @@ frame.onload = () => {{
   assert(doc.querySelectorAll('.terms-document-section').length === ({count} ||
       ({'true' if page_name == 'terms_detail.html' else 'false'} ? 1 : 0)), 'document count including empty state');
   const pane = doc.querySelector('.terms-scroll');
-  assert(doc.querySelectorAll('.terms-scroll').length === ({count} ||
-      {'true' if page_name == 'terms_detail.html' else 'false'} ? 1 : 0), 'one shared pane');
+    assert(doc.querySelectorAll('.terms-scroll').length === 1, 'one shared pane including empty state');
     assert(doc.querySelector('.page-title-main').textContent === '{title}', 'title preserved');
   assert(!doc.querySelector('.page-title-sub'), 'title header only');
-  assert(parseFloat(styles(header).paddingBottom) <= {font_size} * .5, 'compact header gap');
+  // Compare the actual cascade with the same common header on a non-terms page.
+  const headingStyle = styles(doc.querySelector('.page-title-main'));
+  const panelStyle = styles(doc.querySelector('.page-title-panel'));
+  const properties = ['fontSize', 'lineHeight', 'fontWeight', 'fontFamily'];
+  const headingValues = properties.map(key => headingStyle[key]);
+  const panelPadding = ['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].map(key => panelStyle[key]);
+  const headerPadding = [styles(header).paddingTop, styles(header).paddingBottom];
+  doc.body.classList.remove('terms-page');
+  assert(properties.every((key, index) => styles(doc.querySelector('.page-title-main'))[key] === headingValues[index]),
+      'same heading size and typography as common pages at every viewport');
+  assert(['paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft'].every((key, index) =>
+      styles(doc.querySelector('.page-title-panel'))[key] === panelPadding[index]), 'same common panel padding');
+  assert(styles(header).paddingTop === headerPadding[0] && styles(header).paddingBottom === headerPadding[1],
+      'same common outer header padding');
+  doc.body.classList.add('terms-page');
   if (!{count}) {{
    assert(doc.body.textContent.includes('利用規約はまだ登録されていません。'), 'empty state');
    assert(!doc.querySelector('#terms-accepted'), 'no empty consent');

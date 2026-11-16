@@ -791,12 +791,18 @@ class TermsOfUse(models.Model):
     id = models.BigAutoField(primary_key=True)
     title = models.CharField('タイトル', max_length=200)
     description = models.TextField('内容')
+    is_header_title = models.BooleanField('タイトルに使用', default=False)
     updated_at = models.DateTimeField('更新日時', auto_now=True)
 
     class Meta:
         verbose_name = '利用規約'
         verbose_name_plural = '利用規約'
         ordering = ['pk']
+        constraints = [
+            models.UniqueConstraint(fields=['is_header_title'],
+                                    condition=models.Q(is_header_title=True),
+                                    name='terms_one_header_title'),
+        ]
 
     def __str__(self):
         return self.title

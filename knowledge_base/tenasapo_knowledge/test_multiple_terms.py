@@ -174,7 +174,9 @@ class MultipleTermsMigrationTests(TransactionTestCase):
                 # Reproduce the reported POST failure against the old schema.
                 with self.assertRaisesMessage(IntegrityError, 'NOT NULL constraint failed'):
                     with transaction.atomic():
-                        TermsOfUse.objects.create(title='未移行時の登録', description='検証用本文')
+                        intermediate = executor.loader.project_state(after).apps.get_model(
+                            'tenasapo_knowledge', 'TermsOfUse')
+                        intermediate.objects.create(title='未移行時の登録', description='検証用本文')
             executor = MigrationExecutor(connection)
             executor.migrate(after)
             new_apps = executor.loader.project_state(after).apps
@@ -211,4 +213,5 @@ class MultipleTermsMigrationTests(TransactionTestCase):
             self.assertEqual(saved.terms_snapshots, [])
         finally:
             # Always restore schema so later tests never see the legacy model.
-            MigrationExecutor(connection).migrate(after)
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())

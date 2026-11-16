@@ -372,7 +372,7 @@
                     </td>
                     <td>
                             <div class="user-row-actions">
-                                {% if can_manage_all_users or account.id == request.user.id or can_staff_reissue_customer_password and account.knowledge_profile.user_type == 'customer' %}
+                                {% if can_manage_all_users or account.id == request.user.id or can_staff_reissue_customer_password and account.knowledge_profile.user_type == 'customer' or can_reset_terms_acceptance and account.terms_acceptance %}
                                 <div class="dropdown">
                                     <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="操作メニュー" title="操作メニュー">
                                         <i class="bi bi-three-dots-vertical"></i>
@@ -392,6 +392,15 @@
                                         {% endif %}
                                         {% if can_manage_all_users or account.id == request.user.id %}
                                         <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#deleteModal{{ account.id }}">削除</button></li>
+                                        {% endif %}
+                                        {% if can_reset_terms_acceptance and account.terms_acceptance %}
+                                        <li>
+                                            <form method="post" action="{% url 'user_terms_acceptance_reset' account.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="dropdown-item text-danger" type="submit" onclick="return confirm('このユーザーの現在の利用規約同意記録（同意日時・同意した規約の保存内容）を削除します。同意対象のカスタマーは次回アクセス時に再同意が必要です。リセットしますか？');">利用規約の同意をリセット</button>
+                                            </form>
+                                        </li>
                                         {% endif %}
                                     </ul>
                                 </div>
