@@ -50,11 +50,25 @@ jobs:
 
       - name: Validate application and migrations
         working-directory: knowledge_base
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings_ci
+          PYTHONDONTWRITEBYTECODE: '1'
+        shell: bash
         run: |
+          set -o pipefail
           python manage.py check
           python manage.py makemigrations --check --dry-run
-          python manage.py test tenasapo_knowledge knowledge --noinput
+          python manage.py test tenasapo_knowledge knowledge --noinput --verbosity 2 2>&1 | tee "$RUNNER_TEMP/nexus-validation-tests.log"
           python manage.py collectstatic --noinput
+
+      - name: Upload validation test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-validation-tests-${{ github.sha }}
+          path: ${{ runner.temp }}/nexus-validation-tests.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Prepare deployment package without local archive
         run: |
