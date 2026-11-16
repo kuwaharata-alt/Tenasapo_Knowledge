@@ -344,6 +344,67 @@ class TermsOfUseTests(TestCase):
 
 
 class TermsFormattingTests(SimpleTestCase):
+    def test_embedded_urls_inside_japanese_punctuation_keep_exact_destination(self):
+        from .test_review_list_layout import ReviewDOMParser
+
+        url = 'https://www.systena.co.jp/about/license/policy/'
+        for text in (f'「個人情報保護方針（{url}）」および補足',
+                     f'参照「{url}」。', f'確認（{url}）および本文'):
+            for prefix in ('', '1. ', '1. 本文\n(1) ', '・'):
+                with self.subTest(text=text, prefix=prefix):
+                    parser = ReviewDOMParser()
+                    parser.feed(self.render_body(prefix + text))
+                    link, = parser.find(tag='a')
+                    self.assertEqual(link['attrs']['href'], url)
+                    self.assertEqual(link['text'], url)
+                    container, = (parser.find(css_class='terms-item-text')[-1:]
+                                  or parser.find(css_class='terms-paragraph'))
+                    self.assertEqual(container['text'], text)
+
+    def test_urls_are_linked_in_paragraphs_and_nested_items_on_both_pages(self):
+        from .test_review_list_layout import ReviewDOMParser
+
+        urls = [
+            'https://example.com/policy?from=terms&lang=ja#privacy',
+            'http://example.com/help',
+            'https://example.com/nested',
+            'https://example.com/' + 'long-path/' * 30,
+        ]
+        body = (f'参照先 {urls[0]}\n\n1. 詳細 {urls[1]}\n'
+                f'(1) 補足 {urls[2]}\n・参考 {urls[3]}')
+        for page in ('terms_detail.html', 'terms_accept.html'):
+            with self.subTest(page=page):
+                parser = ReviewDOMParser()
+                parser.feed(render_to_string('tenasapo_knowledge/' + page, {
+                    'terms_list': [{'pk': 1, 'title': '規約', 'description': body}],
+                    'terms_registered': True,
+                }))
+                links = [node for node in parser.find(tag='a')
+                         if any('terms-text-body' in parent['attrs'].get('class', '').split()
+                                for parent in node['parents'])]
+                self.assertEqual([node['attrs']['href'] for node in links], urls)
+                self.assertEqual([node['text'] for node in links], urls)
+                self.assertTrue(all(node['attrs'].get('target') == '_blank' for node in links))
+                self.assertTrue(all(set(node['attrs'].get('rel', '').split())
+                                    == {'nofollow', 'noopener', 'noreferrer'} for node in links))
+
+    def test_url_linking_still_escapes_html_and_rejects_script_links(self):
+        from .test_review_list_layout import ReviewDOMParser
+
+        body = ('<script>alert(1)</script> <img src=x onerror=alert(2)>\n'
+                'javascript:alert(3) data:text/html,unsafe\n'
+                'https://example.com/?q=test&lang=ja')
+        html = self.render_body(body)
+        parser = ReviewDOMParser()
+        parser.feed(html)
+        self.assertFalse(parser.find(tag='script'))
+        self.assertFalse(parser.find(tag='img'))
+        links = parser.find(tag='a')
+        self.assertEqual(len(links), 1)
+        self.assertEqual(links[0]['attrs']['href'], 'https://example.com/?q=test&lang=ja')
+        self.assertIn(escape('<script>alert(1)</script>'), html)
+        self.assertIn('javascript:alert(3)', html)
+
     def test_edit_links_share_section_heading_row_and_hidden_primary_has_own_row(self):
         from .test_review_list_layout import ReviewDOMParser
         from .terms import DEFAULT_TERMS_TITLE

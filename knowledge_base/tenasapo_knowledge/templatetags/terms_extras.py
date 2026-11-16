@@ -3,6 +3,9 @@
 import re
 
 from django import template
+from django.template.defaultfilters import urlize
+from django.utils.html import format_html_join
+from django.utils.safestring import mark_safe
 
 from ..terms import terms_acceptance_applies
 
@@ -16,6 +19,18 @@ NUMBERED = re.compile(r'^([0-9０-９]{1,3}[.．、])([ \t　]*)(\S.*)$')
 SUBNUMBERED = re.compile(r'^[ \t　]*((?:\([0-9０-９]{1,3}\)|（[0-9０-９]{1,3}）))[ \t　]*(\S.*)$')
 BULLET = re.compile(r'^[ \t　]*([・･])[ \t　]*(\S.*)$')
 NESTED = re.compile(r'^(?:[0-9０-９]+[.．、]|[（(][0-9０-９]+[）)])')
+URL_DELIMITERS = re.compile(r'([「」『』（）【】〈〉《》、。　])')
+
+
+@register.filter
+def terms_urlize(value):
+    """Open terms-only URLs in a new tab while escaping all stored HTML."""
+    parts = URL_DELIMITERS.split(str(value or ''))
+    linked = format_html_join('', '{}', ((urlize(part, autoescape=True),) for part in parts))
+    # Only modify anchors generated above; stored markup has already been escaped.
+    return mark_safe(linked.replace(
+        '<a ', '<a target="_blank" '
+    ).replace('rel="nofollow"', 'rel="nofollow noopener noreferrer"'))
 
 
 @register.filter
