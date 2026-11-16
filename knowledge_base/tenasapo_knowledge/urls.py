@@ -3,6 +3,7 @@ from django.db import transaction
 from django.views.generic import RedirectView
 from .chat_schedule_settings import ChatScheduleSettingsView, ChatScheduleSendView
 from .drive_oauth_views import drive_oauth_callback, drive_oauth_connect, drive_oauth_disconnect
+from .terms import TermsAcceptanceView, TermsOfUseDetailView, TermsOfUseEditView
 from .views import (
     ArticleListView,
     ArticleManagementView,
@@ -82,6 +83,10 @@ from .views import (
 )
 
 urlpatterns = [
+    path('terms/', TermsOfUseDetailView.as_view(), name='terms_detail'),
+    path('terms/edit/', TermsOfUseEditView.as_view(), name='terms_edit'),
+    path('terms/<int:pk>/edit/', TermsOfUseEditView.as_view(), name='terms_edit'),
+    path('terms/accept/', TermsAcceptanceView.as_view(), name='terms_accept'),
     path('summary/drive/connect/', drive_oauth_connect, name='drive_oauth_connect'),
     path('summary/drive/callback/', drive_oauth_callback, name='drive_oauth_callback'),
     path('summary/drive/disconnect/', drive_oauth_disconnect, name='drive_oauth_disconnect'),

@@ -59,6 +59,21 @@ class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
                 messages.error(request, 'デモアカウントの有効期限が切れています。管理者へ連絡してください。')
                 return redirect('login')
 
+            # Public terms and their separately authorized editor must remain
+            # reachable even with an initial password or no consent yet.
+            match = request.resolver_match
+            route_name = match.url_name if match else ''
+            if route_name in {'terms_detail', 'terms_edit', 'terms_accept', 'password_change',
+                              'logout', 'account_logout'}:
+                return super().process_view(request, view_func, view_args, view_kwargs)
+            if getattr(view_func, '__module__', '').startswith('allauth.'):
+                return super().process_view(request, view_func, view_args, view_kwargs)
+
+            from .terms import requires_terms_acceptance
+
+            if requires_terms_acceptance(user):
+                return redirect('terms_accept')
+
             password_change_path = reverse('password_change')
             if should_force_password_change(user) and not path.startswith(password_change_path):
                 return redirect(password_change_path)

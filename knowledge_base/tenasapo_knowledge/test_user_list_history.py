@@ -8,12 +8,13 @@ from django.contrib.auth.models import AnonymousUser
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.exceptions import PermissionDenied
 from django.db import connection
+from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import LoginHistory, UserProfile, ViewHistory
+from .models import LoginHistory, TermsAcceptance, UserProfile, ViewHistory
 from .test_login_history_layout import LinkParser
 from .test_review_list_layout import ReviewDOMParser
 from .views import UserListView
@@ -103,6 +104,64 @@ class UserListHistoryTests(TestCase):
         self.assertNotContains(response, 'contractAccountIssueModal')
         self.assertNotContains(response, 'demoAccountIssueModal')
 
+    def test_consent_timestamp_is_read_only_inside_each_other_information_panel(self):
+        record = TermsAcceptance.objects.create(
+            user=self.member, terms_updated_at=timezone.now(),
+            terms_title='<script>private-title</script>', terms_description='private snapshot',
+        )
+        response = self.page({'q': self.member.username})
+        parser = ReviewDOMParser()
+        parser.feed(response.content.decode())
+        section, = parser.find(tag='section', **{'aria-labelledby': f'user-other-title-{self.member.pk}'})
+        times = [node for node in parser.find(tag='time') if section in node['parents']]
+        self.assertEqual(len(times), 1)
+        self.assertEqual(times[0]['attrs']['datetime'], timezone.localtime(record.accepted_at).isoformat())
+        self.assertContains(response, timezone.localtime(record.accepted_at).strftime('%Y/%m/%d %H:%M:%S'))
+        self.assertContains(response, '利用規約同意日時')
+        self.assertContains(response, '顧客 &lt;&amp; &quot;名前&quot;&gt;')
+        self.assertNotContains(response, '<script>private-title</script>')
+        self.assertNotContains(response, 'private snapshot')
+        self.assertFalse(any(node for node in parser.nodes if section in node['parents']
+                             and node['tag'] in ('input', 'textarea', 'select', 'form')))
+        account, = response.context_data['users']
+        with self.assertNumQueries(0):
+            self.assertEqual(account.terms_acceptance.accepted_at, record.accepted_at)
+
+        # Null-like display state is tested in memory only, not by corrupting DB rows.
+        account.terms_acceptance.accepted_at = None
+        html = render_to_string('tenasapo_knowledge/user_list.html', response.context_data,
+                                request=self.request())
+        panel = html.split(f'aria-labelledby="user-other-title-{self.member.pk}"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('未同意', panel)
+        self.assertNotIn('<time', panel)
+        record.refresh_from_db()
+        self.assertIsNotNone(record.accepted_at)
+
+    def test_missing_consent_shows_not_accepted_without_creating_a_record(self):
+        response = self.page({'q': self.member.username})
+        html = response.content.decode()
+        panel = html.split(f'aria-labelledby="user-other-title-{self.member.pk}"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('利用規約同意日時', panel)
+        self.assertIn('未同意', panel)
+        self.assertNotIn('<time', panel)
+        account, = response.context_data['users']
+        with self.assertNumQueries(0):
+            self.assertIsNone(getattr(account, 'terms_acceptance', None))
+        self.assertFalse(TermsAcceptance.objects.exists())
+
+    def test_noncustomer_status_is_not_applicable_and_old_records_remain_visible(self):
+        response = self.page({'q': self.staff.username})
+        panel = response.content.decode().split(
+            f'aria-labelledby="user-other-title-{self.staff.pk}"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('対象外', panel)
+        self.assertNotIn('未同意', panel)
+        self.assertFalse(TermsAcceptance.objects.exists())
+        record = TermsAcceptance.objects.create(
+            user=self.staff, terms_updated_at=timezone.now(), terms_title='旧記録', terms_description='旧本文',
+        )
+        response = self.page({'q': self.staff.username})
+        self.assertContains(response, timezone.localtime(record.accepted_at).strftime('%Y/%m/%d %H:%M:%S'))
+
     def test_staff_customer_password_actions_do_not_grant_edit(self):
         response = self.page({'q': self.member.username})
         self.assertContains(response, f'id="passwordChangeModal{self.member.pk}"')
@@ -142,6 +201,10 @@ class UserListHistoryTests(TestCase):
         history_queries = [entry['sql'] for entry in captured
                            if 'FROM "tenasapo_knowledge_loginhistory"' in entry['sql']]
         self.assertEqual(len(history_queries), 1)
+        # Consent is joined into the user query, never fetched once per row.
+        acceptance_queries = [entry['sql'] for entry in captured
+                              if 'FROM "tenasapo_knowledge_termsacceptance"' in entry['sql']]
+        self.assertEqual(acceptance_queries, [])
         first_users = list(first.context_data['users'])
         self.assertEqual(len(first_users), 20)
         self.assertEqual(first.context_data['paginator'].count, 21)

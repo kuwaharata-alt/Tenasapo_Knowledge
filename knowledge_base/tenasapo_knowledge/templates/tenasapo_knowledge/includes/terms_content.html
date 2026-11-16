@@ -1,0 +1,18 @@
+{% load terms_extras %}
+<div class="terms-text-body">
+{% for block in terms.description|terms_blocks %}
+	{% if block.kind == 'heading' %}
+		<h2 class="terms-article-heading">{{ block.text }}</h2>
+	{% elif block.kind == 'list' %}
+		<ol class="terms-numbered-list">
+		{% for item in block.items %}
+			<li class="terms-numbered-item"><span class="terms-number">{{ item.marker }}</span><div class="terms-item-text">{{ item.text }}</div></li>
+		{% endfor %}
+		</ol>
+	{% elif block.kind == 'blank' %}
+		<div class="terms-blank-line" aria-hidden="true">{{ block.text }}</div>
+	{% else %}
+		<p class="terms-paragraph">{{ block.text }}</p>
+	{% endif %}
+{% endfor %}
+</div>

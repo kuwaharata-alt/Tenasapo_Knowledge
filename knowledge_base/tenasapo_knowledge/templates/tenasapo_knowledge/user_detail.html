@@ -114,6 +114,27 @@
             </div>
         </div>
         <hr>
+        <section aria-label="利用規約への同意" class="mb-3">
+            <h5 class="text-muted">利用規約への同意</h5>
+            {% load terms_extras %}
+            {% with acceptance=user_obj.terms_acceptance applicable=user_obj|consent_applicable %}
+                {% if acceptance %}
+                    <p><span class="badge text-bg-success">同意済み</span></p>
+                    <dl>
+                        <dt>同意日時</dt><dd>{{ acceptance.accepted_at|date:"Y/m/d H:i:s" }}</dd>
+                        {% for document in acceptance.accepted_documents %}
+                        <dt>同意した規約</dt><dd>{{ document.title }}</dd>
+                        <dt>同意した規約の版（更新日時）</dt><dd><time datetime="{{ document.updated_at|date:'c' }}">{{ document.updated_at|date:"Y/m/d H:i:s.u O" }}</time></dd>
+                        {% endfor %}
+                    </dl>
+                {% elif not applicable %}
+                    <p><span class="badge text-bg-secondary">対象外</span></p>
+                {% else %}
+                    <p><span class="badge text-bg-secondary">未同意</span></p>
+                {% endif %}
+            {% endwith %}
+        </section>
+        <hr>
         <div class="d-flex gap-2">
             {% if can_edit %}
             <a class="btn btn-primary" href="{% url 'user_edit' user_obj.id %}">編集</a>

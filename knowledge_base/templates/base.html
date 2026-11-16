@@ -1180,10 +1180,15 @@
         }
         .app-footer {
             grid-row: 4;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.5rem 1rem;
             position: relative;
             z-index: 1030;
             text-align: center;
-            padding: 0.75rem 0;
+            padding: 0.75rem 1rem;
             margin-top: 0;
             font-size: 0.8rem;
             color: var(--tk-muted);
@@ -1303,7 +1308,8 @@
     </main>
 
     <footer class="app-footer">
-        COPYRIGHT &copy;2010-{% now "Y" %} SYSTENA CORPORATION. ALL RIGHTS RESERVED
+        <span style="flex: 1 1 20rem; overflow-wrap: anywhere;">COPYRIGHT &copy;2010-{% now "Y" %} SYSTENA CORPORATION. ALL RIGHTS RESERVED</span>
+        <a href="{% url 'terms_detail' %}" class="text-reset" style="white-space: nowrap;">利用規約</a>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

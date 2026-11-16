@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load terms_extras %}
+{% block body_class %}terms-page{% endblock %}
+{% block extra_css %}{% include 'tenasapo_knowledge/includes/terms_styles.html' %}{% endblock %}
+{% block title %}{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }} – Nexus{% endblock %}
+
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main" id="terms-page-title">{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }}</h1>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="terms-layout">
+<div class="terms-toolbar">
+    {% if user.is_authenticated %}
+        <a href="{% url 'home' %}" class="btn btn-outline-secondary btn-sm">ホームへ</a>
+    {% else %}
+        <a href="{% url 'login' %}" class="btn btn-outline-secondary btn-sm">ログインへ</a>
+    {% endif %}
+    {% if can_edit_terms %}
+        <a href="{% url 'terms_edit' %}" class="btn btn-outline-primary btn-sm terms-register">利用規約を登録</a>
+    {% endif %}
+</div>
+<div class="terms-document terms-scroll" tabindex="0" role="region" aria-label="すべての利用規約の本文">
+{% for terms in terms_list %}
+<article class="terms-document-section" aria-labelledby="{% if terms.title|is_primary_terms_title %}terms-page-title{% else %}terms-title-{{ terms.pk }}{% endif %}">
+    {% if can_edit_terms or not terms.title|is_primary_terms_title %}
+    <div class="terms-section-heading">
+    {% if not terms.title|is_primary_terms_title %}
+    <h2 class="terms-document-title{% if terms.title|is_article_heading %} terms-article-heading{% endif %}" id="terms-title-{{ terms.pk }}">{{ terms.title }}</h2>
+    {% endif %}
+    {% if can_edit_terms %}
+    <a href="{% url 'terms_edit' pk=terms.pk %}" class="btn btn-outline-primary btn-sm terms-section-edit" aria-label="{{ terms.title }}を編集">利用規約を編集</a>
+    {% endif %}
+    </div>
+    {% endif %}
+    {% include 'tenasapo_knowledge/includes/terms_content.html' %}
+</article>
+{% empty %}
+<article class="terms-document-section" aria-label="利用規約">
+    <p class="text-muted mb-0">利用規約はまだ登録されていません。</p>
+</article>
+{% endfor %}
+</div>
+</div>
+{% endblock %}

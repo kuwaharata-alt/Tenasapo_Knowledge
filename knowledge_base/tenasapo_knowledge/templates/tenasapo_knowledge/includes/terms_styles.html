@@ -1,0 +1,134 @@
+<style>
+/* Terms pages only: do not alter the base grid, footer or other card bodies. */
+.terms-page .app-main { overflow: hidden; }
+.terms-page .app-content {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: .75rem !important;
+}
+.terms-layout {
+    flex: 1 1 0;
+    min-height: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+.terms-layout > :not(.terms-scroll) { flex-shrink: 0; }
+.terms-scroll {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+}
+.terms-scroll:focus-visible { outline: 3px solid var(--tk-primary); outline-offset: -3px; }
+.terms-document-section + .terms-document-section {
+    border-top: 1px solid #e8e5dc;
+    margin-top: .75rem;
+    padding-top: .75rem;
+}
+.terms-layout .terms-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: .5rem;
+}
+.terms-layout form { margin-bottom: 0; }
+.terms-layout #terms-accept-form { align-self: flex-end; max-width: 100%; }
+.terms-layout .form-check { margin-bottom: 0 !important; }
+.terms-layout .alert { margin-bottom: 0; padding: .5rem .75rem; }
+.terms-scroll > .alert { margin-bottom: .75rem; }
+.terms-layout .terms-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; }
+.terms-layout .terms-register { margin-inline-start: auto; }
+.terms-page .page-title-main { overflow-wrap: anywhere; }
+.terms-page .app-page-header { padding-top: .5rem; padding-bottom: .5rem; }
+.terms-page .page-title-panel { padding: .5rem .75rem; }
+@media (max-width: 575.98px), (max-height: 600px) {
+    .terms-page .app-content { padding-bottom: .5rem !important; }
+    .terms-layout { gap: .5rem; }
+    .terms-layout .alert { padding: .35rem .6rem; font-size: .875rem; line-height: 1.45; }
+    .terms-document.terms-scroll { padding-block: .5rem; }
+}
+.terms-document {
+    --terms-accent: #147d78;
+    --terms-heading-inset: .9rem;
+    background: #faf8f3;
+    color: #303c3b;
+    border: 1px solid #e8e5dc;
+    border-radius: 12px;
+    padding: .75rem clamp(16px, 3vw, 40px) 1rem;
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+.terms-document .terms-document-title {
+    font-size: clamp(1.2rem, 2.2vw, 1.65rem);
+    line-height: 1.65;
+    font-weight: 700;
+    margin: 0 0 .75rem;
+}
+.terms-document .terms-text-body { font-size: 1rem; line-height: 1.5; }
+.terms-document .terms-section-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: .5rem;
+    margin-bottom: .4rem;
+}
+.terms-document .terms-section-heading > .terms-document-title {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0;
+}
+.terms-document .terms-section-edit {
+    flex: 0 0 auto;
+    margin-inline-start: auto;
+    max-width: 100%;
+    white-space: normal;
+}
+.terms-document .terms-article-heading {
+    /* Legal article markers stay orange even when the site theme changes. */
+    border-left: 4px solid #ed7d22;
+    border-inline-start: 4px solid #ed7d22;
+    padding: .15em 0;
+    padding-inline-start: var(--terms-heading-inset);
+    margin: .85rem 0 .4rem;
+    color: #263d3b;
+    font-size: clamp(1.1rem, 1.8vw, 1.35rem);
+    font-weight: 700;
+    line-height: 1.5;
+    white-space: pre-wrap;
+}
+.terms-document .terms-text-body > :first-child { margin-top: 0; }
+.terms-document .terms-document-section > .terms-document-title:first-child { margin-top: 0; }
+.terms-document .terms-paragraph { margin: 0 0 .35em; white-space: pre-wrap; }
+.terms-document .terms-blank-line { height: .2em; white-space: pre-wrap; }
+.terms-document .terms-numbered-list {
+    list-style: none;
+    padding: 0;
+    /* Align NUMBER, not item text, with the heading text after its orange line. */
+    padding-inline-start: calc(4px + var(--terms-heading-inset));
+    margin: 0 0 .4rem;
+}
+.terms-document .terms-numbered-item {
+    display: grid;
+    grid-template-columns: minmax(2.4em, max-content) minmax(0, 1fr);
+    column-gap: .5em;
+    align-items: baseline;
+    margin: 0 0 .3em;
+}
+.terms-document .terms-number { color: #000; font-weight: 700; }
+.terms-document .terms-item-text { min-width: 0; white-space: pre-wrap; }
+@media (max-width: 575.98px) {
+    .terms-document { padding: .75rem 16px; border-radius: 8px; }
+}
+/* Preserve the one body scroller and visible controls in short windows too. */
+@media (max-height: 400px) {
+    .terms-page .page-title-main { font-size: 1rem; }
+}
+</style>

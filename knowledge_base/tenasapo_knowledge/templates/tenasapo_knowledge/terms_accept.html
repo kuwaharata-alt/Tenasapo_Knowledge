@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load terms_extras %}
+{% block body_class %}terms-page{% endblock %}
+{% block extra_css %}{% include 'tenasapo_knowledge/includes/terms_styles.html' %}{% endblock %}
+{% block title %}{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }} | Nexus{% endblock %}
+{% block page_header %}
+<div class="page-title-panel mb-4">
+    <h1 class="page-title-main" id="terms-page-title">{{ default_terms_title|default:'Tenasapo Knowledge Site 「Nexus」 サイトの利用条件' }}</h1>
+</div>
+{% endblock %}
+{% block content %}
+<div class="terms-layout">
+{% if consent_error and not terms_registered %}<div class="alert alert-warning" role="alert">{{ consent_error }}</div>{% endif %}
+{% if can_edit_terms %}<a href="{% url 'terms_edit' %}" class="btn btn-outline-secondary mb-3">利用規約を登録・編集</a>{% endif %}
+{% if acceptance %}
+<p>利用規約に同意済みです。同意日時: {{ acceptance.accepted_at|date:"Y/m/d H:i:s" }}</p>
+<a href="{% url 'home' %}" class="btn btn-primary">利用を続ける</a>
+{% elif terms_registered %}
+<div class="terms-document terms-scroll" tabindex="0" role="region" aria-label="すべての利用規約の本文">
+{% if consent_error %}<div class="alert alert-warning" role="alert">{{ consent_error }}</div>{% endif %}
+{% for terms in terms_list %}
+<article class="terms-document-section" aria-labelledby="{% if terms.title|is_primary_terms_title %}terms-page-title{% else %}terms-title-{{ terms.pk }}{% endif %}">
+    {% if not terms.title|is_primary_terms_title %}
+    <h2 class="terms-document-title{% if terms.title|is_article_heading %} terms-article-heading{% endif %}" id="terms-title-{{ terms.pk }}">{{ terms.title }}</h2>
+    {% endif %}
+        {% include 'tenasapo_knowledge/includes/terms_content.html' %}
+</article>
+{% endfor %}
+</div>
+<form method="post" action="{% url 'terms_accept' %}" id="terms-accept-form">
+    {% csrf_token %}
+    <input type="hidden" name="terms_token" value="{{ terms_token }}">
+    <div class="form-check mb-3">
+        <input class="form-check-input" id="terms-accepted" type="checkbox" name="terms_accepted" value="on" required>
+        <label class="form-check-label" for="terms-accepted">利用規約に同意する</label>
+    </div>
+</form>
+{% else %}
+<p>利用規約はまだ登録されていません。</p>
+<a href="{% url 'home' %}" class="btn btn-primary">利用を続ける</a>
+{% endif %}
+<div class="terms-actions">
+    {% if terms_registered and not acceptance %}
+    <button type="submit" form="terms-accept-form" class="btn btn-primary">次へ</button>
+    {% endif %}
+    <form method="post" action="{% url 'logout' %}" id="terms-back-form">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{% url 'login' %}">
+        <button type="submit" class="btn btn-outline-secondary">戻る</button>
+    </form>
+</div>
+</div>
+{% endblock %}

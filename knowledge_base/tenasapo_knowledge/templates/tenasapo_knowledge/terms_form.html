@@ -1,0 +1,9 @@
+{% extends "tenasapo_knowledge/manual_form.html" %}
+
+{% block form_description %}利用規約のタイトルと内容を入力してください。保存すると閲覧ページに反映されます。{% endblock %}
+{% block title_help %}利用規約のタイトルを入力してください。{% endblock %}
+{% block description_help %}
+<div class="form-text">「第1条（目的および適用）」または「第1条　目的および適用」を単独の行にすると、オレンジ色の左罫線付きの条見出しになります。全角数字（第１条）・漢数字（第一条）にも対応しています。次の行から「1. 本文」「2. 本文」のように1項目ずつ改行して入力してください。各条の番号は1から入力でき、長い本文は番号の右側で揃えて折り返されます。条の間に空行を3行入れた文章もそのまま貼り付けられます。</div>
+<div class="form-text">改行はそのまま表示され、HTMLタグは文字として扱われます。利用規約はログイン前でも閲覧できます。</div>
+{% endblock %}
+{% block cancel_url %}{% url 'terms_detail' %}{% endblock %}

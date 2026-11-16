@@ -471,6 +471,21 @@
                                         <table class="table align-middle mb-0 user-info-table">
                                             <caption class="visually-hidden">{{ account.username }}のその他の情報</caption>
                                             <tr>
+                                                <th>利用規約同意日時</th>
+                                                <td>
+                                                    {% load terms_extras %}
+                                                    {% with accepted_at=account.terms_acceptance.accepted_at applicable=account|consent_applicable %}
+                                                        {% if accepted_at %}
+                                                            <time datetime="{{ accepted_at|date:'c' }}">{{ accepted_at|date:'Y/m/d H:i:s' }}</time>
+                                                        {% elif not applicable %}
+                                                            <span class="text-secondary">対象外</span>
+                                                        {% else %}
+                                                            <span class="text-secondary">未同意</span>
+                                                        {% endif %}
+                                                    {% endwith %}
+                                                </td>
+                                            </tr>
+                                            <tr>
                                                 <th style="width: 30%;">会社名</th>
                                                 <td>{{ account.knowledge_profile.company_name|default:'-' }}</td>
                                             </tr>

@@ -171,6 +171,10 @@ class HomeRedirectLoginView(LoginView):
         return super().form_valid(form)
 
     def get_success_url(self):
+        from .terms import requires_terms_acceptance
+
+        if requires_terms_acceptance(self.request.user):
+            return reverse_lazy('terms_accept')
         if should_force_password_change(self.request.user):
             return reverse_lazy('password_change')
         if should_show_first_login_registration(self.request.user):
@@ -5599,7 +5603,7 @@ class UserListView(StaffRequiredMixin, ListView):
 
     def _base_filtered_queryset(self):
         User = get_user_model()
-        queryset = User.objects.select_related('knowledge_profile').prefetch_related('groups').order_by(
+        queryset = User.objects.select_related('knowledge_profile', 'terms_acceptance').prefetch_related('groups').order_by(
             'knowledge_profile__uid', 'knowledge_profile__display_name', 'username'
         )
 

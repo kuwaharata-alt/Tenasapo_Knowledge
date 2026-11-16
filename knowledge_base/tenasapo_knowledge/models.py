@@ -785,6 +785,53 @@ class Manual(models.Model):
         return self.title
 
 
+class TermsOfUse(models.Model):
+    """Current terms documents, displayed and collectively accepted in PK order."""
+
+    id = models.BigAutoField(primary_key=True)
+    title = models.CharField('タイトル', max_length=200)
+    description = models.TextField('内容')
+    updated_at = models.DateTimeField('更新日時', auto_now=True)
+
+    class Meta:
+        verbose_name = '利用規約'
+        verbose_name_plural = '利用規約'
+        ordering = ['pk']
+
+    def __str__(self):
+        return self.title
+
+
+class TermsAcceptance(models.Model):
+    """One explicit contract per user, independent of later document edits/deletion."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                               related_name='terms_acceptance')
+    accepted_at = models.DateTimeField('同意日時', default=timezone.now, editable=False)
+    terms_updated_at = models.DateTimeField('同意した規約の更新日時', editable=False)
+    terms_title = models.CharField('同意したタイトル', max_length=200, editable=False)
+    terms_description = models.TextField('同意した内容', editable=False)
+    # Empty means a legacy single-document agreement, NOT agreement to today's set.
+    # Retain the original columns verbatim; new agreements also keep the first
+    # document there for compatibility with existing history readers.
+    terms_snapshots = models.JSONField('同意した規約一覧', default=list, blank=True, editable=False)
+
+    @property
+    def accepted_documents(self):
+        """Read history without inventing consent or consulting current terms."""
+        if self.terms_snapshots:
+            from django.utils.dateparse import parse_datetime
+
+            return [{**document, 'updated_at': parse_datetime(document['updated_at'])}
+                    for document in self.terms_snapshots]
+        return [{'title': self.terms_title, 'description': self.terms_description,
+                 'updated_at': self.terms_updated_at}]
+
+    class Meta:
+        verbose_name = '利用規約への同意'
+        verbose_name_plural = '利用規約への同意'
+
+
 class ProjectDocument(models.Model):
     DOCUMENT_TYPE_PROCEDURE = 'procedure'
     DOCUMENT_TYPE_HEARING = 'hearing_sheet'

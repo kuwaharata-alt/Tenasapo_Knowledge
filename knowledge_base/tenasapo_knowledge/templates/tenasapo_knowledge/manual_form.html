@@ -8,7 +8,7 @@
             <h1 class="page-title-main d-flex align-items-center gap-2">
                 <span class="page-title-icon"><i class="bi bi-pencil-square"></i></span>{{ form_title }}
             </h1>
-            <p class="page-title-sub">メニューごとの使い方・操作手順を入力し、いつでも編集できます。</p>
+            <p class="page-title-sub">{% block form_description %}メニューごとの使い方・操作手順を入力し、いつでも編集できます。{% endblock %}</p>
         </div>
     </div>
 </div>
@@ -63,10 +63,12 @@
                             {{ field }}
                         </div>
                         {% if field.name == 'title' %}
-                            <div class="form-text">マニュアルの内容が分かるタイトルを入力してください。</div>
+                            <div class="form-text">{% block title_help %}マニュアルの内容が分かるタイトルを入力してください。{% endblock %}</div>
                         {% elif field.name == 'description' %}
+                            {% block description_help %}
                             <div class="form-text">対象メニュー、できること、操作の順番を記載してください。改行はそのまま表示され、HTMLタグは文字として扱われます。</div>
                             <div class="form-text">「内容」「操作手順」「注意点」をそれぞれ1行だけで入力すると、その行が色付きの見出しになります。各見出しの次の行から本文を入力してください。「対象・できること」も「内容」として表示されます。文章の途中に書いた場合や、独自の見出し名には色は付きません。</div>
+                            {% endblock %}
                         {% elif field.name == 'order' %}
                             <div class="form-text">補足手順の表示順を指定してください。固定メニューの節はメニュー順で表示されます。</div>
                         {% endif %}
@@ -87,7 +89,7 @@
 
                 <div class="card-footer bg-white d-flex justify-content-end gap-2 p-3">
                     <button type="submit" class="btn btn-primary">{{ submit_label }}</button>
-                    <a href="{% if return_to %}{{ return_to }}{% else %}{% url 'manual_list' %}{% endif %}" class="btn btn-outline-secondary">キャンセル</a>
+                    <a href="{% block cancel_url %}{% if return_to %}{{ return_to }}{% else %}{% url 'manual_list' %}{% endif %}{% endblock %}" class="btn btn-outline-secondary">キャンセル</a>
                 </div>
             </form>
     </div>
