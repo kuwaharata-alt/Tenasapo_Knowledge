@@ -1,0 +1,1 @@
+"""Dependencies shared by menu implementations, independent of legacy views."""

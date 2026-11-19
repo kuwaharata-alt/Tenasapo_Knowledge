@@ -29,7 +29,7 @@ refresh tokenはDBに暗号化して保存し、画面に表示しません。Dj
 
 ## Google側の設定（外部操作が必要）
 
-1. Apps Scriptで**専用の新規プロジェクト**を作成し、[scripts/google_drive_report_upload.gs](scripts/google_drive_report_upload.gs) を貼り付けます。既存のChat通知リレーへ混ぜないでください。この専用アプリはChatへは送信しません。
+1. Apps Scriptで**専用の新規プロジェクト**を作成し、[scripts/google_drive_report_upload.gs](../../../scripts/google_drive_report_upload.gs) を貼り付けます。既存のChat通知リレーへ混ぜないでください。この専用アプリはChatへは送信しません。
 2. プロジェクトの設定 → スクリプトプロパティに次を登録します。
    - `REPORT_FOLDER_ID`：`1UXh2fpq72dVVLnCR8MhBF-A9Q3zLays0`
    - `REPORT_UPLOAD_SECRET`：専用のランダムな32文字以上の秘密鍵。Django側にも同じ値を設定します。DjangoのSECRET_KEYやWebhookのトークンは再利用しません。

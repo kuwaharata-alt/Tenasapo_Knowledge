@@ -1,0 +1,1 @@
+"""Menu-oriented implementations; legacy modules retain explicit compatibility exports."""

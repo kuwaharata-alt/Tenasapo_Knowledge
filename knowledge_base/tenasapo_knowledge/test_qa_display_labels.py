@@ -124,7 +124,7 @@ class QADisplayLabelTests(SimpleTestCase):
         self.assertIn("label: 'Q&A',", summary)
 
     def test_report_headers_and_manual_defaults_change_only_display_names(self):
-        source = inspect.getsource(views)
+        source = inspect.getsource(inspect.getmodule(views.SummaryView))
         for label in ('Q&A投稿数', 'Q&A承認数'):
             self.assertIn(label, source)
         self.assertIn("['メンバー', '投稿数', 'Q&A', 'Tips'", source)

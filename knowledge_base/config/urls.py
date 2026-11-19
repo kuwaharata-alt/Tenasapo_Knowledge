@@ -20,15 +20,16 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.static import serve
 from tenasapo_knowledge import views as tk_views
+from tenasapo_knowledge.features.manuals import views as manual_views
 
 urlpatterns = [
     path('', include('tenasapo_knowledge.urls')),
-    path('manuals', tk_views.ManualListView.as_view(), name='manual_list_no_slash'),
-    path('manuals/', tk_views.ManualListView.as_view(), name='manual_list_root'),
-    path('manuals/create/', tk_views.ManualCreateView.as_view(), name='manual_create_root'),
-    path('manuals/<int:pk>/', tk_views.ManualDetailView.as_view(), name='manual_detail_root'),
-    path('manuals/<int:pk>/edit/', tk_views.ManualUpdateView.as_view(), name='manual_edit_root'),
-    path('manuals/<int:pk>/delete/', tk_views.ManualDeleteView.as_view(), name='manual_delete_root'),
+    path('manuals', manual_views.ManualListView.as_view(), name='manual_list_no_slash'),
+    path('manuals/', manual_views.ManualListView.as_view(), name='manual_list_root'),
+    path('manuals/create/', manual_views.ManualCreateView.as_view(), name='manual_create_root'),
+    path('manuals/<int:pk>/', manual_views.ManualDetailView.as_view(), name='manual_detail_root'),
+    path('manuals/<int:pk>/edit/', manual_views.ManualUpdateView.as_view(), name='manual_edit_root'),
+    path('manuals/<int:pk>/delete/', manual_views.ManualDeleteView.as_view(), name='manual_delete_root'),
     path(
         'accounts/login/',
         tk_views.HomeRedirectLoginView.as_view(template_name='registration/login.html'),

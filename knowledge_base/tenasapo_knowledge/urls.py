@@ -5,13 +5,18 @@ from . import customer_application_views as application_views
 from .chat_schedule_settings import ChatScheduleSettingsView, ChatScheduleSendView
 from .drive_oauth_views import drive_oauth_callback, drive_oauth_connect, drive_oauth_disconnect
 from .terms import TermsAcceptanceView, TermsOfUseDetailView, TermsOfUseEditView
+from .features.input.views import (
+    ConvenienceCreateView, ConvenienceUpdateView, KnowledgeInputHubView,
+)
+from .features.knowledge.views import ConvenienceListView, ConvenienceFavoriteToggleView
+from .features.manuals.views import (
+    ManualCreateView, ManualDeleteView, ManualDetailView, ManualListView, ManualUpdateView,
+)
+from .features.reports.views import PostingQuotaSettingsView
+from .features.users.views import UserCreateView, UserContractIssueView, UserDemoIssueView
 from .views import (
     ArticleListView,
     ArticleManagementView,
-    ConvenienceCreateView,
-    ConvenienceListView,
-    ConvenienceFavoriteToggleView,
-    ConvenienceUpdateView,
     ArticleAttachmentDeleteView,
     FirstLoginRegistrationView,
     HomeView,
@@ -31,15 +36,9 @@ from .views import (
     KnowledgeArticleRemandView,
     KnowledgeArticleImageAttachmentDeleteView,
     KnowledgeArticleDetailView,
-    KnowledgeInputHubView,
     KnowledgeDuplicateCandidatesView,
     KnowledgeArticleUpdateView,
     LoginHistoryListView,
-    ManualCreateView,
-    ManualDeleteView,
-    ManualDetailView,
-    ManualListView,
-    ManualUpdateView,
     ProjectDocumentCreateView,
     ProjectDocumentListView,
     ProjectDocumentUpdateView,
@@ -52,7 +51,6 @@ from .views import (
     RevisionHistoryUpdateView,
     ReviewListView,
     SummaryView,
-    PostingQuotaSettingsView,
     SummaryPDFView,
     SummaryPostingReportPDFView,
     SummaryNotifyChatAPIView,
@@ -70,9 +68,6 @@ from .views import (
     TipsArticleDetailView,
     TipsListView,
     TipsUpdateView,
-    UserCreateView,
-    UserContractIssueView,
-    UserDemoIssueView,
     UserDeleteView,
     UserDetailView,
     ViewHistoryListView,

@@ -2,7 +2,7 @@
 
 ## 対象と現状
 
-- 本番はAzure Linuxです。既存の[配備手順](DEPLOY_AZURE.md)はApp Serviceの組み込みPythonランタイムを使用しています。
+- 本番はAzure Linuxです。既存の[配備手順](../../deployment/DEPLOY_AZURE.md)はApp Serviceの組み込みPythonランタイムを使用しています。
 - Djangoの`send_scheduled_chat_notifications`管理コマンドはOS非依存です。Windowsのタスク スケジューラやPowerShellスクリプトは本番では使用しません。
 - 本資料は導入手順です。資料追加や予約の保存だけではAzureのジョブは作成されません。Azure実リソースの構成、ジョブ登録・稼働は別途確認が必要です。
 

@@ -1,3 +1,9 @@
+"""Legacy view API and remaining article/report implementations.
+
+Extracted menu implementations are explicitly re-exported for existing callers.
+Feature modules depend on shared helpers, never on this compatibility module.
+"""
+
 from collections import Counter
 from datetime import date, datetime, timedelta
 import json
@@ -103,48 +109,41 @@ from .category_genres import (
     CATEGORY_GENRES, OTHER_GENRE, category_genre_keys, category_matches_genre,
     genre_fields, genre_for_parent, group_parents_by_genre, normalize_genre_key,
 )
-
-
-ADMIN_GROUP_NAME = getattr(
-    settings,
-    'USER_ROLE_ADMIN_NAME',
-    getattr(settings, 'USER_GROUP_ADMIN_NAME', '管理者'),
+from .features.input.views import (
+    KnowledgeInputHubView, ConvenienceCreateView, ConvenienceUpdateView,
+    ConvenienceCategoryCreateView,
 )
-SYSTENA_GROUP_NAME = getattr(
-    settings,
-    'USER_ROLE_SYSTENA_NAME',
-    getattr(settings, 'USER_GROUP_SYSTENA_NAME', 'システナ'),
+from .features.knowledge.views import ConvenienceListView, ConvenienceFavoriteToggleView
+from .features.manuals.views import (
+    ManualListView, ManualDetailView, ManualCreateView, ManualUpdateView, ManualDeleteView,
 )
+from .features.reports.views import PostingQuotaSettingsView
+from .features.users.views import (
+    UserCreateView, UserIssueFormView, UserDemoIssueView, UserContractIssueView,
+)
+from .features.shared.access import (
+    ADMIN_GROUP_NAME, SYSTENA_GROUP_NAME, CUSTOMER_GROUP_NAME, REVIEWER_GROUP_NAME,
+    DEMO_GROUP_NAME, ACCOUNT_VIEW_MODE_SESSION_KEY, ACCOUNT_VIEW_MODE_DEMO,
+    ACCOUNT_VIEW_MODE_CS, ACCOUNT_VIEW_MODES, get_forced_account_view_mode,
+    in_group, is_reviewer_user, can_edit_article, is_admin_account,
+    can_use_favorite, can_use_convenience_favorite, resolve_next_path,
+    StaffRequiredMixin,
+)
+from .features.shared.history import (
+    client_ip_from_request, current_login_history, record_view_history,
+)
+
 PASSWORD_MANAGER_USERNAMES = {
     username.lower()
     for username in getattr(settings, 'PASSWORD_MANAGER_USERNAMES', ['Admin', 'SystenaAdmin'])
 }
-CUSTOMER_GROUP_NAME = getattr(
-    settings,
-    'USER_ROLE_CUSTOMER_NAME',
-    getattr(settings, 'USER_GROUP_CUSTOMER_NAME', 'カスタマー'),
-)
-REVIEWER_GROUP_NAME = getattr(
-    settings,
-    'USER_ROLE_REVIEWER_NAME',
-    getattr(settings, 'USER_GROUP_REVIEWER_NAME', 'レビュアー'),
-)
 CONTRIBUTOR_GROUP_NAME = getattr(
     settings,
     'USER_ROLE_CONTRIBUTOR_NAME',
     getattr(settings, 'USER_GROUP_CONTRIBUTOR_NAME', '投稿者'),
 )
-DEMO_GROUP_NAME = getattr(
-    settings,
-    'USER_ROLE_DEMO_NAME',
-    getattr(settings, 'USER_GROUP_DEMO_NAME', 'demo'),
-)
 DEMO_GROUP_ALIASES = {'demo', 'デモ'}
 FAQ_APPROVAL_ENABLED = getattr(settings, 'FAQ_APPROVAL_ENABLED', False)
-ACCOUNT_VIEW_MODE_SESSION_KEY = 'account_view_mode'
-ACCOUNT_VIEW_MODE_DEMO = 'demo'
-ACCOUNT_VIEW_MODE_CS = 'cs'
-ACCOUNT_VIEW_MODES = {ACCOUNT_VIEW_MODE_DEMO, ACCOUNT_VIEW_MODE_CS}
 APPROVAL_MAIL_CC_FIXED = 'hanadary@systena.co.jp'
 FIRST_LOGIN_DEPARTMENT = 'ビジネスソリューション事業本部'
 FIRST_LOGIN_ALLOWED_GROUPS = [
@@ -475,11 +474,6 @@ class LoginLandingPageView(TemplateView):
         return redirect('home')
 
 
-def get_forced_account_view_mode(user):
-    mode = str(getattr(user, '_view_mode_override', '') or '').strip().lower()
-    return mode if mode in ACCOUNT_VIEW_MODES else ''
-
-
 def can_switch_account_view_mode(user):
     if not user.is_authenticated:
         return False
@@ -523,30 +517,6 @@ def switch_account_view_mode(request):
     ):
         return redirect(next_url)
     return redirect('home')
-
-
-def in_group(user, group_name):
-    if not user.is_authenticated:
-        return False
-
-    forced_mode = get_forced_account_view_mode(user)
-    if forced_mode in ACCOUNT_VIEW_MODES:
-        return group_name == CUSTOMER_GROUP_NAME
-
-    return user.groups.filter(name=group_name).exists()
-
-
-def resolve_next_path(request, fallback_url_name, **fallback_kwargs):
-    candidate = (request.POST.get('next') or request.GET.get('next') or '').strip()
-    if candidate and url_has_allowed_host_and_scheme(
-        url=candidate,
-        allowed_hosts={request.get_host()},
-        require_https=request.is_secure(),
-    ):
-        return candidate
-    if fallback_kwargs:
-        return reverse_lazy(fallback_url_name, kwargs=fallback_kwargs)
-    return reverse_lazy(fallback_url_name)
 
 
 def _extract_first_email(value):
@@ -744,77 +714,6 @@ def profile_user_type_from_groups(group_names):
     if SYSTENA_GROUP_NAME in group_names or ADMIN_GROUP_NAME in group_names:
         return UserProfile.USER_TYPE_SYSTENA
     return UserProfile.USER_TYPE_CUSTOMER
-
-
-def client_ip_from_request(request):
-    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', '')
-
-
-def current_login_history(request):
-    user = request.user
-    if not user.is_authenticated:
-        return None
-
-    history_id = request.session.get('login_history_id')
-    if history_id:
-        history = LoginHistory.objects.filter(id=history_id, user=user).first()
-        if history:
-            return history
-
-    history = LoginHistory.objects.filter(user=user, logged_out_at__isnull=True).first()
-    if history:
-        request.session['login_history_id'] = history.id
-    return history
-
-
-def record_view_history(
-    request,
-    page_name,
-    search_query='',
-    parent_category='',
-    category='',
-    path='',
-):
-    user = request.user
-    if not user.is_authenticated:
-        return
-
-    login_history = current_login_history(request)
-    resolved_path = path or request.path
-
-    last_history = (
-        ViewHistory.objects.filter(
-            user=user,
-            login_history=login_history,
-        )
-        .order_by('-viewed_at', '-id')
-        .first()
-    )
-    if (
-        last_history
-        and last_history.page_name == page_name
-        and last_history.path == resolved_path
-        and last_history.search_query == search_query
-        and last_history.parent_category == parent_category
-        and last_history.category == category
-    ):
-        return
-
-    ViewHistory.objects.create(
-        login_history=login_history,
-        user=user,
-        username=resolve_user_display_name(user),
-        page_name=page_name,
-        path=resolved_path,
-        search_query=search_query,
-        parent_category=parent_category,
-        category=category,
-        ip_address=client_ip_from_request(request),
-        user_agent=request.META.get('HTTP_USER_AGENT', '')[:1000],
-    )
 
 
 def _render_preview_html(text, image_list=None):
@@ -1016,11 +915,6 @@ class PreviewRenderView(View):
         return JsonResponse({'ok': False, 'error': 'invalid type'}, status=400)
 
 
-def is_reviewer_user(user):
-    reviewer_group_names = {group_name for group_name in {REVIEWER_GROUP_NAME, 'レビュアー', '承認者'} if group_name}
-    return user.is_authenticated and any(in_group(user, group_name) for group_name in reviewer_group_names)
-
-
 def is_demo_user(user):
     if not user.is_authenticated:
         return False
@@ -1112,25 +1006,6 @@ def can_approve_article(user):
     return is_reviewer_user(user)
 
 
-def can_edit_article(user):
-    if get_forced_account_view_mode(user) in ACCOUNT_VIEW_MODES:
-        return False
-
-    return (
-        user.is_authenticated
-        and (
-            user.is_staff
-            or user.is_superuser
-            or in_group(user, ADMIN_GROUP_NAME)
-            or is_reviewer_user(user)
-        )
-    )
-
-
-def is_admin_account(user):
-    return user.is_authenticated and user.username.lower() == 'admin'
-
-
 def is_customer_user(user):
     forced_mode = get_forced_account_view_mode(user)
     if forced_mode in ACCOUNT_VIEW_MODES:
@@ -1148,22 +1023,6 @@ def is_customer_user(user):
         return profile.user_type == UserProfile.USER_TYPE_CUSTOMER
 
     return in_group(user, CUSTOMER_GROUP_NAME)
-
-
-def can_use_favorite(user):
-    return (
-        user.is_authenticated
-        and (
-            user.is_staff
-            or user.is_superuser
-            or in_group(user, SYSTENA_GROUP_NAME)
-            or in_group(user, CUSTOMER_GROUP_NAME)
-        )
-    )
-
-
-def can_use_convenience_favorite(user):
-    return can_use_favorite(user)
 
 
 def approval_status_value(item):
@@ -1542,370 +1401,6 @@ class MailDraftCallbackView(View):
             safe_next = parsed.path + (('?' + parsed.query) if parsed.query else '')
             return redirect(safe_next)
         return redirect('home')
-
-
-class KnowledgeInputHubView(TemplateView):
-    template_name = 'tenasapo_knowledge/knowledge_input.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not can_edit_article(request.user):
-            messages.error(request, 'このページを閲覧する権限がありません。')
-            return redirect('article_list')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        selected_tab = (self.request.GET.get('tab') or 'faq').strip().lower()
-        if selected_tab not in {'faq', 'tips', 'qr'}:
-            selected_tab = 'faq'
-        context['selected_tab'] = selected_tab
-        return context
-
-
-class ConvenienceListView(TemplateView):
-    template_name = 'tenasapo_knowledge/convenience_list.html'
-
-    def dispatch(self, request, *args, **kwargs):
-        record_view_history(request, 'QR一覧')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        sort_mode = (self.request.GET.get('sort') or 'frequency').strip().lower()
-        if sort_mode not in {'frequency', 'favorite'}:
-            sort_mode = 'frequency'
-        query = self.request.GET.get('q', '').strip()
-        selected_big = (self.request.GET.get('big_category') or '').strip()
-        selected_mid = (self.request.GET.get('category') or '').strip()
-        selected_small = (self.request.GET.get('small_category') or '').strip()
-
-        all_features = list(ConvenienceFeature.objects.all())
-        favorite_ids = set()
-        can_use_convenience_favorite_flag = can_use_convenience_favorite(self.request.user)
-        if can_use_convenience_favorite_flag:
-            favorite_ids = set(
-                ConvenienceFavorite.objects.filter(user=self.request.user, feature__in=all_features)
-                .values_list('feature_id', flat=True)
-            )
-        for feature in all_features:
-            try:
-                frequency = int(feature.usage_frequency or '0')
-            except (TypeError, ValueError):
-                frequency = 0
-            frequency = max(0, min(5, frequency))
-            feature.usage_frequency_value = frequency
-            feature.usage_frequency_stars = ('★' * frequency) + ('☆' * (5 - frequency))
-            feature.is_favorited = feature.id in favorite_ids
-
-        if sort_mode == 'favorite' and can_use_convenience_favorite_flag:
-            all_features.sort(
-                key=lambda f: (
-                    not f.is_favorited,
-                    -f.usage_frequency_value,
-                    f.reference_type or '',
-                    f.category or '',
-                    f.middle_category or '',
-                    f.display_text or '',
-                    f.id,
-                )
-            )
-        else:
-            sort_mode = 'frequency'
-            all_features.sort(
-                key=lambda f: (
-                    -f.usage_frequency_value,
-                    f.reference_type or '',
-                    f.category or '',
-                    f.middle_category or '',
-                    f.display_text or '',
-                    f.id,
-                )
-            )
-
-        # サイドバー階層データを構築（QR_CATEGORY_HIERARCHY を骨格に DB のカウントを付与）
-        existing_big_vals = set(f.reference_type for f in all_features)
-        sidebar_hierarchy = []
-        for big_item in get_qr_category_hierarchy():
-            big_val = big_item['value']
-            big_features = [f for f in all_features if f.reference_type == big_val]
-            # DBに存在するが階層未登録の中カテゴリも追加
-            registered_mid_vals = {c['value'] for c in big_item['children']}
-            extra_mid_vals = set(f.category for f in big_features if f.category and f.category not in registered_mid_vals)
-            mid_list = list(big_item['children']) + [{'value': v, 'label': v, 'children': []} for v in sorted(extra_mid_vals)]
-            mid_entries = []
-            for mid_item in mid_list:
-                mid_val = mid_item['value']
-                mid_features = [f for f in big_features if f.category == mid_val]
-                registered_small_vals = list(mid_item.get('children', []))
-                extra_small_vals = [
-                    v for v in dict.fromkeys(f.middle_category for f in mid_features if f.middle_category)
-                    if v not in registered_small_vals
-                ]
-                small_entries = []
-                for small_val in registered_small_vals + extra_small_vals:
-                    small_features = [f for f in mid_features if f.middle_category == small_val]
-                    small_entries.append({'value': small_val, 'label': small_val, 'count': len(small_features)})
-                mid_entries.append({
-                    'value': mid_val,
-                    'label': mid_item['label'],
-                    'count': len(mid_features),
-                    'children': small_entries,
-                })
-            sidebar_hierarchy.append({
-                'value': big_val,
-                'label': big_item['label'],
-                'count': len(big_features),
-                'children': mid_entries,
-            })
-
-        # 選択値のバリデーション
-        all_big_vals = [item['value'] for item in sidebar_hierarchy]
-        if selected_big and selected_big not in all_big_vals:
-            selected_big = ''
-        if selected_big:
-            big_entry = next((b for b in sidebar_hierarchy if b['value'] == selected_big), None)
-            all_mid_vals = [m['value'] for m in big_entry['children']] if big_entry else []
-            if selected_mid and selected_mid not in all_mid_vals:
-                selected_mid = ''
-                selected_small = ''
-        else:
-            if selected_mid:
-                selected_mid = ''
-            selected_small = ''
-
-        # フィルタリング
-        filtered_features = list(all_features)
-        if selected_big:
-            filtered_features = [f for f in filtered_features if f.reference_type == selected_big]
-        if selected_mid:
-            filtered_features = [f for f in filtered_features if f.category == selected_mid]
-        if selected_small:
-            filtered_features = [f for f in filtered_features if f.middle_category == selected_small]
-
-        if query:
-            query_lower = query.lower()
-            filtered_features = [
-                f for f in filtered_features
-                if query_lower in (f.display_text or '').lower()
-                or query_lower in (f.shortcut_key or '').lower()
-                or query_lower in (f.note or '').lower()
-            ]
-
-        # 小カテゴリでグループ化
-        group_map = {}
-        for feature in filtered_features:
-            group_name = (feature.middle_category or '（なし）').strip() or '（なし）'
-            group_map.setdefault(group_name, []).append(feature)
-
-        category_groups = [
-            {'middle_name': middle_name, 'features': items}
-            for middle_name, items in group_map.items()
-        ]
-
-        context['category_groups'] = category_groups
-        context['sidebar_hierarchy'] = sidebar_hierarchy
-        context['selected_big'] = selected_big
-        context['selected_category'] = selected_mid
-        context['selected_small'] = selected_small
-        context['query'] = query
-        context['can_create_convenience'] = (
-            self.request.user.is_authenticated
-            and (self.request.user.is_staff or self.request.user.is_superuser)
-        )
-        context['can_edit_convenience'] = context['can_create_convenience']
-        context['can_use_convenience_favorite'] = can_use_convenience_favorite_flag
-        context['sort_mode'] = sort_mode
-        return context
-
-
-class ConvenienceCreateView(FormView):
-    template_name = 'tenasapo_knowledge/convenience_form.html'
-    form_class = ConvenienceFeatureCreateForm
-    success_url = reverse_lazy('convenience_list')
-
-    def dispatch(self, request, *args, **kwargs):
-        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
-            messages.error(request, 'このページを閲覧する権限がありません。')
-            return redirect('convenience_list')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'QR登録'
-        context['submit_label'] = '登録'
-        context['qr_category_hierarchy_json'] = json.dumps(get_qr_category_hierarchy(), ensure_ascii=False)
-        context['category_create_url'] = f"{reverse_lazy('category_create')}?tab=qr&{urlencode({'next': self.request.get_full_path()})}"
-        return context
-
-    def form_valid(self, form):
-        feature = ConvenienceFeature.objects.create(
-            reference_type=form.cleaned_data['reference_type'],
-            category=form.cleaned_data['category'],
-            middle_category=form.cleaned_data['middle_category'],
-            usage_frequency=form.cleaned_data['usage_frequency'],
-            shortcut_key=form.cleaned_data['shortcut_key'],
-            display_text=form.cleaned_data['display_text'],
-            note=form.cleaned_data['note'],
-            image=form.cleaned_data.get('image'),
-        )
-        messages.success(self.request, f'QR「{feature.display_text}」を登録しました。')
-        return super().form_valid(form)
-
-
-class ConvenienceUpdateView(FormView):
-    template_name = 'tenasapo_knowledge/convenience_form.html'
-    form_class = ConvenienceFeatureCreateForm
-    success_url = reverse_lazy('convenience_list')
-
-    def dispatch(self, request, *args, **kwargs):
-        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
-            messages.error(request, 'このページを閲覧する権限がありません。')
-            return redirect('convenience_list')
-        self.feature = get_object_or_404(ConvenienceFeature, pk=kwargs['pk'])
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_initial(self):
-        return {
-            'reference_type': self.feature.reference_type,
-            'category': self.feature.category,
-            'middle_category': self.feature.middle_category,
-            'usage_frequency': self.feature.usage_frequency,
-            'shortcut_key': self.feature.shortcut_key,
-            'display_text': self.feature.display_text,
-            'note': self.feature.note,
-        }
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'QR編集'
-        context['submit_label'] = '更新'
-        context['feature'] = self.feature
-        context['qr_category_hierarchy_json'] = json.dumps(get_qr_category_hierarchy(), ensure_ascii=False)
-        context['category_create_url'] = f"{reverse_lazy('category_create')}?tab=qr&{urlencode({'next': self.request.get_full_path()})}"
-        return context
-
-    def form_valid(self, form):
-        self.feature.reference_type = form.cleaned_data['reference_type']
-        self.feature.category = form.cleaned_data['category']
-        self.feature.middle_category = form.cleaned_data['middle_category']
-        self.feature.usage_frequency = form.cleaned_data['usage_frequency']
-        self.feature.shortcut_key = form.cleaned_data['shortcut_key']
-        self.feature.display_text = form.cleaned_data['display_text']
-        self.feature.note = form.cleaned_data['note']
-        if form.cleaned_data.get('image'):
-            if self.feature.image:
-                self.feature.image.delete(save=False)
-            self.feature.image = form.cleaned_data['image']
-        self.feature.save()
-        messages.success(self.request, f'QR「{self.feature.display_text}」を更新しました。')
-        return super().form_valid(form)
-
-
-class ConvenienceCategoryCreateView(FormView):
-    template_name = 'tenasapo_knowledge/category_form.html'
-    form_class = ConvenienceCategoryCreateForm
-    success_url = reverse_lazy('category_create')
-
-    def dispatch(self, request, *args, **kwargs):
-        if not (request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)):
-            messages.error(request, 'このページを閲覧する権限がありません。')
-            return redirect('convenience_list')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['allow_new_reference_type'] = is_admin_account(self.request.user)
-        return kwargs
-
-    def _resolve_return_to_url(self):
-        candidate = (self.request.POST.get('next') or self.request.GET.get('next') or '').strip()
-        if candidate and url_has_allowed_host_and_scheme(
-            url=candidate,
-            allowed_hosts={self.request.get_host()},
-            require_https=self.request.is_secure(),
-        ):
-            return candidate
-        return ''
-
-    def get_success_url(self):
-        return self._resolve_return_to_url() or f"{self.success_url}?tab=qr"
-
-    @staticmethod
-    def category_browser_data():
-        hierarchy = get_qr_category_hierarchy()
-        browser = []
-        for big in hierarchy:
-            browser.append(
-                {
-                    'name': big['label'],
-                    'value': big['value'],
-                    'direct_children': [
-                        {
-                            'id': f"{big['value']}::{mid['value']}",
-                            'name': mid['label'],
-                        }
-                        for mid in big.get('children', [])
-                    ],
-                    'middles': [
-                        {
-                            'name': mid['label'],
-                            'children': [
-                                {
-                                    'id': f"{big['value']}::{mid['value']}::{small}",
-                                    'name': small,
-                                }
-                                for small in mid.get('children', [])
-                            ],
-                        }
-                        for mid in big.get('children', [])
-                    ],
-                }
-            )
-        return browser
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'カテゴリ登録'
-        context['submit_label'] = '登録'
-        context['return_to'] = self._resolve_return_to_url()
-        context['category_type_tab'] = 'qr'
-        context['category_browser'] = self.category_browser_data()
-        context['category_browser_json'] = json.dumps(context['category_browser'], ensure_ascii=False)
-        return context
-
-    def form_valid(self, form):
-        category = form.save()
-        messages.success(
-            self.request,
-            f'QRカテゴリ「{category.reference_type} / {category.category}{(" / " + category.middle_category) if category.middle_category else ""}」を登録しました。',
-        )
-        return super().form_valid(form)
-
-
-class ConvenienceFavoriteToggleView(View):
-    def post(self, request):
-        if not request.user.is_authenticated:
-            return JsonResponse({'detail': 'authentication required'}, status=401)
-        if not can_use_convenience_favorite(request.user):
-            return JsonResponse({'detail': 'forbidden'}, status=403)
-
-        try:
-            payload = json.loads(request.body or '{}')
-        except json.JSONDecodeError:
-            payload = {}
-
-        feature_id = payload.get('feature_id')
-        if not feature_id:
-            return JsonResponse({'detail': 'feature_id is required'}, status=400)
-
-        feature = get_object_or_404(ConvenienceFeature, pk=feature_id)
-        favorite, created = ConvenienceFavorite.objects.get_or_create(feature=feature, user=request.user)
-        favorited = True
-        if not created:
-            favorite.delete()
-            favorited = False
-
-        return JsonResponse({'ok': True, 'favorited': favorited})
 
 
 APPROVAL_FILTER_CHOICES = (
@@ -3341,20 +2836,6 @@ class TipsFavoriteToggleView(View):
         return JsonResponse({'ok': True, 'favorited': favorited})
 
 
-class StaffRequiredMixin(UserPassesTestMixin):
-    raise_exception = True
-
-    def test_func(self):
-        user = self.request.user
-        return user.is_authenticated and (user.is_staff or user.is_superuser)
-
-    def handle_no_permission(self):
-        if self.request.user.is_authenticated:
-            messages.error(self.request, 'このページを閲覧する権限がありません。')
-            return redirect('article_list')
-        return super().handle_no_permission()
-
-
 class KnowledgeDuplicateCandidatesView(View):
     """登録前確認用。本文を返さず、一覧と同じ可視範囲の候補を返す。"""
 
@@ -3480,90 +2961,6 @@ class StaffOrSelfRequiredMixin(UserPassesTestMixin):
             messages.error(self.request, 'このページを閲覧する権限がありません。')
             return redirect('article_list')
         return super().handle_no_permission()
-
-
-class PostingQuotaSettingsView(StaffRequiredMixin, FormView):
-    template_name = 'tenasapo_knowledge/posting_quota_settings.html'
-    form_class = PostingQuotaForm
-    http_method_names = ['get', 'post', 'head', 'options']
-
-    def selected_month(self):
-        raw = (self.request.POST.get('effective_month') if self.request.method == 'POST'
-               else self.request.GET.get('month'))
-        if raw and len(raw) == 7:
-            try:
-                month = PostingQuotaForm.base_fields['effective_month'].clean(raw)
-                if month >= date(2026, 6, 1) and month.strftime('%Y-%m') == raw:
-                    return month
-            except ValidationError:
-                pass
-        return max(timezone.localdate().replace(day=1), date(2026, 6, 1))
-
-    def get_initial(self):
-        initial = super().get_initial()
-        month = self.selected_month()
-        initial['effective_month'] = month
-        quota = PostingQuota.objects.filter(effective_month=month).first()
-        if quota is not None:
-            initial.update(faq_count=quota.faq_count, tips_count=quota.tips_count,
-                           alpha_count=quota.alpha_count)
-        return initial
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        month = self.selected_month()
-        raw_year = self.request.GET.get('year', '')
-        year = int(raw_year) if len(raw_year) == 4 and raw_year.isascii() and raw_year.isdigit() else month.year
-        if not 2026 <= year <= 9999:
-            year = month.year
-        filters = summary_filters(self.request.GET)
-        quotas = {q.effective_month: q for q in PostingQuota.objects.filter(
-            effective_month__gte=date(2026, 6, 1), effective_month__lte=date(year, 12, 1),
-        )}
-        previous = [q for month, q in quotas.items() if month.year < year]
-        running_total = sum(q.faq_count + q.tips_count + q.alpha_count for q in previous)
-        configured_months = len(previous)
-        current_month = timezone.localdate().replace(day=1)
-        rows = []
-        for number in range(1, 13):
-            target_month = date(year, number, 1)
-            if target_month < date(2026, 6, 1):
-                continue
-            quota = quotas.get(target_month)
-            total = quota.faq_count + quota.tips_count + quota.alpha_count if quota is not None else None
-            if total is not None:
-                running_total += total
-                configured_months += 1
-            required_months = (year - 2026) * 12 + number - 6 + 1
-            rows.append({
-                'month': target_month, 'quota': quota,
-                'total': total,
-                'cumulative_total': running_total if configured_months == required_months else None,
-                'is_current_month': target_month == current_month,
-                'edit_query': urlencode({**filters, 'year': year, 'month': target_month.strftime('%Y-%m')}),
-            })
-        context.update(quota_rows=rows, selected_year=year,
-                       quota_years=sorted({*range(2026, 2031), timezone.localdate().year, year}),
-                       quota_filters=filters)
-        context['summary_return_url'] = self.get_success_url()
-        return context
-
-    def get_success_url(self):
-        return reverse('summary') + '?' + urlencode(summary_filters(self.request.GET))
-
-    def form_valid(self, form):
-        quota, created = PostingQuota.objects.update_or_create(
-            effective_month=form.cleaned_data['effective_month'],
-            defaults={
-                'faq_count': form.cleaned_data['faq_count'],
-                'tips_count': form.cleaned_data['tips_count'],
-                'alpha_count': form.cleaned_data['alpha_count'],
-                'updated_by': self.request.user,
-            },
-        )
-        action = '登録' if created else '更新（同じ対象月の設定を上書き）'
-        messages.success(self.request, f'{quota.effective_month:%Y年%m月}の投稿目標を{action}しました。他の月は変更していません。')
-        return super().form_valid(form)
 
 
 class SummaryView(StaffRequiredMixin, TemplateView):
@@ -5310,299 +4707,6 @@ class RelatedTagCreateView(StaffRequiredMixin, FormView):
         return super().form_valid(form)
 
 
-class UserCreateView(StaffRequiredMixin, FormView):
-    template_name = 'tenasapo_knowledge/user_form.html'
-    form_class = UserCreateForm
-    success_url = reverse_lazy('user_list')
-
-    def form_valid(self, form):
-        User = get_user_model()
-        email = (form.cleaned_data.get('email_addresses') or '').strip()
-        selected_group_names = list(form.cleaned_data['groups'])
-        user_type = form.cleaned_data['user_type']
-        display_name = form.cleaned_data['display_name'] or form.cleaned_data['username']
-        company_name = 'システナ' if user_type == 'systena' else form.cleaned_data['company_name']
-        is_admin = (
-            form.cleaned_data['role'] == UserCreateForm.ROLE_ADMIN
-            or ADMIN_GROUP_NAME in selected_group_names
-        )
-
-        user = User.objects.create_user(
-            username=form.cleaned_data['username'],
-            password=form.cleaned_data['password'],
-            email=email,
-            is_staff=is_admin,
-            is_superuser=is_admin,
-        )
-
-        group_objects = [
-            Group.objects.get_or_create(name=group_name)[0]
-            for group_name in selected_group_names
-        ]
-        user.groups.set(group_objects)
-
-        UserProfile.objects.create(
-            user=user,
-            uid=form.cleaned_data.get('uid') or None,
-            display_name=display_name,
-            company_name=company_name,
-            department=(form.cleaned_data.get('department') or '').strip(),
-            user_type=user_type,
-            email_addresses=email,
-            note=form.cleaned_data['note'],
-            exclude_from_analysis=form.cleaned_data.get('exclude_from_analysis', False),
-        )
-
-        customer, _ = Customer.objects.get_or_create(name=company_name)
-        customer.users.add(user)
-
-        messages.success(
-            self.request,
-            f'{resolve_user_display_name(user)}（{user.username}）を作成しました。',
-            extra_tags='user',
-        )
-        return super().form_valid(form)
-
-
-class UserIssueFormView(StaffRequiredMixin, FormView):
-    template_name = 'tenasapo_knowledge/user_issue_form.html'
-    success_url = reverse_lazy('user_list')
-    is_demo = False
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['is_demo'] = self.is_demo
-        context['return_to'] = resolve_next_path(self.request, 'user_list')
-        form = context['form']
-        context['account_fields'] = [form[name] for name in (
-            'display_name', 'email_addresses', 'company_name', 'department',
-        ) if name in form.fields]
-        # Read-only preview: issuance still resolves the number again, without reservation.
-        number = (self._resolve_next_demo_number() if self.is_demo
-                  else self._resolve_next_contract_number())
-        uid = f'{number:06d}' if number is not None else ''
-        email = '' if self.is_demo else str(form['email_addresses'].value() or '').strip()
-        login = f'{self.demo_prefix}{uid}' if self.is_demo and uid else email
-        context['issue_preview'] = {
-            'uid': uid,
-            'at_capacity': number is None,
-            'login': login,
-            'password': login if self.is_demo else (
-                email.split('@', 1)[0].strip() if '@' in email else ''
-            ),
-        }
-        return context
-
-    def issuance_error(self, form, message):
-        form.add_error(None, message)
-        return self.form_invalid(form)
-
-
-class UserDemoIssueView(UserIssueFormView):
-    success_url = reverse_lazy('user_list')
-    is_demo = True
-    demo_prefix = 'CSDemo'
-    demo_number_start = 900001
-    demo_number_end = 999999
-
-    def get_form_class(self):
-        from .forms import UserDemoIssueForm
-        return UserDemoIssueForm
-
-    @classmethod
-    def _iter_used_demo_numbers(cls):
-        User = get_user_model()
-
-        usernames = User.objects.filter(username__startswith=f'{cls.demo_prefix}90').values_list('username', flat=True)
-        for username in usernames:
-            suffix = (username or '')[len(cls.demo_prefix):]
-            if len(suffix) == 6 and suffix.isdigit() and suffix.startswith('90'):
-                number = int(suffix)
-                if cls.demo_number_start <= number <= cls.demo_number_end:
-                    yield number
-
-        uids = UserProfile.objects.filter(uid__startswith='90').values_list('uid', flat=True)
-        for uid in uids:
-            normalized_uid = (uid or '').strip()
-            if len(normalized_uid) == 6 and normalized_uid.isdigit() and normalized_uid.startswith('90'):
-                number = int(normalized_uid)
-                if cls.demo_number_start <= number <= cls.demo_number_end:
-                    yield number
-
-    @classmethod
-    def _resolve_next_demo_number(cls):
-        used_numbers = set(cls._iter_used_demo_numbers())
-        for number in range(cls.demo_number_start, cls.demo_number_end + 1):
-            if number not in used_numbers:
-                return number
-        return None
-
-    def form_valid(self, form):
-        request = self.request
-        next_path = resolve_next_path(request, 'user_list')
-        company_name = form.cleaned_data['company_name']
-
-        demo_group, _ = Group.objects.get_or_create(name=DEMO_GROUP_NAME)
-
-        for _ in range(10):
-            number = self._resolve_next_demo_number()
-            if number is None:
-                return self.issuance_error(form, 'デモアカウント番号の発行上限（999999）に達しました。')
-
-            uid = f'{number:06d}'
-            username = f'{self.demo_prefix}{uid}'
-            temporary_password = username
-            demo_account_expires_at = timezone.now() + timedelta(days=30)
-
-            try:
-                with transaction.atomic():
-                    User = get_user_model()
-                    user = User.objects.create_user(
-                        username=username,
-                        password=temporary_password,
-                        email='',
-                        is_staff=False,
-                        is_superuser=False,
-                    )
-                    user.groups.set([demo_group])
-
-                    UserProfile.objects.create(
-                        user=user,
-                        uid=uid,
-                        display_name='Demoアカウント',
-                        company_name=company_name,
-                        user_type=UserProfile.USER_TYPE_CUSTOMER,
-                        email_addresses='',
-                        note='',
-                        exclude_from_analysis=True,
-                        demo_account_expires_at=demo_account_expires_at,
-                    )
-
-                    customer, _ = Customer.objects.get_or_create(name=company_name)
-                    customer.users.add(user)
-            except IntegrityError:
-                continue
-
-            messages.success(
-                request,
-                (
-                    f'デモアカウントを発行しました。'
-                    f'管理番号: {uid} / ログインID: {username} / '
-                    'ユーザー名: Demoアカウント / 初期パスワード: ログインIDと同じ'
-                ),
-                extra_tags='user',
-            )
-            request.session['issued_demo_account'] = {
-                'login_id': username,
-                'password': temporary_password,
-            }
-            return redirect(next_path)
-
-        return self.issuance_error(form, 'デモアカウント発行時に競合が発生しました。再度お試しください。')
-
-
-class UserContractIssueView(UserIssueFormView):
-    success_url = reverse_lazy('user_list')
-    contract_prefix = 'CSUser'
-    contract_number_start = 800001
-    contract_number_end = 899999
-
-    def get_form_class(self):
-        from .forms import UserContractIssueForm
-        return UserContractIssueForm
-
-    @classmethod
-    def _iter_used_contract_numbers(cls):
-        User = get_user_model()
-
-        usernames = User.objects.filter(username__startswith=f'{cls.contract_prefix}80').values_list('username', flat=True)
-        for username in usernames:
-            suffix = (username or '')[len(cls.contract_prefix):]
-            if len(suffix) == 6 and suffix.isdigit() and suffix.startswith('80'):
-                number = int(suffix)
-                if cls.contract_number_start <= number <= cls.contract_number_end:
-                    yield number
-
-        uids = UserProfile.objects.filter(uid__startswith='80').values_list('uid', flat=True)
-        for uid in uids:
-            normalized_uid = (uid or '').strip()
-            if len(normalized_uid) == 6 and normalized_uid.isdigit() and normalized_uid.startswith('80'):
-                number = int(normalized_uid)
-                if cls.contract_number_start <= number <= cls.contract_number_end:
-                    yield number
-
-    @classmethod
-    def _resolve_next_contract_number(cls):
-        used_numbers = set(cls._iter_used_contract_numbers())
-        for number in range(cls.contract_number_start, cls.contract_number_end + 1):
-            if number not in used_numbers:
-                return number
-        return None
-
-    def form_valid(self, form):
-        request = self.request
-        next_path = resolve_next_path(request, 'user_list')
-        display_name = form.cleaned_data['display_name']
-        company_name = form.cleaned_data['company_name']
-        department = form.cleaned_data['department']
-        email = form.cleaned_data['email_addresses']
-        note = form.cleaned_data['note']
-
-        login_id = email
-        initial_password = (email.split('@', 1)[0] if '@' in email else '').strip()
-
-        User = get_user_model()
-
-        for _ in range(10):
-            number = self._resolve_next_contract_number()
-            if number is None:
-                return self.issuance_error(form, '契約アカウント番号の発行上限（899999）に達しました。')
-
-            uid = f'{number:06d}'
-            username = login_id
-
-            try:
-                with transaction.atomic():
-                    user = User.objects.create_user(
-                        username=username,
-                        password=initial_password,
-                        email=email,
-                        is_staff=False,
-                        is_superuser=False,
-                    )
-
-                    UserProfile.objects.create(
-                        user=user,
-                        uid=uid,
-                        display_name=display_name,
-                        company_name=company_name,
-                        department=department,
-                        user_type=UserProfile.USER_TYPE_CUSTOMER,
-                        email_addresses=email,
-                        note=note,
-                        exclude_from_analysis=True,
-                    )
-
-                    customer, _ = Customer.objects.get_or_create(name=company_name)
-                    customer.users.add(user)
-            except IntegrityError:
-                continue
-
-            messages.success(
-                request,
-                (
-                    f'契約アカウントを発行しました。'
-                    f'管理番号: {uid} / ログインID: {username} / '
-                    f'ユーザー名: {display_name} / '
-                    '初期パスワード: メールアドレスの@前'
-                ),
-                extra_tags='user',
-            )
-            return redirect(next_path)
-
-        return self.issuance_error(form, '契約アカウント発行時に競合が発生しました。再度お試しください。')
-
-
 class UserListView(StaffRequiredMixin, ListView):
     template_name = 'tenasapo_knowledge/user_list.html'
     context_object_name = 'users'
@@ -6276,130 +5380,6 @@ class UserDeleteView(StaffRequiredMixin, View):
         user.delete()
         messages.success(request, f'{username}（{login_id}）を削除しました。', extra_tags='user')
         return redirect(next_path)
-
-
-# ──────────────────────────────────────────
-# Manual views
-# ──────────────────────────────────────────
-
-class ManualListView(StaffRequiredMixin, ListView):
-    model = Manual
-    template_name = 'tenasapo_knowledge/manual_list.html'
-    context_object_name = 'manuals'
-
-    def dispatch(self, request, *args, **kwargs):
-        record_view_history(request, 'マニュアル一覧')
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_queryset(self):
-        return Manual.objects.all()
-
-    def get_context_data(self, **kwargs):
-        from .manual_presentation import (
-            MENU_ICONS, build_menu_groups, menu_definitions, parse_manual_body,
-        )
-        context = super().get_context_data(**kwargs)
-        manuals = list(context['manuals'])
-        keyed = {manual.menu_key: manual for manual in manuals if manual.menu_key}
-        sections = []
-        for definition in menu_definitions():
-            manual = keyed.get(definition.menu_key)
-            if manual is None:
-                continue
-            anchor = f'manual-{manual.menu_key}'
-            sections.append({
-                'manual': manual, 'anchor': anchor,
-                'icon': MENU_ICONS[manual.menu_key],
-                'blocks': parse_manual_body(manual.description),
-                'menu_url': reverse(definition.url_name),
-                'return_to': reverse('manual_list') + '#' + anchor,
-            })
-        supplemental = [
-            {'manual': manual, 'anchor': f'manual-legacy-{manual.pk}',
-             'icon': 'bi-journal-text', 'blocks': parse_manual_body(manual.description),
-             'return_to': reverse('manual_list') + f'#manual-legacy-{manual.pk}'}
-            for manual in manuals if not manual.menu_key and manual.description.strip()
-        ]
-        context['menu_sections'] = sections
-        context['menu_groups'] = build_menu_groups(sections)
-        context['supplemental_sections'] = supplemental
-        context['manual_sections'] = sections + supplemental
-        return context
-
-
-class ManualDetailView(StaffRequiredMixin, View):
-    def get(self, request, pk):
-        from django.shortcuts import render
-        manual = get_object_or_404(Manual, pk=pk)
-        record_view_history(request, f'マニュアル詳細: {manual.title}')
-        return render(request, 'tenasapo_knowledge/manual_detail.html', {'manual': manual})
-
-class ManualCreateView(StaffRequiredMixin, FormView):
-    template_name = 'tenasapo_knowledge/manual_form.html'
-    form_class = ManualForm
-    success_url = reverse_lazy('manual_list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'マニュアル登録'
-        context['submit_label'] = '登録'
-        return context
-
-    def form_valid(self, form):
-        manual = form.save(commit=False)
-        manual.created_by = self.request.user
-        manual.save()
-        messages.success(self.request, f'マニュアル「{manual.title}」を登録しました。')
-        return super().form_valid(form)
-
-
-class ManualUpdateView(StaffRequiredMixin, FormView):
-    template_name = 'tenasapo_knowledge/manual_form.html'
-    form_class = ManualForm
-    success_url = reverse_lazy('manual_list')
-
-    def dispatch(self, request, *args, **kwargs):
-        self.manual = get_object_or_404(Manual, pk=kwargs['pk'])
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_form_kwargs(self):
-        kwargs = super().get_form_kwargs()
-        kwargs['instance'] = self.manual
-        return kwargs
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['form_title'] = 'マニュアル編集'
-        context['submit_label'] = '更新'
-        context['manual'] = self.manual
-        context['return_to'] = self.get_success_url()
-        return context
-
-    def get_success_url(self):
-        candidate = self.request.POST.get('next') or self.request.GET.get('next') or ''
-        if candidate and url_has_allowed_host_and_scheme(
-            candidate, allowed_hosts={self.request.get_host()},
-            require_https=self.request.is_secure(),
-        ):
-            return candidate
-        return reverse('manual_list')
-
-    def form_valid(self, form):
-        manual = form.save()
-        messages.success(self.request, f'マニュアル「{manual.title}」を更新しました。')
-        return super().form_valid(form)
-
-
-class ManualDeleteView(StaffRequiredMixin, View):
-    def post(self, request, pk):
-        manual = get_object_or_404(Manual, pk=pk)
-        if manual.menu_key:
-            messages.error(request, '固定メニューの操作手順は削除できません。編集で内容を更新してください。')
-            return redirect('manual_list')
-        title = manual.title
-        manual.delete()
-        messages.success(request, f'マニュアル「{title}」を削除しました。')
-        return redirect('manual_list')
 
 
 class ProjectDocumentListView(ListView):

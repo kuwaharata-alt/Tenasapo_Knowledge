@@ -31,7 +31,7 @@
 
    例：`https://nexus.example.com/users/applications/google/callback/`
 
-   **既存ログイン用リダイレクトURIは維持**し、既存Drive用等のURIも削除・置換しません。末尾の`/`まで完全一致させます。[config/urls.py](config/urls.py) はアプリURLをrootにincludeしており、[アプリのURL定義](tenasapo_knowledge/urls.py) に対して追加のパス接頭辞はありません。
+   **既存ログイン用リダイレクトURIは維持**し、既存Drive用等のURIも削除・置換しません。末尾の`/`まで完全一致させます。[config/urls.py](../../../config/urls.py) はアプリURLをrootにincludeしており、[アプリのURL定義](../../../tenasapo_knowledge/urls.py) に対して追加のパス接頭辞はありません。
 
 ## 2. Django設定・DB適用
 
@@ -46,7 +46,7 @@
 ### 適用順序（運用担当者が実施）
 
 1. **稼働DBをバックアップ**します。既存申請・取込cursor・下書き作成記録も保全します。
-2. 稼働環境のPython・Django設定で、通常のDjangoマイグレーション適用（`migrate`）を実施します。追加済みの[0090_customer_application_google.py](tenasapo_knowledge/migrations/0090_customer_application_google.py) が対象です。依存する[0089_customer_application.py](tenasapo_knowledge/migrations/0089_customer_application.py) が未適用なら併せて適用されます。
+2. 稼働環境のPython・Django設定で、通常のDjangoマイグレーション適用（`migrate`）を実施します。追加済みの[0090_customer_application_google.py](../../../tenasapo_knowledge/migrations/0090_customer_application_google.py) が対象です。依存する[0089_customer_application.py](../../../tenasapo_knowledge/migrations/0089_customer_application.py) が未適用なら併せて適用されます。
 3. 設定と新コードを反映して**アプリの全workerを再起動**します。
 4. 次節の権限確認後、申請一覧から管理者本人が追加認可します。
 

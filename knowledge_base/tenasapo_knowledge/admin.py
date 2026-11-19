@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .forms import ManualForm
+from .features.manuals.forms import ManualForm
 from .models import (
     ArticleGood,
     ArticleAttachment,

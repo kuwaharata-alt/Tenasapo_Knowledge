@@ -362,7 +362,7 @@ class UserIssuePageTests(TestCase):
         payload = {**self.payload('user_demo_issue'), 'user_type': 'systena', 'role': 'admin',
                    'groups': ['投稿者'], 'password': 'must-not-use', 'display_name': 'must-not-use',
                    'uid': '123456', 'username': 'spoof-demo-login', 'exclude_from_analysis': ''}
-        with patch('tenasapo_knowledge.views.timezone.now', return_value=now):
+        with patch('tenasapo_knowledge.features.users.views.timezone.now', return_value=now):
             response = self.client.post(reverse('user_demo_issue'), payload)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, self.return_to)

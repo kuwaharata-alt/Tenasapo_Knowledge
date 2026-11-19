@@ -59,7 +59,7 @@
 - 予約版の競合検知、環境分離、送信済み・結果不明の自動再送防止。Chatレポートは投稿ナレッジの表形式カードで表示し、本文・添付は送信しない
 - Windows用の定期実行・登録スクリプトを追加。既定dry-run、排他制御、実行時間上限、本文を記録しないログ。送信には設定フラグと明示的送信引数の両方が必要
 - 関連テスト101件成功。DBバックアップ後に0081・0082を適用、アプリ再起動とHTTP 200を確認。5分間隔の開発環境dry-runタスクを登録し、終了コード0を確認。実送信は未有効化
-- 運用手順は [WINDOWS_SCHEDULED_GOOGLE_CHAT.md](WINDOWS_SCHEDULED_GOOGLE_CHAT.md) を参照。登録したタスクは現在ユーザーのログオン中のみ実行
+- 運用手順は [WINDOWS_SCHEDULED_GOOGLE_CHAT.md](docs/integrations/google-chat/WINDOWS_SCHEDULED_GOOGLE_CHAT.md) を参照。登録したタスクは現在ユーザーのログオン中のみ実行
 
 ---
 

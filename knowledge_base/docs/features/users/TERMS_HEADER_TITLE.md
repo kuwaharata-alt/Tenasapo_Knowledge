@@ -17,7 +17,7 @@
 
 ## 適用が必要なマイグレーション
 
-[tenasapo_knowledge/migrations/0088_terms_header_title.py](tenasapo_knowledge/migrations/0088_terms_header_title.py)
+[tenasapo_knowledge/migrations/0088_terms_header_title.py](../../../tenasapo_knowledge/migrations/0088_terms_header_title.py)
 
 この機能の実装時点では実DBへの適用は行っていません。稼働させる前に、通常の
 バックアップ・承認手順に従いマイグレーションを適用してください。旧スキーマのまま

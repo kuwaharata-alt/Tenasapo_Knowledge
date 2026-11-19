@@ -4,8 +4,8 @@
 
 ## 対象と安全境界
 
-- 実行用: [scripts/windows/run_scheduled_chat_notifications.ps1](scripts/windows/run_scheduled_chat_notifications.ps1)
-- 登録用: [scripts/windows/register_scheduled_chat_task.ps1](scripts/windows/register_scheduled_chat_task.ps1)
+- 実行用: [scripts/windows/run_scheduled_chat_notifications.ps1](../../../scripts/windows/run_scheduled_chat_notifications.ps1)
+- 登録用: [scripts/windows/register_scheduled_chat_task.ps1](../../../scripts/windows/register_scheduled_chat_task.ps1)
 - Windows PowerShell 5.1 / Windows タスク スケジューラ用。既存の再起動・Django 起動タスクとは独立しています。
 - 両スクリプトとも **`-Send` なしでは dry-run**。登録スクリプトの `-Send` はタスクの実行引数へ `-Send` を保存します。手動実行時も送信には実行スクリプトの `-Send` が必要です。
 - Django 側の送信許可は **`GOOGLE_CHAT_SCHEDULED_SEND_ENABLED=True` と管理コマンドの `--send` の二重 opt-in**。スクリプトはこの環境変数や `DEBUG`、送信先を設定・変更しません。登録だけでは送信機能を有効化しません。
@@ -13,12 +13,12 @@
 
 ## 導入前の確認（送信せずに実施）
 
-1. アプリ側のマイグレーション0081・0082が適用されていることを確認します。[config/settings.py](config/settings.py) は `GOOGLE_CHAT_SCHEDULED_SEND_ENABLED` を環境変数から読み込み、未設定時は False です。ラッパー側でこの保護を回避しないでください。
+1. アプリ側のマイグレーション0081・0082が適用されていることを確認します。[config/settings.py](../../../config/settings.py) は `GOOGLE_CHAT_SCHEDULED_SEND_ENABLED` を環境変数から読み込み、未設定時は False です。ラッパー側でこの保護を回避しないでください。
 2. UI の入口は管理者向け「アナライズ」→「設定」→「Chat通知予約・配信履歴」です。専用画面のパスは `/summary/chat-schedule/`。月選択、投稿期限、期限通知日時、レポート通知日時、有効・無効を設定し、変更履歴と配信状況を確認できます。保存操作自体では送信しません。手動の既存 Chat 通知ボタンは予約設定の代替ではありません。
-3. 同一の実行 Windows アカウントで、同じ配備先・設定・DB・メディアを使用することを確認します。実行 Python は配備先直下の [.venv/Scripts/python.exe](.venv/Scripts/python.exe) に固定し、作業ディレクトリは `-ProjectRoot`（既定はスクリプトから 2 階層上）に固定します。venv の activate や PATH の Python に依存しません。
-4. 設定は [config/settings.py](config/settings.py) の `load_dotenv()` と子プロセスが継承する環境を使用します。タスクは登録した PowerShell セッションの一時的な `$env:` 値を保存しません。Web サーバープロセス専用の設定も引き継ぎません。実行アカウントから読める保護された配備設定を用意し、既存の継承環境による上書きにも注意します。ユーザー/システム環境変数の変更後はログオンセッションや関連サービスの再起動が必要な場合があります。
+3. 同一の実行 Windows アカウントで、同じ配備先・設定・DB・メディアを使用することを確認します。実行 Python は配備先直下の [.venv/Scripts/python.exe](../../../.venv/Scripts/python.exe) に固定し、作業ディレクトリは `-ProjectRoot`（既定はスクリプトから 2 階層上）に固定します。venv の activate や PATH の Python に依存しません。
+4. 設定は [config/settings.py](../../../config/settings.py) の `load_dotenv()` と子プロセスが継承する環境を使用します。タスクは登録した PowerShell セッションの一時的な `$env:` 値を保存しません。Web サーバープロセス専用の設定も引き継ぎません。実行アカウントから読める保護された配備設定を用意し、既存の継承環境による上書きにも注意します。ユーザー/システム環境変数の変更後はログオンセッションや関連サービスの再起動が必要な場合があります。
 5. 開発では `GOOGLE_CHAT_DEV_WEBHOOK_URL` を専用スペースに設定します。`DEBUG=True` では本番 GAS への転送と本番 Webhook への補完は無効です。本番では `GOOGLE_CHAT_WEBHOOK_URL` と `GOOGLE_CHAT_GAS_WEB_APP_URL` の実効値を保護された管理経路で確認し、既定の接続先を無条件に信用しないでください。
-6. **GAS リレーを使う場合は** [scripts/google_chat_notification_relay.gs](scripts/google_chat_notification_relay.gs) の `scheduled_card` 対応版を Apps Script に反映し、ウェブアプリを新バージョンとしてデプロイして使用 URL を確認します。ソースを保存しただけでは既存デプロイは更新されません。実行アカウントからの到達性・アクセス設定、対象スペース、応答 `ok` / `status` を確認します。直接 Webhook を使う場合は GAS の実効設定を空にするなど、主実装側の設定方式に従い経路を明確にします。
+6. **GAS リレーを使う場合は** [scripts/google_chat_notification_relay.gs](../../../scripts/google_chat_notification_relay.gs) の `scheduled_card` 対応版を Apps Script に反映し、ウェブアプリを新バージョンとしてデプロイして使用 URL を確認します。ソースを保存しただけでは既存デプロイは更新されません。実行アカウントからの到達性・アクセス設定、対象スペース、応答 `ok` / `status` を確認します。直接 Webhook を使う場合は GAS の実効設定を空にするなど、主実装側の設定方式に従い経路を明確にします。
 7. DB 読書き、必要なメディア、ログディレクトリへの権限を実行アカウントに付与します。URL、トークン、パスワードをタスク引数・スクリプト・公開ドキュメントに書かないでください。スクリプトと配備先は信頼できる管理者だけが変更できる ACL にします。
 
 ## 安全な有効化手順
@@ -59,7 +59,7 @@
 
 ## ログ・終了コード・結果不明への対応
 
-ログは配備先の [logs/scheduled_chat](logs/scheduled_chat) に UTC 日別で作成します。記録するのは UTC 時刻、環境、モード、固定イベント名、終了コード、経過時間のみです。標準出力・標準エラーは同時に null ストリームへ破棄し、一時ファイルにも保存しません。**dry-run でも本文を表示する管理コマンドの出力を全文ログに残すことはありません。** URL、カード、記事・氏名、例外全文も転記しません。ログの保管期限と ACL は運用側で管理してください。ログローテーションによる自動削除は行いません。
+ログは配備先の [logs/scheduled_chat](../../../logs/scheduled_chat) に UTC 日別で作成します。記録するのは UTC 時刻、環境、モード、固定イベント名、終了コード、経過時間のみです。標準出力・標準エラーは同時に null ストリームへ破棄し、一時ファイルにも保存しません。**dry-run でも本文を表示する管理コマンドの出力を全文ログに残すことはありません。** URL、カード、記事・氏名、例外全文も転記しません。ログの保管期限と ACL は運用側で管理してください。ログローテーションによる自動削除は行いません。
 
 | 終了コード | 意味 |
 | --- | --- |

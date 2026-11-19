@@ -14,10 +14,10 @@
 | **config/wsgi.py** | WhiteNoise 統合済みの WSGI 設定 |
 | **.env.example** | 環境変数テンプレート |
 | **.gitignore** | Git 無視設定（秘密情報保護） |
-| **DEPLOY_AZURE.md** | Azure へのデプロイ詳細手順 |
+| **[DEPLOY_AZURE.md](DEPLOY_AZURE.md)** | Azure へのデプロイ詳細手順 |
 | **migrate_to_postgres.py** | SQLite → PostgreSQL データ移行スクリプト |
 | **.github/workflows/deploy.yml** | GitHub Actions CI/CD パイプライン |
-| **AZURE_MIGRATION_CHECKLIST.md** | 本番環境への移行チェックリスト |
+| **[AZURE_MIGRATION_CHECKLIST.md](AZURE_MIGRATION_CHECKLIST.md)** | 本番環境への移行チェックリスト |
 
 ---
 
@@ -83,7 +83,7 @@ az webapp config appsettings set -g $rg -n $app --settings `
   DB_PORT="5432"
 
 # 3. デプロイ
-# OLDやローカル秘密設定を除外するZIP作成手順は DEPLOY_AZURE.md の方法Aを参照
+# OLDやローカル秘密設定を除外するZIP作成手順は docs/deployment/DEPLOY_AZURE.md の方法Aを参照
 $excluded = @('OLD', '.venv', 'venv', '.git', '.env', '.vscode', 'db.sqlite3', 'sent_emails', 'backups', 'media', 'logs', '__pycache__')
 $deployFiles = Get-ChildItem -Force | Where-Object {
    $_.Name -notin $excluded -and $_.Name -notlike '.env.*' -and $_.Name -notlike 'client_secret_*.json'

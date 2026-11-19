@@ -1,6 +1,6 @@
 # Azure App Service へのデプロイ手順
 
-Google Chatの予約通知を本番で使う場合は、[Azure Linux向け定期実行手順](AZURE_SCHEDULED_GOOGLE_CHAT.md)も参照してください。Windowsのタスク スケジューラは本番では使用しません。
+Google Chatの予約通知を本番で使う場合は、[Azure Linux向け定期実行手順](../integrations/google-chat/AZURE_SCHEDULED_GOOGLE_CHAT.md)も参照してください。Windowsのタスク スケジューラは本番では使用しません。
 
 ## 前提条件
 - Azure サブスクリプションがアクティブ
