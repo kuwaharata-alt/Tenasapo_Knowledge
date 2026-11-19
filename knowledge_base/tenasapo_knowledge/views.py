@@ -231,6 +231,13 @@ def is_google_authenticated_user(user):
 def should_show_first_login_registration(user):
     if not is_google_authenticated_user(user):
         return False
+    # 承認発行したカスタマーを社員用登録へ誘導しない（管理者昇格を防ぐ）。
+    from .customer_application_models import CustomerApplication
+
+    if CustomerApplication.objects.filter(
+        created_user=user, status=CustomerApplication.Status.APPROVED,
+    ).exists():
+        return False
     # google_first_login_done が False の場合はプロフィール完了状態に関わらずフォームを表示
     try:
         profile = user.knowledge_profile

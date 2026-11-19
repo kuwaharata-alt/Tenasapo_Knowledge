@@ -9,6 +9,8 @@ from datetime import date, timedelta
 import os
 
 from .chat_schedule import ChatNotificationSchedule, ChatNotificationDelivery
+from .customer_application_models import CustomerApplication
+from .customer_application_google_models import CustomerApplicationGoogleConnection, CustomerApplicationGoogleState
 
 
 POSTING_QUOTA_START = date(2026, 6, 1)

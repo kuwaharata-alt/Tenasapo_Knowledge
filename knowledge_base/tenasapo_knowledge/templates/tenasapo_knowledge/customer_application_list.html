@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}カスタマー申請一覧 | Nexus{% endblock %}
+{% block page_header %}
+<div class="page-title-panel mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div><h1 class="page-title-main mb-1"><i class="bi bi-person-check me-2"></i>カスタマー申請一覧</h1>
+      <p class="page-title-sub mb-0">Googleフォームの回答を確認し、承認後にアカウントと案内メールの下書きを作成します。</p></div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">ユーザー一覧</a>
+      <form method="post" action="{% url 'customer_application_import' %}">{% csrf_token %}
+        <button class="btn btn-primary" type="submit"><i class="bi bi-arrow-repeat me-1"></i>回答を取込</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block content %}
+{% if not configured %}<div class="alert alert-warning">Nexusの公開URL（CUSTOMER_APPLICATION_PUBLIC_URL）を設定してください。GASの公開設定・共有秘密は不要です。</div>{% endif %}
+<section class="card border-0 shadow-sm mb-4" aria-label="申請管理用Google連携">
+  <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
+    <div><h2 class="h6 mb-2"><i class="bi bi-google me-2"></i>申請管理用Googleアクセス</h2>
+      {% if google_connection %}<p class="mb-1 text-success">連携済み：{{ google_connection.email }}</p>
+      {% else %}<p class="mb-1">ログイン用と同じGoogleアカウントに、回答の読取・メール下書きの追加許可を与えてください。</p>{% endif %}
+      <p class="small text-muted mb-0">社内ドメイン限定。下書きは承認者本人のGmailに作成します。Googleの許可には送信権限も含まれますが、本機能は送信しません。</p>
+      {% if google_connection_error %}<p class="small text-warning mt-2 mb-0">{{ google_connection_error }}</p>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <form method="post" action="{% url 'customer_application_google_connect' %}">{% csrf_token %}<button class="btn btn-outline-primary" type="submit">{% if google_connection %}Googleアクセスを再許可{% else %}Googleアクセスを許可{% endif %}</button></form>
+      {% if google_connection %}<form method="post" action="{% url 'customer_application_google_disconnect' %}">{% csrf_token %}<button class="btn btn-outline-secondary" type="submit">連携解除</button></form>{% endif %}
+    </div>
+  </div>
+</section>
+<div class="row g-3 mb-4">
+  <div class="col-4"><div class="card border-0 shadow-sm p-3"><span class="text-muted small">未承認</span><strong class="fs-3 text-primary">{{ pending_count }}</strong></div></div>
+  <div class="col-4"><div class="card border-0 shadow-sm p-3"><span class="text-muted small">承認済み</span><strong class="fs-3 text-success">{{ approved_count }}</strong></div></div>
+  <div class="col-4"><div class="card border-0 shadow-sm p-3"><span class="text-muted small">却下</span><strong class="fs-3">{{ rejected_count }}</strong></div></div>
+</div>
+<div class="card border-0 shadow-sm">
+  <div class="card-body border-bottom">
+    <form method="get" class="d-flex align-items-center gap-2">
+      <label for="application-status" class="text-nowrap">状態</label>
+      <select id="application-status" name="status" class="form-select w-auto">
+        <option value="" {% if selected_status == '' %}selected{% endif %}>すべて</option>
+        {% for value,label in status_choices %}<option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select><button class="btn btn-outline-primary" type="submit">表示</button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light"><tr><th>申請日時</th><th>会社・契約者</th><th>招待先（F列）</th><th>状態</th><th>メール下書き</th><th>確認</th></tr></thead>
+      <tbody>{% for item in page_obj %}
+        <tr><td class="text-nowrap">{{ item.submitted_at|date:"Y/m/d H:i" }}</td>
+          <td><strong>{{ item.company_name }}</strong><div class="small text-muted">{{ item.display_name }}{% if item.department %} ／ {{ item.department }}{% endif %}</div></td>
+          <td class="text-break">{{ item.email }}</td>
+          <td><span class="badge {% if item.status == 'approved' %}bg-success{% elif item.status == 'rejected' %}bg-secondary{% else %}bg-primary{% endif %}">{{ item.get_status_display }}</span></td>
+          <td>{% if item.status == 'approved' %}{{ item.get_draft_state_display }}{% else %}—{% endif %}</td>
+          <td><a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'customer_application_detail' item.pk %}">内容を確認</a></td></tr>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">該当する申請はありません。「回答を取込」から取得できます。</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% if page_obj.has_other_pages %}<nav aria-label="申請一覧のページ" class="d-flex justify-content-center align-items-center gap-3 mt-4">
+  {% if page_obj.has_previous %}<a class="btn btn-outline-secondary" href="?status={{ selected_status|urlencode }}&amp;page={{ page_obj.previous_page_number }}">前へ</a>{% endif %}
+  <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a class="btn btn-outline-secondary" href="?status={{ selected_status|urlencode }}&amp;page={{ page_obj.next_page_number }}">次へ</a>{% endif %}
+</nav>{% endif %}
+<p class="small text-muted mt-3">自動送信は行いません。回答は追記運用とし、シートの行削除・挿入・並べ替えは避けてください。</p>
+{% endblock %}

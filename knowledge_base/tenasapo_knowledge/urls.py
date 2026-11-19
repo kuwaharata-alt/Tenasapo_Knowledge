@@ -1,6 +1,7 @@
 from django.urls import path
 from django.db import transaction
 from django.views.generic import RedirectView
+from . import customer_application_views as application_views
 from .chat_schedule_settings import ChatScheduleSettingsView, ChatScheduleSendView
 from .drive_oauth_views import drive_oauth_callback, drive_oauth_connect, drive_oauth_disconnect
 from .terms import TermsAcceptanceView, TermsOfUseDetailView, TermsOfUseEditView
@@ -143,6 +144,15 @@ urlpatterns = [
     path('categories/<int:pk>/delete/', FAQCategoryDeleteView.as_view(), name='category_delete'),
     path('tags/create/', RelatedTagCreateView.as_view(), name='tag_create'),
     path('users/', UserListView.as_view(), name='user_list'),
+    path('users/applications/', application_views.application_list, name='customer_application_list'),
+    path('users/applications/google/connect/', application_views.google_connect, name='customer_application_google_connect'),
+    path('users/applications/google/callback/', transaction.non_atomic_requests(application_views.google_callback), name='customer_application_google_callback'),
+    path('users/applications/google/disconnect/', application_views.google_disconnect, name='customer_application_google_disconnect'),
+    path('users/applications/import/', transaction.non_atomic_requests(application_views.application_import), name='customer_application_import'),
+    path('users/applications/<uuid:pk>/', application_views.application_detail, name='customer_application_detail'),
+    path('users/applications/<uuid:pk>/approve/', transaction.non_atomic_requests(application_views.application_approve), name='customer_application_approve'),
+    path('users/applications/<uuid:pk>/reject/', application_views.application_reject, name='customer_application_reject'),
+    path('users/applications/<uuid:pk>/retry-draft/', transaction.non_atomic_requests(application_views.application_retry_draft), name='customer_application_retry_draft'),
     path('users/create/', UserCreateView.as_view(), name='user_create'),
     path('users/issue-contract/', UserContractIssueView.as_view(), name='user_contract_issue'),
     path('users/issue-demo/', UserDemoIssueView.as_view(), name='user_demo_issue'),
