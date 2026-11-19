@@ -34,7 +34,8 @@ def response(data, status=200):
     SECRET_KEY='synthetic-customer-google-test-key',
     DEBUG=False,
     GOOGLE_WORKSPACE_DOMAIN='example.test',
-    CUSTOMER_APPLICATION_PUBLIC_URL='https://tk-tenainfo.rikka.biz:8443',
+    # 実環境の接続先ではなく、下のredirect_uri検証と同じ合成URLを使う。
+    CUSTOMER_APPLICATION_PUBLIC_URL='https://nexus.example.test',
     CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}},
 )
 class CustomerGoogleTests(TransactionTestCase):
