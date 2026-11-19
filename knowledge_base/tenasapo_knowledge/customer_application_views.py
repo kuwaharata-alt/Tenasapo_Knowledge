@@ -19,6 +19,25 @@ from . import customer_application_google as google
 from .customer_application_models import CustomerApplication
 
 
+def _integration_context(user):
+    backend = getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth')
+    context = {'application_backend': backend, 'gas_ready': False,
+               'gas_mailbox': '', 'gas_actor_id': None, 'gas_is_operator': False,
+               'gas_error': '',
+               'configured': bool(getattr(settings, 'CUSTOMER_APPLICATION_PUBLIC_URL', ''))}
+    if backend == 'gas':
+        from .customer_application_gas import gas_configuration, GasError
+        try:
+            config = gas_configuration()
+            service._public_origin()
+            context.update(gas_ready=True, gas_mailbox=config['mailbox'],
+                           gas_actor_id=config['actor'].pk,
+                           gas_is_operator=(user.pk == config['actor'].pk))
+        except (GasError, service.ApplicationError):
+            context['gas_error'] = 'GAS連携の環境変数・固定実行ユーザー・公開URLを確認してください。'
+    return context
+
+
 def application_admin(view):
     @login_required
     @never_cache
@@ -44,10 +63,12 @@ def application_list(request):
     configured = bool(getattr(settings, 'CUSTOMER_APPLICATION_PUBLIC_URL', ''))
     connection = None
     connection_error = ''
-    try:
-        connection = google.get_connection(request.user)
-    except google.CustomerGoogleError as exc:
-        connection_error = str(exc)
+    integration = _integration_context(request.user)
+    if integration['application_backend'] == 'oauth':
+        try:
+            connection = google.get_connection(request.user)
+        except google.CustomerGoogleError as exc:
+            connection_error = str(exc)
     return render(request, 'tenasapo_knowledge/customer_application_list.html', {
         'page_obj': page, 'selected_status': status,
         'status_choices': CustomerApplication.Status.choices,
@@ -55,6 +76,7 @@ def application_list(request):
         'approved_count': counts.get('approved', 0),
         'rejected_count': counts.get('rejected', 0), 'configured': configured,
         'google_connection': connection, 'google_connection_error': connection_error,
+        **integration,
     })
 
 
@@ -66,12 +88,16 @@ def application_detail(request, pk):
     )
     return render(request, 'tenasapo_knowledge/customer_application_detail.html', {
         'application': item, 'is_draft_owner': item.reviewed_by_id == request.user.pk,
+        **_integration_context(request.user),
     })
 
 
 @application_admin
 @require_POST
 def application_import(request):
+    if getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth') != 'oauth':
+        messages.info(request, '回答の取込はGASのsyncNexusApplicationsまたは定期実行から行います。')
+        return redirect('customer_application_list')
     try:
         count = service.import_applications(request.user)
     except service.ApplicationError as exc:
@@ -95,7 +121,10 @@ def application_approve(request, pk):
         if item.draft_id:
             messages.success(request, '承認済みです。案内メールの下書きを承認者のGmailで確認してください。')
         else:
-            messages.warning(request, '承認済みです。下書き作成を再試行してください。')
+            if getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth') == 'gas':
+                messages.success(request, 'ユーザーを作成しました。GASの次回実行でGmail下書きを処理します。')
+            else:
+                messages.warning(request, '承認済みです。下書き作成を再試行してください。')
     return redirect('customer_application_detail', pk=pk)
 
 
@@ -122,13 +151,19 @@ def application_retry_draft(request, pk):
     except service.ApplicationError as exc:
         messages.error(request, str(exc))
     else:
-        messages.success(request, '案内メールの下書きを承認者のGmailで確認してください。')
+        if getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth') == 'gas':
+            messages.info(request, 'GASの次回実行で処理・照合します。作成試行済みの下書きは新規作成しません。')
+        else:
+            messages.success(request, '案内メールの下書きを承認者のGmailで確認してください。')
     return redirect('customer_application_detail', pk=pk)
 
 
 @application_admin
 @require_POST
 def google_connect(request):
+    if getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth') != 'oauth':
+        messages.info(request, '現在はGAS連携方式です。Googleの追加OAuth認可は使用しません。')
+        return redirect('customer_application_list')
     try:
         return redirect(google.make_auth_request(request))
     except google.CustomerGoogleError as exc:
@@ -140,6 +175,10 @@ def google_connect(request):
 @application_admin
 @require_GET
 def google_callback(request):
+    if getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth') != 'oauth':
+        response = redirect('customer_application_list')
+        response['Referrer-Policy'] = 'no-referrer'
+        return response
     try:
         google.handle_callback(request)
         messages.success(request, '申請管理用のGoogleアクセスを許可しました。回答の取込・Gmail下書きを利用できます。')

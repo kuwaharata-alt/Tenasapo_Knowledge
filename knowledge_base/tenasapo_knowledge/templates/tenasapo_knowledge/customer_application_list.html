@@ -7,15 +7,20 @@
       <p class="page-title-sub mb-0">Googleフォームの回答を確認し、承認後にアカウントと案内メールの下書きを作成します。</p></div>
     <div class="d-flex gap-2">
       <a class="btn btn-outline-secondary" href="{% url 'user_list' %}">ユーザー一覧</a>
+      {% if application_backend == 'oauth' %}
       <form method="post" action="{% url 'customer_application_import' %}">{% csrf_token %}
         <button class="btn btn-primary" type="submit"><i class="bi bi-arrow-repeat me-1"></i>回答を取込</button>
       </form>
+      {% else %}
+      <a class="btn btn-outline-primary" href="{% url 'customer_application_list' %}?status={{ selected_status|urlencode }}&amp;page={{ page_obj.number }}">表示を更新</a>
+      {% endif %}
     </div>
   </div>
 </div>
 {% endblock %}
 {% block content %}
-{% if not configured %}<div class="alert alert-warning">Nexusの公開URL（CUSTOMER_APPLICATION_PUBLIC_URL）を設定してください。GASの公開設定・共有秘密は不要です。</div>{% endif %}
+{% if not configured %}<div class="alert alert-warning">Nexusの公開URL（CUSTOMER_APPLICATION_PUBLIC_URL）を設定してください。{% if application_backend == 'oauth' %}GASの公開設定・共有秘密は不要です。{% else %}GASから到達できる、有効な証明書のHTTPS originが必要です。{% endif %}</div>{% endif %}
+{% if application_backend == 'oauth' %}
 <section class="card border-0 shadow-sm mb-4" aria-label="申請管理用Google連携">
   <div class="card-body d-flex flex-wrap justify-content-between align-items-center gap-3">
     <div><h2 class="h6 mb-2"><i class="bi bi-google me-2"></i>申請管理用Googleアクセス</h2>
@@ -30,6 +35,20 @@
     </div>
   </div>
 </section>
+{% else %}
+<section class="card border-0 shadow-sm mb-4" aria-label="申請管理用GAS設定">
+  <div class="card-body">
+    <h2 class="h6 mb-2"><i class="bi bi-arrow-repeat me-2"></i>GAS定期連携</h2>
+    {% if gas_ready %}<p class="mb-1">サーバー設定：準備済み（実疎通は未確認）</p>
+    {% else %}<p class="mb-1 text-warning">サーバー設定：未完了</p>{% endif %}
+    <p class="mb-1">下書き作成先：<span class="text-break">{{ gas_mailbox|default:"未設定" }}</span></p>
+    {% if gas_actor_id %}<p class="small text-muted mb-1">固定承認者のDjangoユーザーPK：{{ gas_actor_id }}</p>{% endif %}
+    <p class="small text-muted mb-1">GASが定期的に回答を取り込み、承認後の下書き作成待ちを取得します。定期実行は運用担当者による設定が必要です。この画面からの手動取込やGoogleアクセス許可は行いません。</p>
+    <p class="small text-muted mb-0">「表示を更新」はブラウザーの表示更新のみです。設定準備済みでも、GASの実行・通信・下書き作成の成功を示しません。メールは自動送信しません。</p>
+    {% if gas_error %}<p class="small text-warning mt-2 mb-0">{{ gas_error }}</p>{% endif %}
+  </div>
+</section>
+{% endif %}
 <div class="row g-3 mb-4">
   <div class="col-4"><div class="card border-0 shadow-sm p-3"><span class="text-muted small">未承認</span><strong class="fs-3 text-primary">{{ pending_count }}</strong></div></div>
   <div class="col-4"><div class="card border-0 shadow-sm p-3"><span class="text-muted small">承認済み</span><strong class="fs-3 text-success">{{ approved_count }}</strong></div></div>
@@ -55,7 +74,7 @@
           <td><span class="badge {% if item.status == 'approved' %}bg-success{% elif item.status == 'rejected' %}bg-secondary{% else %}bg-primary{% endif %}">{{ item.get_status_display }}</span></td>
           <td>{% if item.status == 'approved' %}{{ item.get_draft_state_display }}{% else %}—{% endif %}</td>
           <td><a class="btn btn-sm btn-outline-primary text-nowrap" href="{% url 'customer_application_detail' item.pk %}">内容を確認</a></td></tr>
-      {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">該当する申請はありません。「回答を取込」から取得できます。</td></tr>{% endfor %}</tbody>
+      {% empty %}<tr><td colspan="6" class="text-center text-muted py-5">{% if application_backend == 'oauth' %}該当する申請はありません。「回答を取込」から取得できます。{% else %}該当する申請はありません。GASの取込実行後に「表示を更新」で確認してください。{% endif %}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
 </div>

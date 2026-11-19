@@ -17,6 +17,7 @@ EXPECTED_COMMON_HEADERS = {
     'article_detail.html', 'article_form.html', 'article_list.html',
     'article_management.html', 'category_form.html', 'chat_schedule_settings.html',
     'convenience_form.html', 'convenience_list.html', 'csv_import.html',
+    'customer_application_detail.html', 'customer_application_list.html',
     'first_login_registration.html', 'home.html', 'knowledge_input.html',
     'login_history_list.html', 'manual_detail.html', 'manual_form.html',
     'manual_list.html', 'posting_quota_settings.html', 'project_document_form.html',
@@ -82,6 +83,7 @@ class PageHeaderDescriptionsTests(SimpleTestCase):
                             'is_edit': editing, 'is_update': editing,
                             'user': SimpleNamespace(is_staff=True, is_superuser=True),
                             'manual': item, 'user_obj': item,
+                            'application_backend': 'gas',
                         }
                         for name in ('article', 'tip', 'feature', 'category', 'history', 'document'):
                             context[name] = item if editing else None
@@ -105,5 +107,5 @@ class PageHeaderDescriptionsTests(SimpleTestCase):
                             self.assertIn('登録済み説明', html)
                         if path.name in ('user_form.html', 'user_list.html'):
                             self.assertIn('管理者アカウントのみ利用できます。', html)
-        self.assertEqual(len(EXPECTED_COMMON_HEADERS), 34)
+        self.assertEqual(len(EXPECTED_COMMON_HEADERS), 36)
         self.assertSetEqual(checked, EXPECTED_COMMON_HEADERS)

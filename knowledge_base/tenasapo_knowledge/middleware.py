@@ -28,6 +28,8 @@ class SafeSessionMiddleware(SessionMiddleware):
 
 class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
     def process_view(self, request, view_func, view_args, view_kwargs):
+        if getattr(view_func, 'customer_application_signed_endpoint', False):
+            return None
         user = getattr(request, 'user', None)
         if user and getattr(user, 'is_authenticated', False):
             mode = str(request.session.get(ACCOUNT_VIEW_MODE_SESSION_KEY) or '').strip().lower()

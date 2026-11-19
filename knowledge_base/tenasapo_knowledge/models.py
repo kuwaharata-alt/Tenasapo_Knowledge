@@ -11,6 +11,7 @@ import os
 from .chat_schedule import ChatNotificationSchedule, ChatNotificationDelivery
 from .customer_application_models import CustomerApplication
 from .customer_application_google_models import CustomerApplicationGoogleConnection, CustomerApplicationGoogleState
+from .customer_application_gas_models import CustomerApplicationGASJob, CustomerApplicationGASNonce
 
 
 POSTING_QUOTA_START = date(2026, 6, 1)

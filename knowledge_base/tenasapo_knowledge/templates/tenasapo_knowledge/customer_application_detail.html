@@ -16,14 +16,44 @@
   </dl>
 </div></div>
 {% if application.status == 'pending' %}
+{% if application_backend == 'oauth' %}
 <div class="alert alert-info">承認すると管理権限のないカスタマーユーザーを作成し、F列宛てのパスワード設定案内を承認者本人のGmail下書きに作成します。事前に申請一覧でGoogleアクセスを許可してください。メールは自動送信しません。</div>
+{% else %}
+<div class="alert alert-info">承認すると管理権限のないカスタマーユーザーを作成し、案内メールはGASによる非同期の下書き作成待ちになります。下書き作成先は {{ gas_mailbox|default:"未設定" }} です。ToはF列のみ、B列は記録用でCC／BCCにも使用しません。メールは自動送信しません。</div>
+{% if not gas_is_operator %}<div class="alert alert-warning">承認できるのは設定された固定承認者本人だけです。他の管理者は内容確認・却下のみ行えます。</div>{% endif %}
+{% if not configured or not gas_ready %}<div class="alert alert-warning">公開URLまたはGAS連携設定が未完了のため、承認できません。</div>{% endif %}
+{% if gas_error %}<p class="text-warning">{{ gas_error }}</p>{% endif %}
+{% endif %}
 <div class="d-flex flex-wrap gap-2 mb-3">
+  {% if application_backend == 'oauth' %}
   <form method="post" action="{% url 'customer_application_approve' application.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">承認してユーザー・下書きを作成</button></form>
+  {% else %}
+  <form method="post" action="{% url 'customer_application_approve' application.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit" {% if not gas_is_operator or not gas_ready or not configured %}disabled{% endif %}>承認してユーザー作成・下書き待ちにする</button></form>
+  {% endif %}
   <form method="post" action="{% url 'customer_application_reject' application.pk %}">{% csrf_token %}<button class="btn btn-outline-danger" type="submit">却下する</button></form>
 </div>
 {% elif application.status == 'approved' %}
+{% if application_backend == 'oauth' %}
 <div class="alert alert-success">ユーザーは作成済みです。承認者本人のGmailで下書きを確認し、必要に応じて送信してください。{% if application.draft_mailbox_email %}<div class="mt-2">下書き作成先：{{ application.draft_mailbox_email }}</div>{% endif %}</div>
 {% if not application.draft_id %}{% if is_draft_owner %}<form class="mb-3" method="post" action="{% url 'customer_application_retry_draft' application.pk %}">{% csrf_token %}<button class="btn btn-primary" type="submit">下書き作成を再試行</button><p class="small text-muted mt-2">作成中の場合は5分以上待ってから再試行してください。ユーザーは再作成されません。作成結果不明時は既存下書きの照合だけを行い、新規作成しません。</p></form>{% else %}<p class="text-muted">下書きの再試行は承認者本人が行ってください。</p>{% endif %}{% endif %}
+{% else %}
+<div class="alert {% if application.draft_id %}alert-success{% else %}alert-info{% endif %}">
+  ユーザーは作成済みです。
+  {% if application.draft_id %}下書きIDは記録済みです。同じメールボックスのGmailで内容を確認し、必要に応じて人が送信してください。削除・送信済みの下書きは再作成しません。
+  {% else %}下書きの作成完了は確認できていません。GASの処理待ち、または結果の照合が必要な状態です。承認だけではGmail下書きの作成完了にはなりません。{% endif %}
+  <div class="mt-2">下書き作成先：{{ application.draft_mailbox_email|default:gas_mailbox|default:"未設定" }}</div>
+</div>
+{% if not application.draft_id %}
+  {% if gas_is_operator and is_draft_owner %}
+  <form class="mb-3" method="post" action="{% url 'customer_application_retry_draft' application.pk %}">{% csrf_token %}
+    <button class="btn btn-primary" type="submit" {% if not gas_ready or not configured %}disabled{% endif %}>下書き処理を再キュー・照合</button>
+    <p class="small text-muted mt-2">同じ申請への繰り返し操作でユーザーや下書きを重複作成しません。処理中は5分以上待ってください。このボタンはGASを実行しません。次回の定期処理を待つか、運用担当者がGASで <code>processNexusInvitationDrafts</code> を手動実行してください。作成試行済みの場合は既存下書きの照合だけを行い、新規作成しません。</p>
+  </form>
+  {% else %}<p class="text-muted">下書き処理の再キュー・照合は、設定された固定承認者かつこの申請の承認者本人が行ってください。</p>{% endif %}
+{% endif %}
+<p class="small text-muted">ToはF列のみです。B列は記録用で、CC／BCCにも使用しません。結果不明・削除・送信後でも、作成試行記録を消したりメールボックスを切り替えて再作成したりしないでください。</p>
+{% if gas_error %}<p class="text-warning">{{ gas_error }}</p>{% endif %}
+{% endif %}
 <p class="small text-muted">リンクの期限切れやパスワード設定後は、ユーザー一覧から再設定リンクを発行してください。既存の下書きは自動更新・再作成しません。</p>
 {% endif %}
 <a class="btn btn-outline-secondary" href="{% url 'customer_application_list' %}">申請一覧へ戻る</a>

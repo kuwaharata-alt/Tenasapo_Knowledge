@@ -19,6 +19,15 @@
 - 旧公開関数と `CATEGORY_DATA` はルートからも同一オブジェクトを再公開する。実装内の依存先をモックする場合は新実装のモジュールを対象にする。
 - 旧文書内の親階層を前提とした移行補助の実行例ではなく、上表の実在するルート入口または新実装を使用する。
 
+## 顧客申請のGAS連携
+
+- [users/customer_application_bridge.gs](users/customer_application_bridge.gs)：GAS発信型の回答取込・承認後のGmail下書き作成。Webアプリ公開はしません。
+- [users/appsscript.customer_application.json](users/appsscript.customer_application.json)：専用GASプロジェクトのマニフェスト内容。
+- [設定・本番の手動確認手順](../docs/features/users/CUSTOMER_APPLICATION_SETUP.md)：共有秘密、固定実行ユーザー、0091適用と初回確認の順序。
+- [users/test_customer_application_bridge.cjs](users/test_customer_application_bridge.cjs)：外部通信しないGASモックテスト。
+
+最初は `testNexusBridge` → `syncNexusApplications` → Nexusで1件承認 → `processNexusInvitationDrafts` の順に手動確認します。定期トリガーは検証後にだけ明示的に作成してください。自動承認・メール自動送信は行いません。
+
 ## 安全な単体テスト
 
 [../tenasapo_knowledge/test_script_entrypoints.py](../tenasapo_knowledge/test_script_entrypoints.py) は標準の `unittest` で実行でき、Django のテスト DB を作成しない。

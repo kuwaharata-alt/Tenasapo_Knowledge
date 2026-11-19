@@ -217,6 +217,13 @@ def _next_uid() -> str:
 
 def approve_application(pk, reviewer) -> CustomerApplication:
     """最大10回の衝突再試行。下書き通信は承認transaction終了後に実行。"""
+    backend = getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth')
+    if backend == 'gas':
+        from .customer_application_gas import _actor_configuration
+        _actor_configuration(reviewer)
+        _public_origin()
+    elif backend != 'oauth':
+        raise ApplicationError('申請連携方式の設定を確認してください。')
     for _ in range(10):
         try:
             with transaction.atomic():
@@ -250,12 +257,18 @@ def approve_application(pk, reviewer) -> CustomerApplication:
                 application.save(update_fields=[
                     'status', 'created_user', 'reviewed_by', 'reviewed_at', 'invitation_token',
                 ])
+                if backend == 'gas':
+                    # ユーザー承認とキュー保存を同時確定。外部通信はしない。
+                    from .customer_application_gas import queue_draft
+                    queue_draft(application.pk, reviewer)
             break
         except IntegrityError:
             # atomic全体を戻すため、ユーザー・プロフィール・M2Mの残骸は残らない。
             continue
     else:
         raise ApplicationError('承認処理が競合しました。登録状況を確認して再試行してください。') from None
+    if backend == 'gas':
+        return _get_application(application.pk)
     return create_invitation_draft(application.pk, reviewer)
 
 
@@ -288,8 +301,48 @@ def _public_origin() -> str:
         raise ApplicationError('招待URLの公開先設定を確認してください。') from None
 
 
+def build_invitation_payload(application) -> dict:
+    """保存済みtokenを検証し、固定宛先の招待内容を生成する。再発行しない。"""
+    user = application.created_user
+    if (user is None or not user.is_active or not user.has_usable_password()
+            or not application.invitation_token
+            or not default_token_generator.check_token(user, application.invitation_token)):
+        raise ApplicationError('保持している招待リンクは失効しています。管理者へ確認してください。')
+    path = reverse('password_reset_confirm', kwargs={
+        'uidb64': urlsafe_base64_encode(force_bytes(user.pk)),
+        'token': application.invitation_token,
+    })
+    if not path.startswith('/') or path.startswith('//'):
+        raise ApplicationError(_DRAFT_ERROR)
+    invitation_url = _public_origin() + path
+    return {
+        'to': application.email,
+        'subject': '【Nexus】ご利用申請承認・パスワード設定のご案内',
+        'body': (
+            f'{application.company_name}\n{application.display_name} 様\n\n'
+            'Nexusへのご利用申請を承認いたしました。\n'
+            '以下のリンクからパスワードを設定してください。\n\n'
+            f'{invitation_url}\n\n'
+            f'ログインID: {user.username}\n'
+            'リンクには有効期限があります。お早めに設定してください。\n'
+            'お心当たりがない場合は、本メールを破棄してください。\n\n'
+            f'Nexus申請番号: {application.pk}'
+        ),
+    }
+
+
 def create_invitation_draft(pk, actor) -> CustomerApplication:
     """短いDBロックで作成権を取得し、外部通信後に結果だけを保存する。"""
+    backend = getattr(settings, 'CUSTOMER_APPLICATION_BACKEND', 'oauth')
+    if backend == 'gas':
+        from .customer_application_gas import queue_draft
+        return queue_draft(pk, actor)
+    if backend != 'oauth':
+        raise ApplicationError('申請連携方式の設定を確認してください。')
+    from .customer_application_gas_models import CustomerApplicationGASJob
+    _get_application(pk)  # 不正UUIDも従来どおり安全な業務エラーへ変換する。
+    if CustomerApplicationGASJob.objects.filter(application_id=pk).exists():
+        raise ApplicationError('GASで処理中の下書きを別方式で再作成できません。')
     attempt_id = uuid.uuid4()
     with transaction.atomic():
         application = _get_application(pk, lock=True)

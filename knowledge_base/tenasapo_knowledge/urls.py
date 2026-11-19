@@ -2,6 +2,7 @@ from django.urls import path
 from django.db import transaction
 from django.views.generic import RedirectView
 from . import customer_application_views as application_views
+from . import customer_application_gas_views as gas_views
 from .chat_schedule_settings import ChatScheduleSettingsView, ChatScheduleSendView
 from .drive_oauth_views import drive_oauth_callback, drive_oauth_connect, drive_oauth_disconnect
 from .terms import TermsAcceptanceView, TermsOfUseDetailView, TermsOfUseEditView
@@ -80,6 +81,10 @@ from .views import (
 )
 
 urlpatterns = [
+    path('api/customer-applications/gas/status/', gas_views.gas_status, name='customer_application_gas_status'),
+    path('api/customer-applications/gas/import/', gas_views.gas_import, name='customer_application_gas_import'),
+    path('api/customer-applications/gas/claim/', gas_views.gas_claim, name='customer_application_gas_claim'),
+    path('api/customer-applications/gas/ack/', gas_views.gas_ack, name='customer_application_gas_ack'),
     path('terms/', TermsOfUseDetailView.as_view(), name='terms_detail'),
     path('terms/edit/', TermsOfUseEditView.as_view(), name='terms_edit'),
     path('terms/<int:pk>/edit/', TermsOfUseEditView.as_view(), name='terms_edit'),

@@ -6,7 +6,7 @@
 
 ### ユーザー一覧・顧客申請・利用規約
 
-- [顧客申請の取込・招待下書きの設定](features/users/CUSTOMER_APPLICATION_SETUP.md)
+- [顧客申請の取込・招待下書きの設定（GAS発信型・固定承認者）](features/users/CUSTOMER_APPLICATION_SETUP.md) — GAS専用プロジェクト、署名通信、手動疎通確認から定期実行まで。Webアプリ公開・Cloud API有効化は不要です。
 - [利用規約のタイトル選択](features/users/TERMS_HEADER_TITLE.md)
 
 ### Knowledge・INPUT

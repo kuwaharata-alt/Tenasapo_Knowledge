@@ -39,7 +39,12 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 # 予約の保存だけでは送信しない。定期実行の --send と両方が必要。
 GOOGLE_CHAT_SCHEDULED_SEND_ENABLED = os.getenv('GOOGLE_CHAT_SCHEDULED_SEND_ENABLED', 'False') == 'True'
 
-# 顧客申請のOAuth callback・招待URL生成元。GASの公開設定・共有秘密は不要。
+# GAS発信型の顧客申請。未設定の共有秘密ではAPIを有効にしない。
+CUSTOMER_APPLICATION_BACKEND = os.getenv('CUSTOMER_APPLICATION_BACKEND', 'gas').strip()
+CUSTOMER_APPLICATION_GAS_SECRET = os.getenv('CUSTOMER_APPLICATION_GAS_SECRET', '')
+CUSTOMER_APPLICATION_GAS_ACTOR_ID = os.getenv('CUSTOMER_APPLICATION_GAS_ACTOR_ID', '').strip()
+CUSTOMER_APPLICATION_GAS_MAILBOX = os.getenv('CUSTOMER_APPLICATION_GAS_MAILBOX', '').strip()
+# 招待URL生成元（OAuth方式を明示選択した場合はcallbackにも使用）。
 CUSTOMER_APPLICATION_PUBLIC_URL = os.getenv('CUSTOMER_APPLICATION_PUBLIC_URL', '').strip()
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,172.16.21.22,testserver').split(',')
