@@ -113,7 +113,7 @@ function fixture() {
         return {getSheetId: () => gid, getLastRow: () => state.lastRow,
           getRange: (row, column, count, columns) => {
             assert.equal(column, 1); assert.equal(columns, 6); assert(count <= 200);
-            return {getDisplayValues: () => row === 1 ? [plain(context.NEXUS_BRIDGE_.headers)] : state.rows.slice(0, count)};
+            return {getDisplayValues: () => row === 1 ? [['タイムスタンプ', 'メールアドレス', '会社名', '部署名', '契約者氏名', '契約メールアドレス']] : state.rows.slice(0, count)};
           }};
       }};
     }},

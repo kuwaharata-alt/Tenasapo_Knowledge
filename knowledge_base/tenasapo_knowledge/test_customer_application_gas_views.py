@@ -41,7 +41,7 @@ class GasViewTests(TransactionTestCase):
     origin = 'https://nexus.example.test:8443'
     spreadsheet_id = '1JaWW0c_CE9W5_egLvoqrWcnwuIbb6QCERBRrQvAE5Pg'
     sheet_id = '1583871824'
-    headers = ['タイムスタンプ', 'メールアドレス', '会社名', '部署名', '契約者氏名', 'メールアドレス']
+    headers = ['タイムスタンプ', 'メールアドレス', '会社名', '部署名', '契約者氏名', '契約メールアドレス']
 
     def setUp(self):
         self.actor = get_user_model().objects.create_user(

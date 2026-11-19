@@ -52,7 +52,7 @@ SPREADSHEET_ID = '1JaWW0c_CE9W5_egLvoqrWcnwuIbb6QCERBRrQvAE5Pg'
 SHEET_ID = 1583871824
 SCOPES = ('openid', 'email', 'https://www.googleapis.com/auth/spreadsheets.readonly',
           'https://www.googleapis.com/auth/gmail.compose')
-HEADERS = ['タイムスタンプ', 'メールアドレス', '会社名', '部署名', '契約者氏名', 'メールアドレス']
+HEADERS = ['タイムスタンプ', 'メールアドレス', '会社名', '部署名', '契約者氏名', '契約メールアドレス']
 SESSION_KEY = 'customer_application_google_pending'
 ERROR = '顧客申請のGoogle連携を確認できません。設定を確認し、再連携してください。'
 SAFE_ERROR = '下書きの作成結果を確認できません。再作成せず、承認者のGmailを確認してください。'
