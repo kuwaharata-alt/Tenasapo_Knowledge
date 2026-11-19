@@ -20,7 +20,11 @@ local_settings.py
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
 client_secret_*.apps.googleusercontent.com.json
+/localhost.key
+/localhost.crt
 
 # IDE
 .vscode/
@@ -35,14 +39,29 @@ Thumbs.db
 
 # Database
 db.sqlite3
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 *.db
+/data.json
+/backups/
 
 # Logs
 sent_emails/
+/log/
+/logs/
+
+# Test / coverage output (keep all test source files tracked)
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
 
 # Azure
 .azure/
 .deployment
 
-# Local archive of retired one-off scripts (not deployed)
+# Local archive of retired scripts and historical backups (not deployed)
 /OLD/
