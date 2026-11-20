@@ -77,7 +77,7 @@ class LoginRequiredExceptAssetsMiddleware(LoginRequiredMiddleware):
                 return redirect('terms_accept')
 
             password_change_path = reverse('password_change')
-            if should_force_password_change(user) and not path.startswith(password_change_path):
+            if should_force_password_change(user, request=request) and not path.startswith(password_change_path):
                 return redirect(password_change_path)
 
         return super().process_view(request, view_func, view_args, view_kwargs)

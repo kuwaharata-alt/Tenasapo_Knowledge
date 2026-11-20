@@ -46,7 +46,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import os
 import sys
 from django.urls import reverse, reverse_lazy
-from django.utils.crypto import get_random_string
+from django.utils.crypto import get_random_string, salted_hmac
 from django.utils.encoding import force_bytes
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.http import urlsafe_base64_encode
@@ -175,7 +175,7 @@ class HomeRedirectLoginView(LoginView):
 
         if requires_terms_acceptance(self.request.user):
             return reverse_lazy('terms_accept')
-        if should_force_password_change(self.request.user):
+        if should_force_password_change(self.request.user, request=self.request):
             return reverse_lazy('password_change')
         if should_show_first_login_registration(self.request.user):
             return reverse_lazy('first_login_registration')
@@ -189,13 +189,15 @@ class InitialPasswordChangeView(auth_views.PasswordChangeView):
     success_url = '/'
 
     def get_form_class(self):
-        if should_force_password_change(self.request.user):
+        if should_force_password_change(self.request.user, request=self.request):
             return SetPasswordForm
         return PasswordChangeForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['is_initial_password_change'] = should_force_password_change(self.request.user)
+        context['is_initial_password_change'] = should_force_password_change(
+            self.request.user, request=self.request,
+        )
         return context
 
 
@@ -257,7 +259,22 @@ def should_show_login_lp(user):
     return not profile.skip_login_lp
 
 
-def should_force_password_change(user):
+INITIAL_PASSWORD_CHECK_SESSION_KEY = '_initial_password_check_v1'
+
+
+def _initial_password_fingerprint(user):
+    # Bind the decision to identity and current credentials without storing the
+    # database password hash (or the initial password) in the session.
+    value = json.dumps([str(user.pk), user.get_username(), user.password])
+    return salted_hmac('knowledge.initial-password-check.v1', value, algorithm='sha256').hexdigest()
+
+
+def should_force_password_change(user, *, request=None):
+    """Keep legacy enforcement; expensive verification runs once per session/state.
+
+    Password resets (including admin/allauth/CLI) and username changes invalidate
+    the decision automatically. No session means the original uncached check.
+    """
     if not user or not user.is_authenticated:
         return False
     if is_demo_user(user):
@@ -265,13 +282,26 @@ def should_force_password_change(user):
     login_id = (user.get_username() or '').strip()
     if not login_id or not user.has_usable_password():
         return False
-    if user.check_password(login_id):
-        return True
-    if '@' in login_id:
+    session = getattr(request, 'session', None)
+    if session is not None:
+        cached = session.get(INITIAL_PASSWORD_CHECK_SESSION_KEY)
+        if (isinstance(cached, dict)
+                and cached.get('fingerprint') == _initial_password_fingerprint(user)
+                and type(cached.get('required')) is bool):
+            return cached['required']
+
+    required = user.check_password(login_id)
+    if not required and '@' in login_id:
         local_part = login_id.split('@', 1)[0].strip()
-        if local_part and user.check_password(local_part):
-            return True
-    return False
+        if local_part:
+            required = user.check_password(local_part)
+    if session is not None:
+        # check_password may upgrade the stored hash; fingerprint AFTER checking.
+        session[INITIAL_PASSWORD_CHECK_SESSION_KEY] = {
+            'fingerprint': _initial_password_fingerprint(user),
+            'required': required,
+        }
+    return required
 
 
 def is_demo_account_expired(user):
